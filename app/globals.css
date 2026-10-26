@@ -19,3 +19,8 @@ body {
   background-image: radial-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px);
   background-size: 22px 22px;
 }
+
+.hero-logo {
+  mix-blend-mode: screen;
+  mask-image: radial-gradient(circle, black 55%, transparent 72%);
+}

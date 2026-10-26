@@ -1,9 +1,17 @@
 import { Folder } from "lucide-react";
+import { ScrollVideo } from "./components/ScrollVideo";
 import { Prompt } from "./components/Prompt";
 
 export default function Home() {
   return (
     <div className="relative mx-auto max-w-[1000px] px-4 py-4">
+      {/* Logos Android et Apple de chaque côté du titre (grands écrans uniquement). */}
+      <div aria-hidden className="pointer-events-none absolute -inset-x-48 top-24 hidden justify-between min-[1400px]:flex">
+        <video className="hero-logo h-56 w-56 -rotate-6" src="/videos/android.webm" autoPlay muted loop playsInline />
+        {/* Démarre une demi-boucle plus tard pour ne jamais tourner en même temps. */}
+        <video className="hero-logo h-56 w-56 rotate-6" src="/videos/apple.webm#t=7.5" autoPlay muted loop playsInline />
+      </div>
+
       <section className="relative pb-10 pt-[70px] text-center sm:pt-[140px]">
 
         <p className="mb-9 text-base text-muted">
@@ -25,6 +33,9 @@ export default function Home() {
           Import from a React Native project
         </a>
       </section>
+
+      {/* Téléphone en verre piloté par le scroll, juste sous le lien d'import. */}
+      <ScrollVideo src="/videos/phone.webm" className="max-h-[80vh] w-auto" />
     </div>
   );
 }
