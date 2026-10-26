@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@xyflow/react": "^12",
+    "clsx": "^2.1.1",
     "lucide-react": "latest",
     "motion": "latest",
     "next": "16.4.3",

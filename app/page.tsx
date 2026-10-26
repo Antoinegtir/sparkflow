@@ -1,41 +1,88 @@
-import { Folder } from "lucide-react";
+import { Composer } from "./components/Composer";
+import { DotLens } from "./components/DotLens";
+import { MetaLogo } from "./components/MetaLogo";
 import { ScrollVideo } from "./components/ScrollVideo";
-import { Prompt } from "./components/Prompt";
+import { HowItWorks } from "./components/HowItWorks";
+import { ReactLogo } from "./components/ReactLogo";
+import { ImportNative } from "./components/ImportNative";
+import { ProjectGrid } from "./components/ProjectGrid";
+import { Logo } from "./components/Logo";
 
 export default function Home() {
+  // Pas encore de backend : valeurs affichées dans la barre du haut.
+  const info = { model: "mock", sandbox: "local", llm: "mock" };
   return (
-    <div className="relative mx-auto max-w-[1000px] px-4 py-4">
-      {/* Logos Android et Apple de chaque côté du titre (grands écrans uniquement). */}
-      <div aria-hidden className="pointer-events-none absolute -inset-x-48 top-24 hidden justify-between min-[1400px]:flex">
+    // Landing look: Aurora colors (globals.css [data-landing]), Bricolage Grotesque + Geist.
+    <main
+      data-landing="aurora"
+      className="relative min-h-screen overflow-x-clip bg-ink-950 font-sans"
+      style={{ "--font-sans": "var(--font-geist)", "--font-mono": "var(--font-geist-mono)", "--landing-head": "var(--font-bricolage)" } as React.CSSProperties}>
+      <div className="pointer-events-none absolute inset-x-0 top-[-20%] h-[70vh] bg-[radial-gradient(ellipse_at_center,var(--landing-glow,rgba(124,58,237,.22)),transparent_65%)]" />
+      {/* Flat dot grid, faded toward the bottom and hollowed out under the magnifier (DotLens). */}
+      <div
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(var(--dot)_1px,transparent_1px)] [background-size:22px_22px]"
+        style={{
+          maskImage:
+            "radial-gradient(ellipse at top, black, transparent 70%), radial-gradient(circle var(--lr, 0px) at var(--lx, -999px) var(--ly, -999px), transparent 98%, black 100%)",
+          maskComposite: "intersect",
+          WebkitMaskComposite: "source-in",
+        }}
+      />
+      <DotLens />
+
+      {/* Floating app bar: translucent and blurred over the page as it scrolls. */}
+      <header className="fixed inset-x-0 top-3 z-40 mx-auto flex w-[min(760px,calc(100%-32px))] items-center justify-between rounded-xl border border-white/10 bg-ink-950/55 py-2 pl-3 pr-2 shadow-[0_10px_40px_-12px_rgba(0,0,0,.6)] backdrop-blur-xl backdrop-saturate-150">
+        <Logo />
+        <div className="flex items-center gap-1 text-[13px] text-ink-400">
+          <span className="hidden whitespace-nowrap px-2.5 font-mono text-[11px] sm:inline">{info.model}</span>
+          <span className="hidden whitespace-nowrap px-2.5 font-mono text-[11px] sm:inline">{info.sandbox} sandbox</span>
+        </div>
+      </header>
+      <div className="h-16" />
+
+      {/* Android and Apple glass logos on each side of the headline (wide screens only). */}
+      <div aria-hidden className="pointer-events-none absolute inset-x-0 top-24 mx-auto hidden max-w-6xl justify-between px-2 lg:flex">
         <video className="hero-logo h-56 w-56 -rotate-6" src="/videos/android.webm" autoPlay muted loop playsInline />
-        {/* Démarre une demi-boucle plus tard pour ne jamais tourner en même temps. */}
+        {/* Starts half a turn later (#t=): both loops last 15 s, so they never spin in sync. */}
         <video className="hero-logo h-56 w-56 rotate-6" src="/videos/apple.webm#t=7.5" autoPlay muted loop playsInline />
       </div>
 
-      <section className="relative pb-10 pt-[70px] text-center sm:pt-[140px]">
-
-        <p className="mb-9 text-base text-muted">
-          Built on <b className="font-medium text-fg">Muse Spark</b>, <b className="font-medium text-fg">Muse Image</b> and{" "}
-          <b className="font-medium text-fg">SAM 3.1</b> by <span className="font-bold text-[#2d7dff]">∞</span>{" "}
-          <b className="font-medium text-fg">Meta</b>
+      <section className="relative mx-auto flex max-w-3xl flex-col items-center px-6 pb-4 pt-16 text-center sm:pt-24">
+        <p className="mb-6 text-[13px] tracking-wide text-ink-400">
+          Built on <span className="text-ink-200">Muse Spark</span>, <span className="text-ink-200">Muse Image</span> and{" "}
+          <span className="text-ink-200">SAM 3.1</span> by{" "}
+          <span className="inline-flex items-baseline gap-1 text-ink-200">
+            <MetaLogo className="h-[1.15em] w-[1.15em] translate-y-[0.22em]" />
+            Meta
+          </span>
         </p>
-        <h1 className="text-[clamp(44px,7vw,78px)] font-bold leading-[1.04] tracking-[-0.03em]">
-          Mobile apps that <span className="block bg-gradient-to-r from-[#0a84ff] via-[#5e5ce6] to-[#bf5af2] bg-clip-text text-transparent">look at themselves.</span>
+        <h1 className="landing-head text-balance text-4xl font-semibold tracking-tight text-ink-100 sm:text-6xl">
+          Mobile apps that <span className="text-spark-500">look at themselves.</span>
         </h1>
-        <p className="mx-auto mb-14 mt-8 max-w-[600px] text-lg leading-[1.7] text-[#c7cdd6] sm:text-[22px]">
-          Describe an app, drop a sketch or just talk. Sparkflow plans it, builds it in React Native, screenshots every screen and fixes what doesn&apos;t match until it does.
+        <p className="mt-5 max-w-xl text-balance text-base text-ink-300 sm:text-lg">
+          Describe an app, drop a sketch or just talk. Sparkflow plans it, builds it in{" "}
+          <span className="inline-flex items-baseline gap-1.5 whitespace-nowrap font-medium text-[#61dafb]">
+            <ReactLogo className="h-[1.05em] w-[1.05em] translate-y-[0.18em] animate-[spin_12s_linear_infinite]" />
+            React Native
+          </span>
+          , screenshots every screen and fixes what doesn&apos;t match until it does.
         </p>
-
-        <Prompt />
-
-        <a className="mx-auto mt-10 flex w-fit cursor-pointer items-center justify-center gap-2.5 border-b-2 border-[#3a4250] px-8 pb-3.5 text-[15px] text-muted hover:text-fg">
-          <Folder size={18} className="fill-[#4ea3ff] text-[#4ea3ff]" />
-          Import from a React Native project
-        </a>
+        <div className="mt-10 w-full">
+          <Composer />
+          <ImportNative />
+        </div>
       </section>
 
-      {/* Téléphone en verre piloté par le scroll, juste sous le lien d'import. */}
-      <ScrollVideo src="/videos/phone.webm" className="max-h-[80vh] w-auto" />
-    </div>
+      {/* Scroll-scrubbed glass phone, right under the import link. */}
+      <ScrollVideo src="/videos/phone.webm">
+        <HowItWorks />
+      </ScrollVideo>
+      <ProjectGrid />
+      {info.llm === "mock" && (
+        <p className="relative mx-auto mb-12 max-w-lg px-6 text-center text-xs text-warn/90">
+          Demo mode: no <code className="font-mono">MODEL_API_KEY</code> set, so a scripted agent builds a sample habit tracker. Add your Meta Model API key to <code className="font-mono">.env</code> to use Muse Spark.
+        </p>
+      )}
+    </main>
   );
 }
