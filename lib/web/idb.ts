@@ -114,12 +114,30 @@ type HidEvent = Record<string, unknown>;
 
 /** Sends HID events on one client stream and ends it. */
 export async function sendHid(udid: string, events: HidEvent[]) {
-  const c = await companion(udid);
-  await new Promise<void>((resolve, reject) => {
-    const call = c.client.hid((err: Error | null) => (err ? reject(err) : resolve()));
-    for (const e of events) call.write(e);
-    call.end();
-  });
+  const send = async () => {
+    const c = await companion(udid);
+    // The events' own delays plus a margin: a wedged companion must fail, not hang.
+    const ms = 5000 + events.reduce((n, e) => n + (((e.delay as { duration?: number } | undefined)?.duration ?? 0) * 1000), 0);
+    await new Promise<void>((resolve, reject) => {
+      const call = c.client.hid({ deadline: Date.now() + ms }, (err: Error | null) => (err ? reject(err) : resolve()));
+      for (const e of events) call.write(e);
+      call.end();
+    });
+  };
+  try {
+    await send();
+  } catch {
+    // Start a fresh companion and try once more.
+    await restartCompanion(udid);
+    await send();
+  }
+}
+
+/** Kills this simulator's companion; the next call starts a new one. */
+export async function restartCompanion(udid: string) {
+  const p = companions.get(udid);
+  companions.delete(udid);
+  await p?.then((c) => c.proc.kill("SIGKILL")).catch(() => {});
 }
 
 export const touch = (x: number, y: number, direction: "DOWN" | "UP"): HidEvent => ({ press: { action: { touch: { point: { x, y } } }, direction } });

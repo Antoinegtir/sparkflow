@@ -6,10 +6,16 @@ const gestures = (g.__sparkflowGestures ??= new Map());
 
 const WATCHDOG_MS = 5000;
 
-function arm(id: string, ges: Gesture) {
+function arm(key: string, ges: Gesture) {
   clearTimeout(ges.watchdog);
-  // If the client vanishes mid-gesture, lift the finger.
-  ges.watchdog = setTimeout(() => void gesture(id, "up", ges.last.x, ges.last.y).catch(() => {}), WATCHDOG_MS);
+  // If the client vanishes mid-gesture (its lift lost on the way), lift the finger: a finger left
+  // down holds the screen and no other touch gets through.
+  ges.watchdog = setTimeout(() => {
+    if (gestures.get(key) !== ges) return;
+    ges.stream.write(touch(ges.last.x, ges.last.y, "UP"));
+    ges.stream.end();
+    gestures.delete(key);
+  }, WATCHDOG_MS);
 }
 
 /**
