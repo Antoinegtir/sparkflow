@@ -182,10 +182,10 @@ export class Orchestrator {
 
   async createProject(req: CreateProjectRequest): Promise<ProjectMeta> {
     const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
-    const words = req.prompt.trim().split(/\s+/).filter(Boolean).slice(0, 5).join(" ");
     const meta: ProjectMeta = {
       id,
-      name: words || (req.image ? "Sketch app" : "Voice app"),
+      // The Planner names the app; until then, a neutral name rather than the start of the prompt.
+      name: "New app",
       prompt: req.prompt,
       createdAt: Date.now(),
       inputs: { image: !!req.image, audio: !!req.audio },
