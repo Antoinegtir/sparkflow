@@ -200,12 +200,16 @@ function Flow(p: Props) {
       return { id: `frame:${g.root}`, members: g.members, x, y, data: { title, count: g.members.length, width, height } };
     });
 
+  // Sizes React Flow measured, handed back with every node: without them it hides the nodes to
+  // measure them again, which made the canvas blink while dragging.
+  const sizes = useRef(new Map<string, { width: number; height: number }>());
   const nodes: Node[] = [
-    ...frames.map((f) => ({ id: f.id, type: "frame", position: { x: f.x, y: f.y }, data: f.data, zIndex: 0, selectable: false, dragHandle: ".frame-handle", style: { pointerEvents: "none" as const } })),
+    ...frames.map((f) => ({ id: f.id, type: "frame", measured: { width: f.data.width, height: f.data.height }, position: { x: f.x, y: f.y }, data: f.data, zIndex: 0, selectable: false, dragHandle: ".frame-handle", style: { pointerEvents: "none" as const } })),
     ...p.screens.map((s) => ({
       id: s.route,
       type: "phone",
       position: posOf(s.route),
+      measured: sizes.current.get(s.route),
       zIndex: 1,
       data: { screen: s, hidden: p.hiddenRoute === s.route, scanning: p.scanning.has(s.route), ipad: p.ipad, native: p.native, dark: p.dark, device: p.device, onOpen: open } satisfies PhoneData,
     })),
@@ -216,6 +220,7 @@ function Flow(p: Props) {
     let next: Record<string, Pos> | null = null;
     let end = false;
     for (const c of changes) {
+      if (c.type === "dimensions" && c.dimensions) sizes.current.set(c.id, c.dimensions);
       if (c.type !== "position" || !c.position) {
         if (c.type === "position" && c.dragging === false) end = true;
         continue;
