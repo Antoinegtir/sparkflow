@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { applyEvent, type ProjectState, type PromptRequest, type StoredEvent } from "../shared";
-import { getBackend } from "./backend";
+import { getBackend, isDirect } from "./backend";
 
 async function post(url: string, body?: unknown, method = "POST") {
   const res = await fetch(url, { method, headers: { "content-type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
@@ -37,7 +37,8 @@ export function useProject(id: string) {
       if (!res.ok) return setError(json.error ?? "Project not found");
       setState(json);
       // Through the tunnel (hosted site) a streamed body doesn't get through: poll every second.
-      if (getBackend()) {
+      // Straight to this computer's `sparkflow`, the live stream works.
+      if (getBackend() && !isDirect()) {
         let since: number = json.lastSeq;
         const poll = async () => {
           if (cancelled) return;

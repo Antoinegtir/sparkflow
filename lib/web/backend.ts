@@ -38,8 +38,36 @@ function fromUrl(): Backend | null {
 export function getBackend(): Backend | null {
   const linked = fromUrl();
   if (linked) setBackend(linked);
-  return linked ?? read();
+  const b = linked ?? read();
+  // Same computer: straight to `sparkflow` instead of a round trip through Cloudflare.
+  return b && direct ? { ...b, url: LOCAL_URL } : b;
 }
+
+/** Where `sparkflow` serves on this computer (see remote.mjs). */
+export const LOCAL_URL = "http://localhost:3002";
+let direct = false;
+
+/** True when the server calls go straight to `sparkflow` on this computer, not through the tunnel. */
+export const isDirect = () => direct;
+
+/**
+ * On the hosted site, opened in a browser on the computer that runs `sparkflow`: reach it at
+ * localhost (no bandwidth limit, less latency) rather than through the tunnel, which stays the
+ * way in from any other device. /api/connect only answers on that computer and hands out the
+ * tunnel link, so the saved link also follows a restarted `sparkflow`. The address bar doesn't change.
+ */
+export const backendReady: Promise<void> =
+  STATIC_SITE && typeof window !== "undefined"
+    ? fetch(`${LOCAL_URL}/api/connect`, { cache: "no-store", signal: AbortSignal.timeout(1500) })
+        .then((r) => (r.ok ? (r.json() as Promise<Partial<Backend>>) : null))
+        .then((link) => {
+          if (!link?.url || !link.token) return;
+          if (read()?.url !== link.url || read()?.token !== link.token) setBackend({ url: link.url.replace(/\/+$/, ""), token: link.token });
+          direct = true;
+          dispatchEvent(new CustomEvent(BACKEND_EVENT));
+        })
+        .catch(() => {})
+    : Promise.resolve();
 
 export function setBackend(b: Backend | null) {
   try {

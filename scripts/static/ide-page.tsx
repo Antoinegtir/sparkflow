@@ -7,7 +7,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ConnectOnboarding } from "@/app/components/ConnectOnboarding";
 import { IDE } from "@/app/components/ide/IDE";
 import type { ProjectSummary } from "@/lib/shared";
-import { getBackend } from "@/lib/web/backend";
+import { backendReady, getBackend } from "@/lib/web/backend";
 
 type Found = { id: string; slug: string; page: string[] };
 type State = { kind: "loading" } | { kind: "offline" } | { kind: "missing" } | { kind: "found"; found: Found };
@@ -35,7 +35,8 @@ export default function IdeShell() {
       .catch(() => setState({ kind: "offline" }));
   }, []);
 
-  useEffect(open, [open]);
+  // Once we know whether `sparkflow` runs on this computer (then reached directly).
+  useEffect(() => void backendReady.then(open), [open]);
 
   if (state.kind === "found") return <IDE id={state.found.id} slug={state.found.slug} initialPage={state.found.page} />;
   if (state.kind === "offline") return <ConnectOnboarding />;
