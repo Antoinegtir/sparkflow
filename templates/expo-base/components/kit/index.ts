@@ -6,6 +6,7 @@ export { Card } from "./Card";
 export { Divider } from "./Divider";
 export { EmptyState } from "./EmptyState";
 export { Fab } from "./Fab";
+export { Glass, GlassFill, liquidGlass } from "./Glass";
 export { Header } from "./Header";
 export { Icon, type IconName } from "./Icon";
 export { IconButton } from "./IconButton";
