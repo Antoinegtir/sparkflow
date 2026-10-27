@@ -441,6 +441,7 @@ export function IDE({ id, slug: initialSlug, initialPage }: { id: string; slug: 
         </div>
         <main className="relative min-h-0 overflow-hidden">
           <Canvas
+            projectId={id}
             screens={screens}
             edges={state.edges}
             hiddenRoute={focused && !closing ? focused : null}

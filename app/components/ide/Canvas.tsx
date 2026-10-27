@@ -15,13 +15,14 @@ import {
   useReactFlow,
   type Edge,
   type Node,
+  type NodeChange,
   type NodeProps,
 } from "@xyflow/react";
 import clsx from "clsx";
 import { Sparkles } from "lucide-react";
-import { memo, useEffect, useMemo, useRef } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { NavEdge, ScreenState } from "@/lib/shared";
-import { edgeSides, layoutScreens, NODE_W, PHONE_H, PHONE_W } from "@/lib/web/layout";
+import { edgeSides, FRAME_HEAD, FRAME_PAD, layoutGroups, NODE_H, NODE_W, pageGroups, PHONE_H, PHONE_W } from "@/lib/web/layout";
 import { CupertinoSpinner, deviceById, DeviceMockup, PhoneFrame, StatusPill } from "./ui";
 
 export type PhoneData = { screen: ScreenState; hidden: boolean; scanning: boolean; ipad: boolean; native: boolean; dark: boolean; device?: string; onOpen: (route: string) => void };
@@ -52,7 +53,7 @@ export const PhoneNode = memo(function PhoneNode({ data }: NodeProps<Node<PhoneD
       <div className="w-full truncate text-center text-[13px] font-medium text-ink-100">
         {s.title} <span className="font-mono text-[10.5px] text-ink-500">{s.previewPath} · v{s.version}</span>
       </div>
-      <button onClick={() => data.onOpen(s.route)} className={clsx("nodrag cursor-zoom-in transition hover:-translate-y-1", data.hidden && "invisible")} aria-label={`Open ${s.title}`}>
+      <button onClick={() => data.onOpen(s.route)} className={clsx("cursor-zoom-in transition hover:-translate-y-1", data.hidden && "invisible")} aria-label={`Open ${s.title}`}>
         {data.native ? (
           <PhoneFrame width={PHONE_W} height={h} radius={data.ipad ? PHONE_W * 0.03 : PHONE_W * 0.137} bezel={Math.max(5, PHONE_W * 0.025)} hardware ipad={data.ipad} glow={busy ? "spark" : s.status === "failed" ? "bad" : null}>
             <ScreenContent screen={s} scanning={data.scanning} />
@@ -117,11 +118,28 @@ export function ScreenContent({ screen, scanning, light }: { screen: ScreenState
   );
 }
 
-const nodeTypes = { phone: PhoneNode };
+type FrameData = { title: string; count: number; width: number; height: number };
+
+/** A category's frame behind its pages; drag it by its title to move the whole group. */
+const FrameNode = memo(function FrameNode({ data }: NodeProps<Node<FrameData>>) {
+  return (
+    <div className="rounded-3xl border border-white/[0.07] bg-white/[0.018]" style={{ width: data.width, height: data.height }}>
+      {/* Only the title takes the mouse: the rest of the frame lets the canvas pan. */}
+      <div className="frame-handle pointer-events-auto flex w-fit cursor-grab items-center gap-2 px-5 active:cursor-grabbing" style={{ height: FRAME_HEAD + 14 }}>
+        <span className="text-[13px] font-semibold text-ink-200">{data.title}</span>
+        <span className="rounded-full bg-white/[0.06] px-1.5 text-[11px] text-ink-500">{data.count}</span>
+      </div>
+    </div>
+  );
+});
+
+const nodeTypes = { phone: PhoneNode, frame: FrameNode };
 // Bottom padding keeps the pages clear of the floating prompt bar.
 const FIT = { padding: { top: "36px", left: "48px", right: "48px", bottom: "180px" }, maxZoom: 1 } as const;
 
 type Props = {
+  /** Where the pages' positions are kept (per project, in this browser). */
+  projectId: string;
   screens: ScreenState[];
   edges: NavEdge[];
   hiddenRoute: string | null;
@@ -138,20 +156,92 @@ type Props = {
   onUnlink: (from: string, to: string) => void;
 };
 
+type Pos = { x: number; y: number };
+const posKey = (id: string) => `sparkflow.canvas.${id}`;
+
 function Flow(p: Props) {
-  const positions = useRef(new Map<string, { x: number; y: number }>());
-  const layout = useMemo(() => layoutScreens(p.screens.map((s) => s.route), p.edges), [p.screens, p.edges]);
-  const nodes: Node<PhoneData>[] = p.screens.map((s) => ({
-    id: s.route,
-    type: "phone",
-    position: positions.current.get(s.route) ?? layout.get(s.route) ?? { x: 0, y: 0 },
-    data: { screen: s, hidden: p.hiddenRoute === s.route, scanning: p.scanning.has(s.route), ipad: p.ipad, native: p.native, dark: p.dark, device: p.device, onOpen: p.onOpen },
-  }));
+  const routes = useMemo(() => p.screens.map((s) => s.route), [p.screens]);
+  const groups = useMemo(() => pageGroups(routes, p.edges, p.native), [routes, p.edges, p.native]);
+  const layout = useMemo(() => layoutGroups(groups), [groups]);
+  // Pages the user moved, kept per project; the others follow the automatic layout.
+  const [moved, setMoved] = useState<Record<string, Pos>>({});
+  useEffect(() => {
+    try {
+      setMoved(JSON.parse(localStorage.getItem(posKey(p.projectId)) ?? "{}"));
+    } catch {
+      setMoved({});
+    }
+  }, [p.projectId]);
+  const persist = useCallback(
+    (next: Record<string, Pos>) => {
+      try {
+        localStorage.setItem(posKey(p.projectId), JSON.stringify(next));
+      } catch {}
+    },
+    [p.projectId],
+  );
+  // A page let go after a drag isn't opened by the click that ends it.
+  const lastDrag = useRef(0);
+  const open = useCallback((r: string) => Date.now() - lastDrag.current > 250 && p.onOpen(r), [p]);
+
+  const posOf = (r: string): Pos => moved[r] ?? layout.get(r) ?? { x: 0, y: 0 };
+  const nodeH = p.ipad ? Math.round(PHONE_W * 1.33) + 80 : NODE_H;
+
+  // Each category's frame wraps its pages where they are now.
+  const frames = groups
+    .filter((g) => !p.native || g.members.length > 1)
+    .map((g) => {
+      const ps = g.members.map(posOf);
+      const x = Math.min(...ps.map((q) => q.x)) - FRAME_PAD;
+      const y = Math.min(...ps.map((q) => q.y)) - FRAME_PAD - FRAME_HEAD;
+      const width = Math.max(...ps.map((q) => q.x)) + NODE_W + FRAME_PAD - x;
+      const height = Math.max(...ps.map((q) => q.y)) + nodeH + FRAME_PAD - y;
+      const title = p.screens.find((s) => s.route === g.root)?.title ?? g.root;
+      return { id: `frame:${g.root}`, members: g.members, x, y, data: { title, count: g.members.length, width, height } };
+    });
+
+  const nodes: Node[] = [
+    ...frames.map((f) => ({ id: f.id, type: "frame", position: { x: f.x, y: f.y }, data: f.data, zIndex: 0, selectable: false, dragHandle: ".frame-handle", style: { pointerEvents: "none" as const } })),
+    ...p.screens.map((s) => ({
+      id: s.route,
+      type: "phone",
+      position: posOf(s.route),
+      zIndex: 1,
+      data: { screen: s, hidden: p.hiddenRoute === s.route, scanning: p.scanning.has(s.route), ipad: p.ipad, native: p.native, dark: p.dark, device: p.device, onOpen: open } satisfies PhoneData,
+    })),
+  ];
+
+  const onNodesChange = (changes: NodeChange[]) => {
+    if (changes.some((c) => c.type === "position")) lastDrag.current = Date.now();
+    let next: Record<string, Pos> | null = null;
+    let end = false;
+    for (const c of changes) {
+      if (c.type !== "position" || !c.position) {
+        if (c.type === "position" && c.dragging === false) end = true;
+        continue;
+      }
+      next ??= { ...moved };
+      const frame = frames.find((f) => f.id === c.id);
+      if (frame) {
+        // Moving a frame moves all its pages by the same amount.
+        const dx = c.position.x - frame.x;
+        const dy = c.position.y - frame.y;
+        for (const m of frame.members) {
+          const q = posOf(m);
+          next[m] = { x: q.x + dx, y: q.y + dy };
+        }
+      } else next[c.id] = c.position;
+      if (c.dragging === false) end = true;
+    }
+    if (next) setMoved(next);
+    if (end) persist(next ?? moved);
+  };
+
   const busy = new Set(p.screens.filter((s) => s.status === "building" || s.status === "verifying").map((s) => s.route));
   const edges: Edge[] = p.edges
     .filter((e) => layout.has(e.from) && layout.has(e.to))
     .map((e) => {
-      const [a, b] = edgeSides(layout.get(e.from)!, layout.get(e.to)!);
+      const [a, b] = edgeSides(posOf(e.from), posOf(e.to));
       return {
         id: `${e.from}→${e.to}`,
         source: e.from,
@@ -198,7 +288,7 @@ function Flow(p: Props) {
       nodeTypes={nodeTypes}
       fitView
       fitViewOptions={FIT}
-      onNodeDragStop={(_, n) => positions.current.set(n.id, n.position)}
+      onNodesChange={onNodesChange}
       nodesConnectable={p.canLink && !p.dimmed}
       connectionMode={ConnectionMode.Loose}
       connectionRadius={90}

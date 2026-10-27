@@ -56,3 +56,59 @@ export function edgeSides(a: { x: number; y: number }, b: { x: number; y: number
   if (Math.abs(b.y - a.y) > NODE_H / 2) return b.y > a.y ? (["bottom", "top"] as const) : (["top", "bottom"] as const);
   return b.x > a.x ? (["right", "left"] as const) : (["left", "right"] as const);
 }
+
+/**
+ * Page categories, as in the explorer: each top page (first page, tab, or a page nothing links to)
+ * with the pages first reached from it. Native projects group by the first path segment.
+ */
+export function pageGroups(order: string[], edges: NavEdge[], native: boolean) {
+  const parent = new Map<string, string>();
+  for (const [i, r] of order.entries()) {
+    if (native) {
+      const seg = r.split("/").filter(Boolean);
+      if (seg.length > 1 && order.includes("/" + seg[0])) parent.set(r, "/" + seg[0]);
+    } else if (i > 0 && !r.includes("/(")) {
+      const inc = edges.find((e) => e.to === r && order.includes(e.from) && e.from !== r);
+      if (inc) parent.set(r, inc.from);
+    }
+  }
+  const rootOf = (r: string) => {
+    const seen = new Set<string>();
+    while (parent.has(r) && !seen.has(r)) {
+      seen.add(r);
+      r = parent.get(r)!;
+    }
+    return r;
+  };
+  const groups = new Map<string, string[]>();
+  for (const r of order) {
+    const root = rootOf(r);
+    groups.set(root, [...(groups.get(root) ?? []), r]);
+  }
+  // The root first, then the others in plan order.
+  return [...groups].map(([root, members]) => ({ root, members: [root, ...members.filter((m) => m !== root)] }));
+}
+
+export const FRAME_PAD = 28;
+export const FRAME_HEAD = 30;
+const FRAME_GAP = 90;
+
+/** One column per category: its top page, then its sub-pages two by two underneath. */
+export function layoutGroups(groups: { members: string[] }[]) {
+  const pos = new Map<string, { x: number; y: number }>();
+  let x = 0;
+  for (const g of groups) {
+    const cols = g.members.length > 2 ? 2 : 1;
+    const width = cols * NODE_W + (cols - 1) * GAP_X;
+    const [root, ...rest] = g.members;
+    pos.set(root, { x: x + (width - NODE_W) / 2, y: 0 });
+    rest.forEach((r, i) => {
+      const row = Math.floor(i / cols) + 1;
+      const inRow = Math.min(cols, rest.length - (row - 1) * cols);
+      const rowW = inRow * NODE_W + (inRow - 1) * GAP_X;
+      pos.set(r, { x: x + (width - rowW) / 2 + (i % cols) * (NODE_W + GAP_X), y: row * (NODE_H + GAP_Y / 2) });
+    });
+    x += width + FRAME_PAD * 2 + FRAME_GAP;
+  }
+  return pos;
+}
