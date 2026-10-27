@@ -6,13 +6,12 @@ import { HowItWorks } from "./components/HowItWorks";
 import { ReactLogo } from "./components/ReactLogo";
 import { ImportNative } from "./components/ImportNative";
 import { ProjectGrid } from "./components/ProjectGrid";
+import { DemoNotice } from "./components/DemoNotice";
 import { Logo } from "./components/Logo";
 import { SignIn } from "./components/SignIn";
 import { StartBuilding } from "./components/StartBuilding";
 
 export default function Home() {
-  // Pas encore de backend : valeurs affichées dans la barre du haut.
-  const info = { model: "mock", sandbox: "local", llm: "mock" };
   return (
     // Landing look: Aurora colors (globals.css [data-landing]), Bricolage Grotesque + Geist.
     <main
@@ -93,11 +92,7 @@ export default function Home() {
       <div id="apps" className="scroll-mt-20">
         <ProjectGrid />
       </div>
-      {info.llm === "mock" && (
-        <p className="relative mx-auto mb-12 max-w-lg px-6 text-center text-xs text-warn/90">
-          Demo mode: no <code className="font-mono">MODEL_API_KEY</code> set, so a scripted agent builds a sample habit tracker. Add your Meta Model API key to <code className="font-mono">.env</code> to use Muse Spark.
-        </p>
-      )}
+      <DemoNotice />
       <footer className="relative mx-auto max-w-5xl border-t border-ink-800 px-6 pb-10 pt-6">
         <div className="flex flex-col items-center justify-between gap-3 text-[12.5px] text-ink-400 sm:flex-row">
           <span className="flex items-center gap-2">

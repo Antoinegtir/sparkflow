@@ -12,6 +12,8 @@ set -euo pipefail
 HOME_DIR="${SPARKFLOW_HOME:-$HOME/.sparkflow}"
 APP="$HOME_DIR/current"
 SITE="${SPARKFLOW_SITE:-https://sparkflow-ai.web.app}"
+# Node and cloudflared the installer downloaded when they were missing.
+export PATH="$HOME_DIR/tools/bin:$HOME_DIR/tools/node/bin:$PATH"
 
 bold() { printf '\033[1m%s\033[0m\n' "$*"; }
 ok() { printf '  \033[32m✓\033[0m %s\n' "$*"; }

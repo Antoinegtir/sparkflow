@@ -20,7 +20,7 @@ The site is hosted on Firebase Hosting (https://sparkflow-ai.web.app); the build
 curl -fsSL https://sparkflow-ai.web.app/install.sh | bash
 ```
 
-The installer checks Node 20+, git, the Xcode command line tools (full Xcode for the iOS Simulator view), cloudflared and watchman, downloads the latest GitHub release (checksum verified) into `~/.sparkflow` and adds a `sparkflow` command:
+The installer checks the Xcode command line tools (full Xcode for the iOS Simulator view) and git, installs what's missing among Node 20+, cloudflared and watchman (with Homebrew, or the official builds in `~/.sparkflow/tools`, no sudo), downloads the latest GitHub release (checksum verified) into `~/.sparkflow` and adds a `sparkflow` command:
 
 - `sparkflow`: starts the server, opens a Cloudflare quick tunnel and opens the hosted site connected to it (one-time token in the link).
 - `sparkflow doctor`, `sparkflow update [vX.Y.Z]`, `sparkflow version`, `sparkflow uninstall [--all]`.

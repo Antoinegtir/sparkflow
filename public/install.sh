@@ -47,26 +47,77 @@ if [ "$OS" = "Darwin" ]; then
   fi
 fi
 
-if has node; then
-  NODE_MAJOR="$(node -p 'process.versions.node.split(".")[0]')"
-  [ "$NODE_MAJOR" -ge 20 ] || die "Node $(node -v) is too old: Sparkflow needs 20+ (brew install node)"
+# Missing tools are installed for you, without sudo: with Homebrew when it's there, otherwise the
+# official builds go to ~/.sparkflow/tools (the sparkflow command puts it on its PATH).
+TOOLS="$HOME_DIR/tools"
+mkdir -p "$TOOLS/bin"
+export PATH="$TOOLS/bin:$TOOLS/node/bin:$PATH"
+ARCH="$(uname -m)"
+case "$ARCH" in arm64 | aarch64) NARCH=arm64 ;; x86_64 | amd64) NARCH=x64 ;; *) die "Unsupported processor: $ARCH" ;; esac
+PLATFORM="$(echo "$OS" | tr '[:upper:]' '[:lower:]')"
+
+node_ok() { has node && [ "$(node -p 'process.versions.node.split(".")[0]')" -ge 20 ]; }
+
+install_node() {
+  if has brew; then
+    brew install node >/dev/null 2>&1 && return
+  fi
+  # Latest Node 22 LTS from nodejs.org, checked against its published SHA-256.
+  local base="https://nodejs.org/dist/latest-v22.x" line file
+  line="$(curl -fsSL "$base/SHASUMS256.txt" | grep " node-v.*-$PLATFORM-$NARCH.tar.gz$")" || die "Couldn't find a Node build for $PLATFORM-$NARCH"
+  file="${line##* }"
+  curl -fL --progress-bar "$base/$file" -o "$TMP_TOOLS/$file" || die "Couldn't download Node"
+  (cd "$TMP_TOOLS" && echo "$line" | shasum -a 256 -c - >/dev/null) || die "Node download is corrupted"
+  rm -rf "$TOOLS/node" && mkdir -p "$TOOLS/node"
+  tar -xzf "$TMP_TOOLS/$file" -C "$TOOLS/node" --strip-components 1
+}
+
+install_cloudflared() {
+  if has brew; then
+    brew install cloudflared >/dev/null 2>&1 && return
+  fi
+  local arch=$([ "$NARCH" = x64 ] && echo amd64 || echo arm64)
+  local url="https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-$PLATFORM-$arch"
+  if [ "$PLATFORM" = darwin ]; then
+    curl -fL --progress-bar "$url.tgz" -o "$TMP_TOOLS/cloudflared.tgz" || die "Couldn't download cloudflared"
+    tar -xzf "$TMP_TOOLS/cloudflared.tgz" -C "$TOOLS/bin"
+  else
+    curl -fL --progress-bar "$url" -o "$TOOLS/bin/cloudflared" || die "Couldn't download cloudflared"
+  fi
+  chmod +x "$TOOLS/bin/cloudflared"
+}
+
+TMP_TOOLS="$(mktemp -d)"
+if node_ok; then
   ok "Node $(node -v)"
 else
-  die "Node.js 20+ is required: brew install node (or https://nodejs.org)"
+  warn "Node 20+ missing$(has node && echo " (found $(node -v))"): installing it"
+  install_node
+  node_ok || die "Node installation failed"
+  ok "Node $(node -v) installed"
 fi
-has npm || die "npm is required (it comes with Node)"
+has npm || die "npm is missing next to Node"
 has git || die "git is required (xcode-select --install)"
 ok "npm $(npm -v), git"
 
 if has cloudflared; then
   ok "cloudflared"
-elif has brew; then
-  warn "cloudflared missing: installing it with Homebrew"
-  brew install cloudflared >/dev/null && ok "cloudflared installed"
 else
-  die "cloudflared is required to reach the hosted site: https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/"
+  warn "cloudflared missing: installing it"
+  install_cloudflared
+  has cloudflared || die "cloudflared installation failed"
+  ok "cloudflared installed"
 fi
-has watchman && ok "watchman" || warn "watchman not found (optional, faster reloads): brew install watchman"
+
+if has watchman; then
+  ok "watchman"
+elif has brew; then
+  warn "watchman missing: installing it (faster reloads)"
+  brew install watchman >/dev/null 2>&1 && ok "watchman installed" || warn "watchman couldn't be installed (optional)"
+else
+  warn "watchman not found (optional, faster reloads)"
+fi
+rm -rf "$TMP_TOOLS"
 
 # ---------- Release ----------
 bold "Downloading"
