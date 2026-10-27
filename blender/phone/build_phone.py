@@ -21,7 +21,7 @@ for n in ("Apple_Body", "Apple_Leaf"):
     bpy.data.objects.remove(o, do_unlink=True)
     if me.users == 0: bpy.data.meshes.remove(me)
 
-def rounded_rect(w, h, r, steps=12):
+def rounded_rect(w, h, r, steps=40):
     pts = []
     for cx, cy, a0 in ((1, 1, 0), (-1, 1, 90), (-1, -1, 180), (1, -1, 270)):
         c = Vector(((w / 2 - r) * cx, (h / 2 - r) * cy))
@@ -30,7 +30,7 @@ def rounded_rect(w, h, r, steps=12):
             pts.append(c + Vector((math.cos(a), math.sin(a))) * r)
     return pts
 
-def slab(loops, half, bevel, z=0.0, res=4):
+def slab(loops, half, bevel, z=0.0, res=12):
     """Filled 2D shape (outer loop + optional holes), extruded and edge-rounded, front = +z."""
     cu = bpy.data.curves.new("tmp_crv", 'CURVE'); cu.dimensions = '2D'; cu.fill_mode = 'BOTH'
     for lp in loops:
@@ -50,7 +50,7 @@ outer = rounded_rect(WIDTH, HEIGHT, CORNER)
 inner = rounded_rect(WIDTH - 2 * FRAME_W, HEIGHT - 2 * FRAME_W, CORNER - FRAME_W)
 front = HALF_DEPTH + EDGE
 body = slab([outer], HALF_DEPTH, EDGE)
-frame = slab([outer, inner[::-1]], FRAME_H / 2, FRAME_H / 2 * 0.9, z=front - EDGE * 0.5, res=3)
+frame = slab([outer, inner[::-1]], FRAME_H / 2, FRAME_H / 2 * 0.9, z=front - EDGE * 0.5, res=8)
 
 bm = bmesh.new()
 for me in (body, frame):
