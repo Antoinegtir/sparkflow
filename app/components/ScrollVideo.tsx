@@ -49,6 +49,8 @@ export function ScrollVideo({ src, className, children }: { src: string; classNa
   const video = useRef<HTMLVideoElement>(null);
   const after = useRef<HTMLDivElement>(null);
   const screen = useRef<HTMLDivElement>(null);
+  const glass = useRef<HTMLDivElement>(null);
+  const island = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const v = video.current;
     const el = section.current;
@@ -91,7 +93,7 @@ export function ScrollVideo({ src, className, children }: { src: string; classNa
         const t3 = t2 * t;
         // Starts at speed v0, lands on `to` with zero speed.
         const y = from * (2 * t3 - 3 * t2 + 1) + v0 * duration * (t3 - 2 * t2 + t) + to * (3 * t2 - 2 * t3);
-        scrollTo(0, y);
+        scrollTo({ top: y, behavior: "instant" });
         if (t < 1 && gliding) glideRaf = requestAnimationFrame(step);
         else gliding = false;
       };
@@ -105,9 +107,13 @@ export function ScrollVideo({ src, className, children }: { src: string; classNa
     };
     const settle = () => {
       const y = scrollY;
-      if (gliding || y <= zone[0] || y >= zone[1]) return;
-      // Down: just past the slide, with the timeline in place. Up: back to the top, the phone a thin divider.
-      glide(dir > 0 ? zone[1] + innerHeight * 0.06 : zone[0]);
+      // Down: past the slide, with step 1 at 37% of the screen height, same spot as the
+      // "How it works" link. Up: back to the top, the phone a thin divider.
+      const how = document.getElementById("how");
+      // Exactly where the browser scrolls for that link: the anchor's top minus its scroll-margin.
+      const rest = how ? how.getBoundingClientRect().top + y - parseFloat(getComputedStyle(how).scrollMarginTop) : zone[1] + innerHeight * 0.06;
+      if (gliding || y <= zone[0] || y >= rest - 2) return;
+      glide(dir > 0 ? rest : zone[0]);
     };
     const measure = () => {
       // The phone stays flat (a separator line) until the video is pinned in the middle of
@@ -162,6 +168,22 @@ export function ScrollVideo({ src, className, children }: { src: string; classNa
         if (screen.current) {
           screen.current.style.opacity = String(e);
           screen.current.style.pointerEvents = e > 0.5 ? "auto" : "none";
+          // Slow fade-in once aside, quick fade-out as soon as the user scrolls back up (the phone turns back).
+          if (glass.current) {
+            const on = e > 0.9;
+            glass.current.style.transitionDuration = on ? "1000ms" : "200ms";
+            glass.current.style.opacity = on ? "1" : "0";
+          }
+          if (island.current) {
+            const on = e > 0.9;
+            const st = island.current.style;
+            // Overshooting curve for the bounce, shortly after the white screen starts fading in; hides at once.
+            st.transition = on
+              ? "transform 600ms cubic-bezier(.34,1.8,.5,1) 300ms, opacity 150ms ease-out 300ms"
+              : "transform 150ms ease-in, opacity 150ms ease-in";
+            st.opacity = on ? "1" : "0";
+            st.transform = `translateX(-50%) scale(${on ? 1 : 0.3})`;
+          }
         }
         after.current.style.transform = `translate(${(1 - e) * 40}px, ${(1 - e) * 24}px)`;
       }
@@ -213,9 +235,15 @@ export function ScrollVideo({ src, className, children }: { src: string; classNa
           <div className="grid place-items-center" style={{ width: SIZE, height: SIZE }}>
             <div
               ref={screen}
-              className="overflow-hidden opacity-0"
+              className="relative overflow-hidden opacity-0"
               style={{ width: `calc(${SIZE} * ${PHONE_RATIO} * ${SCREEN_W})`, height: `calc(${SIZE} * ${SCREEN_H})`, borderRadius: `calc(${SIZE} * 0.042)` }}>
-              <PhoneSteps />
+              {/* White screen lighting up slowly once the phone has slid aside. */}
+              <div ref={glass} className="absolute inset-0 bg-white opacity-0 transition-opacity ease-out" />
+              <div className="relative h-full">
+                <PhoneSteps />
+              </div>
+              {/* Dynamic Island: pops in with a bounce once the white screen has faded in. */}
+              <div ref={island} className="pointer-events-none absolute left-1/2 top-[2.2%] h-[4.2%] w-[32%] rounded-full bg-black opacity-0" style={{ transform: "translateX(-50%) scale(0.3)" }} />
             </div>
           </div>
         </div>

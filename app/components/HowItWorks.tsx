@@ -60,7 +60,7 @@ const STEPS = [
 
 /**
  * "How it works": a vertical timeline. The line fills as you scroll, each dot lights up
- * when its step reaches the middle of the screen, and the step slides in.
+ * when its step reaches 45% of the screen height, and the step slides in.
  */
 export function HowItWorks() {
   const root = useRef<HTMLDivElement>(null);
@@ -78,7 +78,7 @@ export function HowItWorks() {
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
         const r = el.getBoundingClientRect();
-        const mid = innerHeight * 0.55;
+        const mid = innerHeight * 0.45;
         setFill(Math.min(1, Math.max(0, (mid - r.top) / r.height)));
         const dots = [...el.querySelectorAll<HTMLElement>("[data-step]")];
         setReached(dots.reduce((n, d, i) => (d.getBoundingClientRect().top < mid ? i : n), -1));
@@ -123,7 +123,8 @@ export function HowItWorks() {
           {STEPS.map(({ icon: Icon, kicker, title, body, tags }, i) => {
             const on = i <= reached;
             return (
-              <li key={kicker} data-step className="relative pl-14">
+              // The first step is the anchor of the "How it works" link: it lands at 37% of the screen height.
+              <li key={kicker} id={i === 0 ? "how" : undefined} data-step className="relative scroll-mt-[37vh] pl-14">
                 <span
                   className={clsx(
                     "absolute left-0 top-0 grid h-[31px] w-[31px] place-items-center rounded-full border transition-all duration-500",

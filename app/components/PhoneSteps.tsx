@@ -23,7 +23,7 @@ function Describe() {
         {text.slice(0, n)}
         <span className="ml-px inline-block h-3 w-px translate-y-0.5 animate-pulse bg-white" />
       </div>
-      <div className="flex items-center gap-2 rounded-full bg-white/8 px-3 py-2">
+      <div className="flex items-center gap-2 rounded-full bg-black/8 px-3 py-2">
         <Mic size={12} className="text-spark-400" />
         <div className="flex h-4 flex-1 items-center gap-[3px]">
           {Array.from({ length: 18 }, (_, i) => (
@@ -40,16 +40,16 @@ function Plan() {
   return (
     <div className="grid h-full grid-cols-2 content-center gap-2 p-3">
       {screens.map((s, i) => (
-        <div key={s} className="hiw-pop rounded-xl border border-white/10 bg-white/5 p-2" style={{ animationDelay: `${i * 180}ms` }}>
-          <div className="text-[10px] font-semibold text-white">{s}</div>
+        <div key={s} className="hiw-pop rounded-xl border border-black/10 bg-black/5 p-2" style={{ animationDelay: `${i * 180}ms` }}>
+          <div className="text-[10px] font-semibold text-neutral-900">{s}</div>
           <div className="mt-1.5 space-y-1">
-            <div className="h-1 w-3/4 rounded bg-white/20" />
-            <div className="h-1 w-1/2 rounded bg-white/15" />
+            <div className="h-1 w-3/4 rounded bg-black/20" />
+            <div className="h-1 w-1/2 rounded bg-black/15" />
             <div className="h-4 rounded bg-spark-500/30" />
           </div>
         </div>
       ))}
-      <p className="col-span-2 mt-1 text-center text-[9.5px] text-ink-400">4 screens · 11 acceptance criteria</p>
+      <p className="col-span-2 mt-1 text-center text-[9.5px] text-neutral-500">4 screens · 11 acceptance criteria</p>
     </div>
   );
 }
@@ -59,12 +59,12 @@ function Build() {
   return (
     <div className="flex h-full flex-col justify-center p-3 font-mono text-[9px] leading-relaxed">
       {lines.map((l, i) => (
-        <div key={i} className="hiw-type truncate whitespace-pre text-sky-300" style={{ animationDelay: `${i * 260}ms` }}>
-          <span className="mr-2 text-ink-600">{i + 1}</span>
+        <div key={i} className="hiw-type truncate whitespace-pre text-sky-700" style={{ animationDelay: `${i * 260}ms` }}>
+          <span className="mr-2 text-neutral-400">{i + 1}</span>
           {l}
         </div>
       ))}
-      <div className="hiw-pop mt-3 flex items-center gap-1.5 text-[9.5px] text-emerald-400" style={{ animationDelay: "2000ms" }}>
+      <div className="hiw-pop mt-3 flex items-center gap-1.5 text-[9.5px] text-emerald-600" style={{ animationDelay: "2000ms" }}>
         <Check size={11} /> Type check passed · commit a1f3c9e
       </div>
     </div>
@@ -75,9 +75,9 @@ function Build() {
 function MiniApp({ highlight, onTap, done }: { highlight?: number; onTap?: (i: number) => void; done: boolean[] }) {
   return (
     <div className="p-3">
-      <div className="text-[13px] font-bold text-white">Today</div>
-      <div className="text-[8.5px] text-ink-400">{done.filter(Boolean).length} of 3 done</div>
-      <div className="mt-2 h-1 overflow-hidden rounded bg-white/10">
+      <div className="text-[13px] font-bold text-neutral-900">Today</div>
+      <div className="text-[8.5px] text-neutral-500">{done.filter(Boolean).length} of 3 done</div>
+      <div className="mt-2 h-1 overflow-hidden rounded bg-black/10">
         <div className="h-full bg-spark-500 transition-all duration-500" style={{ width: `${(done.filter(Boolean).length / 3) * 100}%` }} />
       </div>
       <div className="mt-2 space-y-1.5">
@@ -87,11 +87,11 @@ function MiniApp({ highlight, onTap, done }: { highlight?: number; onTap?: (i: n
             type="button"
             onClick={() => onTap?.(i)}
             className={clsx(
-              "flex w-full cursor-pointer items-center justify-between rounded-lg bg-white/6 px-2 py-1.5 text-left text-[10px] text-white transition",
+              "flex w-full cursor-pointer items-center justify-between rounded-lg bg-black/6 px-2 py-1.5 text-left text-[10px] text-neutral-900 transition",
               highlight === i && "ring-2 ring-sky-400",
             )}>
             {h}
-            <span className={clsx("grid size-3.5 place-items-center rounded-full border transition", done[i] ? "border-spark-500 bg-spark-500" : "border-white/30")}>
+            <span className={clsx("grid size-3.5 place-items-center rounded-full border transition", done[i] ? "border-spark-500 bg-spark-500" : "border-black/30")}>
               {done[i] && <Check size={8} />}
             </span>
           </button>
@@ -110,7 +110,7 @@ function Look() {
       <div className="hiw-scan pointer-events-none absolute inset-x-0 h-8 bg-gradient-to-b from-transparent via-sky-400/25 to-transparent" />
       <div className="absolute inset-x-3 bottom-3 space-y-1">
         {checks.map((c, i) => (
-          <div key={c} className="hiw-pop flex items-center gap-1.5 rounded-md bg-black/50 px-2 py-1 text-[9px] text-emerald-300 backdrop-blur" style={{ animationDelay: `${600 + i * 400}ms` }}>
+          <div key={c} className="hiw-pop flex items-center gap-1.5 rounded-md bg-white/85 shadow-sm px-2 py-1 text-[9px] text-emerald-600 backdrop-blur" style={{ animationDelay: `${600 + i * 400}ms` }}>
             <Check size={9} /> {c}
           </div>
         ))}
@@ -128,11 +128,11 @@ function Fix() {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3 p-3 text-center">
       <div className={clsx("grid place-items-center rounded-lg bg-spark-500 text-[10px] text-white transition-all duration-500", fixed ? "size-11" : "size-7")}>+</div>
-      <div className={clsx("flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[9.5px] transition-colors duration-500", fixed ? "bg-emerald-500/15 text-emerald-300" : "bg-red-500/15 text-red-300")}>
+      <div className={clsx("flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[9.5px] transition-colors duration-500", fixed ? "bg-emerald-500/15 text-emerald-600" : "bg-red-500/15 text-red-600")}>
         {fixed ? <Check size={10} /> : <X size={10} />}
         {fixed ? "Touch target 44×44" : "Touch target 28×28 (needs 44)"}
       </div>
-      <p className="text-[9px] text-ink-400">{fixed ? "Verified, moving on" : "Sent back to the Builder…"}</p>
+      <p className="text-[9px] text-neutral-500">{fixed ? "Verified, moving on" : "Sent back to the Builder…"}</p>
     </div>
   );
 }
@@ -144,7 +144,7 @@ function Point() {
       <MiniApp done={[true, false, false]} highlight={1} />
       <MousePointer2 size={14} className="hiw-cursor absolute fill-white text-black" />
       <div className="absolute inset-x-3 bottom-3">
-        <div className="mb-1.5 rounded-xl bg-white/8 px-2.5 py-1.5 text-[9.5px] text-ink-200">“Make this row bigger, in blue”</div>
+        <div className="mb-1.5 rounded-xl bg-black/8 px-2.5 py-1.5 text-[9.5px] text-neutral-600">“Make this row bigger, in blue”</div>
         <button
           type="button"
           onClick={() => setBlue((b) => !b)}
@@ -159,13 +159,13 @@ function Point() {
 function Ship() {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3 p-4 text-center">
-      <div className="rounded-xl bg-white p-2">
+      <div className="rounded-xl border border-black/10 bg-white p-2">
         <QRCodeSVG value="https://expo.dev" size={92} />
       </div>
-      <p className="text-[10px] text-ink-200">Scan with Expo Go</p>
+      <p className="text-[10px] text-neutral-600">Scan with Expo Go</p>
       <div className="flex gap-1.5 text-[9px]">
-        <span className="rounded-full bg-white/8 px-2 py-0.5 text-ink-300">Export .zip</span>
-        <span className="rounded-full bg-white/8 px-2 py-0.5 text-ink-300">Your code</span>
+        <span className="rounded-full bg-black/8 px-2 py-0.5 text-neutral-600">Export .zip</span>
+        <span className="rounded-full bg-black/8 px-2 py-0.5 text-neutral-600">Your code</span>
       </div>
     </div>
   );
@@ -194,7 +194,7 @@ export function PhoneSteps() {
             type="button"
             aria-label={`Show step ${i + 1}`}
             onClick={() => setStep(i)}
-            className={clsx("h-1.5 cursor-pointer rounded-full transition-all", i === step ? "w-4 bg-spark-400" : "w-1.5 bg-white/25 hover:bg-white/50")}
+            className={clsx("h-1.5 cursor-pointer rounded-full transition-all", i === step ? "w-4 bg-spark-400" : "w-1.5 bg-black/25 hover:bg-black/50")}
           />
         ))}
       </div>
