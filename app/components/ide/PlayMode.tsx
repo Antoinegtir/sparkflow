@@ -34,7 +34,8 @@ export function PlayMode({ state, scheme, startPath, onClose, onSimButton, onDev
   const native = !!state.native;
   const sim = useSimDevice();
   // Opens on the device the page is shown on (the focus view's), so the phone carries straight over.
-  const current = native || !state.preview ? undefined : PREVIEW_DEVICES.find((d) => d.id === state.previewDevice);
+  const onSim = state.previewDevice === "simulator";
+  const current = native || !state.preview ? undefined : onSim ? { id: "simulator", platform: "ios" as const } : PREVIEW_DEVICES.find((d) => d.id === state.previewDevice);
   const [platform, setPlatform] = useState<Platform>(current?.platform ?? "ios");
   const [deviceId, setDeviceId] = useState<Record<Exclude<Platform, "web">, string>>({
     ios: native || !state.preview ? "simulator" : current?.platform === "ios" ? current.id : "iphone",
@@ -115,7 +116,8 @@ export function PlayMode({ state, scheme, startPath, onClose, onSimButton, onDev
   }, [live, udid, run]);
   // A device picked here becomes the project's preview device: the focus view (and the canvas) follow.
   useEffect(() => {
-    if (native || !device || device.simulator || device.id === state.previewDevice) return;
+    // The Simulator too: the focus view then shows the live Simulator instead of the web preview.
+    if (native || !device || device.id === state.previewDevice) return;
     onDevice(device.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [device?.id]);
@@ -140,6 +142,19 @@ export function PlayMode({ state, scheme, startPath, onClose, onSimButton, onDev
     ro.observe(el);
     return () => ro.disconnect();
   }, [outerW, outerH]);
+
+  // Wheel and trackpad scrolling stay in the overlay: the Simulator turns them into swipes, and the
+  // page behind must not scroll or pan meanwhile.
+  useEffect(() => {
+    const el = root.current;
+    if (!el) return;
+    const stop = (e: WheelEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+    };
+    el.addEventListener("wheel", stop, { passive: false });
+    return () => el.removeEventListener("wheel", stop);
+  }, []);
 
   // Opening: the backdrop fades in and the device flies from where it sat in the focus view (hero),
   // or grows in place when there is none (canvas).

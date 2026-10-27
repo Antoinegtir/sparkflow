@@ -54,7 +54,8 @@ type Props = {
 /** The focused page: flies in from its canvas node, shows the live app (iframe or simulator) and the page's report. */
 export function HeroFocus(p: Props) {
   const s = p.screen;
-  const native = !!p.state.native;
+  // A native project, or a generated one shown in the live Simulator (picked in Play).
+  const native = !!p.state.native || p.state.previewDevice === "simulator";
   const root = useRef<HTMLDivElement>(null);
   const [box, setBox] = useState({ w: 0, h: 0, barTop: 0, barRight: 0, barLeft: 0 });
   const x = useMotionValue(0);
@@ -220,7 +221,7 @@ export function HeroFocus(p: Props) {
 
   const older = p.compare != null ? s.history.find((v) => v.version === p.compare) : undefined;
   const nativePage = useMemo(() => {
-    if (!native) return null;
+    if (!p.state.native) return null;
     const parentRoute = p.state.edges.find((e) => e.to === s.route)?.from;
     return { title: s.title, ...(parentRoute ? { parent: p.state.screens[parentRoute]?.title } : {}) };
   }, [native, s.route, s.title, p.state.edges, p.state.screens]);
