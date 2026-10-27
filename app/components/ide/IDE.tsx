@@ -539,7 +539,7 @@ export function IDE({ id, slug: initialSlug, initialPage }: { id: string; slug: 
         </div>
       </div>
       {palette && <CommandPalette commands={commands} onClose={() => setPalette(false)} />}
-      {play && <PlayMode state={state} scheme={scheme} startPath={focusedScreen?.previewPath ?? "/"} onClose={() => setPlay(false)} onSimButton={simButton} />}
+      {play && <PlayMode state={state} scheme={scheme} startPath={focusedScreen?.previewPath ?? "/"} onClose={() => setPlay(false)} onSimButton={simButton} onDevice={(d) => void api.setPreviewDevice(d)} />}
       {diff && <DiffViewer projectId={id} sha={diff} onClose={() => setDiff(null)} />}
       {flowDraft && (
         <FlowDialog

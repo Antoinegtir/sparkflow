@@ -30,7 +30,7 @@ const PREFS_KEY = "sparkflow-play";
  * Fullscreen play. Web: the web build in a browser window. iOS and Android: the web build in a device frame with
  * that platform's safe areas, or the live iOS Simulator. Esc or a backdrop click closes it.
  */
-export function PlayMode({ state, scheme, startPath, onClose, onSimButton }: { state: ProjectState; scheme: AppScheme; startPath: string; onClose: () => void; onSimButton: (b: "VOLUME_UP" | "VOLUME_DOWN" | "SIDE_BUTTON", hold: number) => void }) {
+export function PlayMode({ state, scheme, startPath, onClose, onSimButton, onDevice }: { state: ProjectState; scheme: AppScheme; startPath: string; onClose: () => void; onSimButton: (b: "VOLUME_UP" | "VOLUME_DOWN" | "SIDE_BUTTON", hold: number) => void; onDevice: (id: string) => void }) {
   const native = !!state.native;
   const sim = useSimDevice();
   // Opens on the device the page is shown on (the focus view's), so the phone carries straight over.
@@ -85,6 +85,12 @@ export function PlayMode({ state, scheme, startPath, onClose, onSimButton }: { s
   const devices = platform === "web" ? [] : DEVICES[platform].filter((d) => !d.simulator || sim.supported || native);
   const device = platform === "web" ? null : (devices.find((d) => d.id === deviceId[platform]) ?? devices[0]);
   const live = !!device?.simulator;
+  // A device picked here becomes the project's preview device: the focus view (and the canvas) follow.
+  useEffect(() => {
+    if (native || !device || device.simulator || device.id === state.previewDevice) return;
+    onDevice(device.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [device?.id]);
   const simPoints = sim.device?.points;
 
   // Outer size of what is drawn, for fitting it to the stage.
