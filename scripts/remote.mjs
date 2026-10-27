@@ -9,7 +9,7 @@
 import { execSync, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { Resolver } from "node:dns/promises";
-import { createWriteStream, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { createWriteStream, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { request } from "node:https";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
@@ -21,7 +21,11 @@ const token = randomBytes(24).toString("base64url");
 // Own build folder: `npm run build:static` and `next dev` both write to .next.
 const env = { ...process.env, NEXT_DIST_DIR: ".next-server" };
 const version = JSON.parse(readFileSync("package.json", "utf8")).version;
-const logDir = join(process.env.SPARKFLOW_HOME ?? join(homedir(), ".sparkflow"), "logs");
+const sparkHome = process.env.SPARKFLOW_HOME ?? join(homedir(), ".sparkflow");
+const logDir = join(sparkHome, "logs");
+// The tunnel address and token of this run, for /api/connect: the hosted site, open in a browser on
+// this computer, asks localhost for them and connects by itself.
+const connection = join(sparkHome, "connection.json");
 mkdirSync(logDir, { recursive: true });
 const logPath = join(logDir, "server.log");
 const log = createWriteStream(logPath, { flags: "w" });
@@ -109,6 +113,7 @@ if (tty) process.stdout.write("\x1b[?25l"); // hide the cursor while the spinner
 const children = [];
 function stop(code = 0) {
   clearInterval(timer);
+  rmSync(connection, { force: true });
   for (const ch of children) ch.kill("SIGTERM");
   draw();
   if (tty) process.stdout.write("\x1b[?25h");
@@ -139,7 +144,7 @@ if (process.argv.includes("--build") || !existsSync(".next-server/BUILD_ID")) {
 
 serverStep.state = "run";
 serverStep.detail = `starting on localhost:${PORT}…`;
-const server = spawn("npx", ["next", "start", "-p", PORT], { stdio: ["ignore", "pipe", "pipe"], env: { ...env, SPARKFLOW_TOKEN: token } });
+const server = spawn("npx", ["next", "start", "-p", PORT], { stdio: ["ignore", "pipe", "pipe"], env: { ...env, SPARKFLOW_TOKEN: token, SPARKFLOW_CONNECTION: connection } });
 children.push(server);
 const onServerOutput = (d) => {
   log.write(d);
@@ -225,6 +230,7 @@ const watch = async (chunk) => {
   }
   const link = `${SITE}/?backend=${encodeURIComponent(url)}&token=${token}`;
   ready = { url, link };
+  writeFileSync(connection, JSON.stringify({ url, token }), { mode: 0o600 });
   if (!tty) console.log(`Sparkflow is connected: ${link}`);
   if (process.platform === "darwin" && !process.env.SPARKFLOW_NO_OPEN) spawn("open", [link]);
 };

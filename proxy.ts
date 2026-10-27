@@ -18,6 +18,8 @@ function cors(req: NextRequest, res: NextResponse) {
     res.headers.set("access-control-allow-methods", "GET,POST,PATCH,PUT,DELETE,OPTIONS");
     res.headers.set("access-control-allow-headers", "content-type,x-sparkflow-token");
     res.headers.set("access-control-max-age", "600");
+    // Chrome's Private/Local Network Access: the hosted site may call this computer's localhost.
+    res.headers.set("access-control-allow-private-network", "true");
     res.headers.append("vary", "origin");
   }
   return res;

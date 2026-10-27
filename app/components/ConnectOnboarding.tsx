@@ -1,0 +1,188 @@
+"use client";
+
+import clsx from "clsx";
+import { Check, Copy, Lock, Terminal } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { getBackend, setBackend } from "@/lib/web/backend";
+
+const INSTALL = "curl -fsSL https://sparkflow-ai.web.app/install.sh | bash";
+const POLL_MS = 2000;
+/** Where `sparkflow` serves on this computer; /api/connect hands out its tunnel link (see remote.mjs). */
+const LOCAL = "http://localhost:3002";
+
+/** True once the connected computer answers: the saved tunnel, or a `sparkflow` just started here. */
+async function reachable(): Promise<boolean> {
+  if (getBackend()) {
+    const ok = await fetch("/api/projects", { cache: "no-store" }).then((r) => r.ok).catch(() => false);
+    if (ok) return true;
+  }
+  const link = await fetch(`${LOCAL}/api/connect`, { cache: "no-store" })
+    .then((r) => (r.ok ? (r.json() as Promise<{ url: string; token: string }>) : null))
+    .catch(() => null);
+  if (!link?.url || !link.token) return false;
+  setBackend({ url: link.url, token: link.token });
+  return fetch("/api/projects", { cache: "no-store" }).then((r) => r.ok).catch(() => false);
+}
+
+function CopyLine({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="group flex items-center gap-3 rounded-xl border border-[var(--line)] bg-black/40 py-2.5 pl-4 pr-2 font-mono text-[12.5px] text-ink-100">
+      <span className="select-none text-ink-500">$</span>
+      <span className="min-w-0 flex-1 truncate">{text}</span>
+      <button
+        type="button"
+        onClick={() => {
+          void navigator.clipboard.writeText(text);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1500);
+        }}
+        className="grid size-7 shrink-0 cursor-pointer place-items-center rounded-lg text-ink-400 transition hover:bg-white/10 hover:text-ink-100"
+        aria-label="Copy">
+        {copied ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+      </button>
+    </div>
+  );
+}
+
+/** A burst of confetti over the whole page, gone after a few seconds. */
+function confetti() {
+  const canvas = document.createElement("canvas");
+  canvas.style.cssText = "position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:100";
+  document.body.appendChild(canvas);
+  const ctx = canvas.getContext("2d")!;
+  const dpr = devicePixelRatio || 1;
+  canvas.width = innerWidth * dpr;
+  canvas.height = innerHeight * dpr;
+  ctx.scale(dpr, dpr);
+  const colors = ["#3b82f6", "#60a5fa", "#a78bfa", "#34d399", "#fbbf24", "#f472b6", "#ffffff"];
+  const parts = Array.from({ length: 180 }, () => ({
+    x: innerWidth / 2 + (Math.random() - 0.5) * 120,
+    y: innerHeight * 0.42,
+    vx: (Math.random() - 0.5) * 16,
+    vy: -Math.random() * 15 - 5,
+    w: 5 + Math.random() * 6,
+    h: 3 + Math.random() * 4,
+    r: Math.random() * Math.PI,
+    vr: (Math.random() - 0.5) * 0.35,
+    c: colors[(Math.random() * colors.length) | 0],
+  }));
+  const start = performance.now();
+  const frame = (now: number) => {
+    const t = now - start;
+    ctx.clearRect(0, 0, innerWidth, innerHeight);
+    ctx.globalAlpha = Math.max(0, 1 - Math.max(0, t - 2200) / 1000);
+    for (const p of parts) {
+      p.vy += 0.38;
+      p.vx *= 0.99;
+      p.x += p.vx;
+      p.y += p.vy;
+      p.r += p.vr;
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.r);
+      ctx.fillStyle = p.c;
+      ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+      ctx.restore();
+    }
+    if (t < 3200) requestAnimationFrame(frame);
+    else canvas.remove();
+  };
+  requestAnimationFrame(frame);
+}
+
+/**
+ * Shown when the hosted site has no computer to talk to: how to install and start `sparkflow`,
+ * then a live check every 2 s. Once it answers: confetti, and `onConnected` opens the app.
+ */
+export function ConnectOnboarding({ onConnected }: { onConnected: () => void }) {
+  const [connected, setConnected] = useState(false);
+  const [tries, setTries] = useState(0);
+  const done = useRef(false);
+
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    const tick = async () => {
+      if (done.current) return;
+      if (await reachable()) {
+        done.current = true;
+        setConnected(true);
+        confetti();
+        setTimeout(onConnected, 1600);
+        return;
+      }
+      setTries((n) => n + 1);
+      timer = setTimeout(tick, POLL_MS);
+    };
+    void tick();
+    return () => clearTimeout(timer);
+  }, [onConnected]);
+
+  const step = "relative pl-12";
+  const num = "absolute left-0 top-0 grid size-8 place-items-center rounded-full border text-[13px] font-semibold";
+  return (
+    <div data-ide className="relative grid min-h-screen place-items-center overflow-hidden bg-ink-950 px-4 py-16 text-ink-100">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(var(--dot)_1.4px,transparent_1.6px)] [background-size:22px_22px] [mask-image:radial-gradient(ellipse_at_center,black,transparent_70%)]" />
+      <div className="pointer-events-none absolute left-1/2 top-1/3 size-[520px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-spark-500/15 blur-[120px]" />
+
+      <div className="relative w-full max-w-[520px]">
+        <div className="mb-8 flex flex-col items-center text-center">
+          <span className="mb-5 grid size-14 place-items-center overflow-hidden rounded-2xl border border-white/15 bg-black shadow-[0_20px_60px_-20px_rgba(59,130,246,.6)]">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo.png" alt="" className="size-full object-cover" />
+          </span>
+          <h1 className="text-2xl font-semibold tracking-tight">Connect your computer</h1>
+          <p className="mt-2 max-w-sm text-balance text-[14px] leading-relaxed text-ink-400">
+            Sparkflow builds and runs your apps on your Mac. Your code and your Muse Spark key never leave it.
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)]/90 p-6 shadow-2xl backdrop-blur">
+          <ol className="space-y-7">
+            <li className={step}>
+              <span className={clsx(num, "border-[var(--line)] text-ink-300")}>1</span>
+              <p className="mb-1 text-[14px] font-medium">Install it once</p>
+              <p className="mb-3 text-[12.5px] text-ink-500">Checks Xcode, Node and the rest, and installs what's missing.</p>
+              <CopyLine text={INSTALL} />
+            </li>
+            <li className={step}>
+              <span className={clsx(num, "border-[var(--line)] text-ink-300")}>2</span>
+              <p className="mb-1 text-[14px] font-medium">Start it</p>
+              <p className="mb-3 text-[12.5px] text-ink-500">Keep the terminal open while you build.</p>
+              <CopyLine text="sparkflow" />
+            </li>
+            <li className={step}>
+              <span
+                className={clsx(
+                  num,
+                  "transition-colors duration-500",
+                  connected ? "border-emerald-400/50 bg-emerald-400/15 text-emerald-300" : "border-spark-500/40 bg-spark-500/10 text-spark-400",
+                )}>
+                {connected ? <Check size={15} /> : <Terminal size={14} />}
+              </span>
+              <div className={clsx("flex items-center gap-3 rounded-xl border px-4 py-3 transition-colors duration-500", connected ? "border-emerald-400/30 bg-emerald-400/10" : "border-[var(--line)] bg-white/[0.02]")}>
+                {connected ? (
+                  <p className="text-[13.5px] font-medium text-emerald-300">Connected to your computer</p>
+                ) : (
+                  <>
+                    <span className="relative flex size-2.5">
+                      <span className="absolute inline-flex size-full animate-ping rounded-full bg-spark-400 opacity-60" />
+                      <span className="relative inline-flex size-2.5 rounded-full bg-spark-400" />
+                    </span>
+                    <p className="flex-1 text-[13.5px] text-ink-200">Waiting for sparkflow…</p>
+                    <span className="font-mono text-[11px] text-ink-500">{tries ? `checked ${tries}×` : "checking"}</span>
+                  </>
+                )}
+              </div>
+            </li>
+          </ol>
+        </div>
+
+        <p className="mt-5 flex items-start justify-center gap-2 text-center text-[12px] leading-relaxed text-ink-500">
+          <Lock size={12} className="mt-0.5 shrink-0" />
+          If your browser asks to access devices on your local network, allow it: that's how this page finds sparkflow.
+        </p>
+      </div>
+    </div>
+  );
+}
