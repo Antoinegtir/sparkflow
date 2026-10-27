@@ -83,6 +83,9 @@ export default function Home() {
           Demo mode: no <code className="font-mono">MODEL_API_KEY</code> set, so a scripted agent builds a sample habit tracker. Add your Meta Model API key to <code className="font-mono">.env</code> to use Muse Spark.
         </p>
       )}
+      <footer className="relative px-6 pb-8 text-center text-[11px] text-ink-500">
+        Apple and the Apple logo are trademarks of Apple Inc. Android robot © Google, CC BY 3.0. Sparkflow is not affiliated with Apple or Google.
+      </footer>
     </main>
   );
 }

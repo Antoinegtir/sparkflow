@@ -32,17 +32,10 @@
   mask-image: radial-gradient(circle, black 55%, transparent 72%);
 }
 
-/* Contenu à côté du téléphone épinglé : colonne de droite sur grand écran,
-   pleine largeur sous le téléphone en dessous de lg. */
-.scroll-video-side {
-  margin-inline: auto;
-  max-width: var(--side-w);
-}
+/* Content beside the pinned phone (ScrollVideo): phone + gap + content, centered as one group. */
 @media (min-width: 1024px) {
   .scroll-video-side {
     width: var(--side-w);
-    max-width: none;
-    transform-origin: left;
-    margin-left: calc(50% - (var(--side-w) + var(--gap)) / 2 + var(--phone-w) + var(--gap) - var(--nudge) + (var(--side-w) - var(--phone-w)) / 2);
+    margin-left: calc(50% + (var(--phone-w) + var(--gap) - var(--side-w)) / 2 + var(--nudge, 0px));
   }
 }

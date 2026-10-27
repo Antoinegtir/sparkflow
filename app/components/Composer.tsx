@@ -50,7 +50,7 @@ export function Composer() {
         </div>
       </div>
 
-      <ul data-no-lens className="mx-auto mt-6 max-w-2xl">
+      <ul data-no-lens className="mx-auto mt-6 max-w-[80%]">
         {EXAMPLES.map((ex) => (
           <li key={ex}>
             <button
@@ -58,9 +58,9 @@ export function Composer() {
                 setValue(ex);
                 input.current?.focus();
               }}
-              className="flex w-full items-center justify-between gap-4 border-b border-ink-800 py-3 text-left text-sm text-ink-400 hover:text-ink-100">
+              className="group flex w-full cursor-pointer items-center justify-between gap-4 border-b border-ink-800 py-2.5 text-left text-[13.5px] text-ink-400 hover:text-ink-100">
               <span className="truncate">{ex}</span>
-              <ArrowUpRight size={14} className="shrink-0 text-ink-500" />
+              <ArrowUpRight size={14} className="shrink-0 text-ink-500 transition group-hover:text-spark-500" />
             </button>
           </li>
         ))}

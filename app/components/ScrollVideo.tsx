@@ -5,7 +5,7 @@ import { useEffect, useRef } from "react";
 /** Video box size: square clip, as large as fits comfortably. */
 const SIZE = "min(70vh, 640px)";
 /** Vertical squash of the edge-on phone at the top of the page (thinner white edge); width is never changed. */
-const MIN_SCALE = 0.08;
+const MIN_SCALE = 0.03;
 /** How fast it un-squashes: back to full height after 1/GROW_SPEED of the way to the middle. */
 const GROW_SPEED = 6;
 /** Width of the upright phone inside the square clip (measured on the last frame). */
@@ -64,18 +64,29 @@ export function ScrollVideo({ src, className, children }: { src: string; classNa
     let idle: ReturnType<typeof setTimeout> | undefined;
     let gliding = false;
     let glideRaf = 0;
-    /** Our own eased scroll (gentle start, soft landing) instead of the browser's abrupt "smooth". */
+    // Scroll speed (px/ms), smoothed over the last events, so the glide can pick it up as-is.
+    let speed = 0;
+    let lastT = performance.now();
+    /**
+     * Glide that carries on the user's own momentum: it starts at their current speed (no pause,
+     * no ease-in) and decelerates evenly to a soft stop on the resting point (cubic Hermite curve).
+     */
     const glide = (to: number) => {
       const from = scrollY;
       const dist = to - from;
-      const duration = Math.min(1100, Math.max(650, Math.abs(dist) * 2.2));
+      // Only keep the speed if it goes the right way; a minimum keeps very slow stops from dragging.
+      const v0 = Math.sign(dist) * Math.max(0.6, speed * Math.sign(dist));
+      // Constant deceleration from v0 to 0 covers dist in 2 * dist / v0.
+      const duration = Math.min(1200, Math.max(280, (2 * dist) / v0));
       const t0 = performance.now();
       gliding = true;
       const step = (now: number) => {
         const t = Math.min(1, (now - t0) / duration);
-        // easeInOutSine: picks up from rest as softly as it settles.
-        const e = 0.5 - Math.cos(Math.PI * t) / 2;
-        scrollTo(0, from + dist * e);
+        const t2 = t * t;
+        const t3 = t2 * t;
+        // Starts at speed v0, lands on `to` with zero speed.
+        const y = from * (2 * t3 - 3 * t2 + 1) + v0 * duration * (t3 - 2 * t2 + t) + to * (3 * t2 - 2 * t3);
+        scrollTo(0, y);
         if (t < 1 && gliding) glideRaf = requestAnimationFrame(step);
         else gliding = false;
       };
@@ -90,7 +101,7 @@ export function ScrollVideo({ src, className, children }: { src: string; classNa
     const settle = () => {
       const y = scrollY;
       if (gliding || y <= zone[0] || y >= zone[1]) return;
-      // Down: just past the slide, with the timeline in place. Up: back to frame 0 (phone lying flat).
+      // Down: just past the slide, with the timeline in place. Up: back to the top, the phone a thin divider.
       glide(dir > 0 ? zone[1] + innerHeight * 0.06 : zone[0]);
     };
     const measure = () => {
@@ -109,22 +120,32 @@ export function ScrollVideo({ src, className, children }: { src: string; classNa
       target = to > from ? Math.min(1, Math.max(0, (scrollY - from) / (to - from))) : 0;
       // Once upright, it slides left; whatever follows (children) then scrolls in beside it.
       slide = Math.min(1, Math.max(0, (scrollY - to) / (innerHeight * SLIDE_VH)));
-      // The whole clip (frame 0 to the last one) plus the slide that follows it.
-      zone = [from, to + innerHeight * SLIDE_VH];
+      // The whole animation: the flat divider un-squashing from the top of the page, the clip
+      // (frame 0 to the last one) and the slide that follows it.
+      zone = [0, to + innerHeight * SLIDE_VH];
     };
     const onScroll = () => {
       measure();
+      const now = performance.now();
       if (scrollY !== lastY) dir = scrollY > lastY ? 1 : -1;
+      if (!gliding) speed = speed * 0.4 + ((scrollY - lastY) / Math.max(1, now - lastT)) * 0.6;
       lastY = scrollY;
+      lastT = now;
       clearTimeout(idle);
-      if (!gliding) idle = setTimeout(settle, 110);
+      // Take over as soon as the scroll stops (a couple of frames without events).
+      if (!gliding) idle = setTimeout(settle, 45);
     };
     const tick = () => {
       raf = requestAnimationFrame(tick);
       // Ease toward the scroll position so fast flicks stay smooth.
-      shown += (target - shown) * 0.2;
-      grown += (grow - grown) * 0.2;
-      slid += (slide - slid) * 0.2;
+      shown += (target - shown) * 0.1;
+      // No easing on the squash: it follows the scroll exactly, so the divider never lags into a thick bar.
+      grown = grow;
+      slid += (slide - slid) * 0.1;
+      // While squashed into the divider, always show frame 0 (the phone seen edge-on): a lagging,
+      // half-turned frame squashed flat is what made the line change width and shake on the way up.
+      if (grow < 1 || grown < 0.98) shown = Math.min(shown, target);
+      if (grown < 0.98) shown = 0;
       // After it stands up, the phone slides into the middle of the left column.
       if (after.current) {
         // The content only shows up once the phone has almost reached its spot, so the two
@@ -135,7 +156,8 @@ export function ScrollVideo({ src, className, children }: { src: string; classNa
         after.current.style.transform = `translate(${(1 - e) * 40}px, ${(1 - e) * 24}px)`;
       }
       v.style.transform = `translateX(${-shift * slid}px) scaleY(${MIN_SCALE + (1 - MIN_SCALE) * grown})`;
-      if (v.duration && Math.abs(v.currentTime - shown * v.duration) > 0.01) {
+      // Skip while the previous seek is still decoding: queuing seeks is what makes it stutter.
+      if (v.duration && !v.seeking && Math.abs(v.currentTime - shown * v.duration) > 0.01) {
         v.currentTime = Math.min(v.duration - 0.04, shown * v.duration);
       }
     };
@@ -160,7 +182,7 @@ export function ScrollVideo({ src, className, children }: { src: string; classNa
   return (
     // Pulled up by half the clip so its middle line (the edge-on phone) lands just below what's above.
     // The phone stays pinned for as long as the section lasts: children (on the right) scroll past it.
-    <div ref={section} className="relative" style={{ minHeight: `calc(${SIZE} + 70vh)`, marginTop: `calc(${SIZE} / -2 - 8px)` }}>
+    <div ref={section} className="pointer-events-none relative" style={{ minHeight: `calc(${SIZE} + 70vh)`, marginTop: `calc(${SIZE} / -2 - 8px)` }}>
       {/* Sticky makes its own stacking context: blend it as a whole so the clip's black drops out. */}
       <div className="pointer-events-none sticky flex justify-center mix-blend-screen" style={{ top: `calc(50vh - ${SIZE} / 2)` }}>
         <video
@@ -178,7 +200,7 @@ export function ScrollVideo({ src, className, children }: { src: string; classNa
         // then sits level with the top of the pinned phone.
         <div
           ref={after}
-          className="scroll-video-side relative px-6 pb-[20vh] opacity-0 lg:px-0"
+          className="scroll-video-side pointer-events-auto relative px-6 pb-[20vh] opacity-0 lg:px-0"
           style={
             {
               marginTop: `calc(${(ROTATE_VH + SLIDE_VH) * 100 + SIDE_DROP_VH}vh - ${SIZE})`,
