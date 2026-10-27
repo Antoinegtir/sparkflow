@@ -158,22 +158,25 @@ type Props = {
 
 type Pos = { x: number; y: number };
 const posKey = (id: string) => `sparkflow.canvas.${id}`;
+/** What the user arranged: moved pages, and pages taken out of their category or put in another one (null: no frame). */
+type Arranged = { pos: Record<string, Pos>; frame: Record<string, string | null> };
 
 function Flow(p: Props) {
   const routes = useMemo(() => p.screens.map((s) => s.route), [p.screens]);
-  const groups = useMemo(() => pageGroups(routes, p.edges, p.native), [routes, p.edges, p.native]);
-  const layout = useMemo(() => layoutGroups(groups), [groups]);
-  // Pages the user moved, kept per project; the others follow the automatic layout.
-  const [moved, setMoved] = useState<Record<string, Pos>>({});
+  const auto = useMemo(() => pageGroups(routes, p.edges, p.native), [routes, p.edges, p.native]);
+  const layout = useMemo(() => layoutGroups(auto), [auto]);
+  const [arranged, setArranged] = useState<Arranged>({ pos: {}, frame: {} });
   useEffect(() => {
     try {
-      setMoved(JSON.parse(localStorage.getItem(posKey(p.projectId)) ?? "{}"));
+      const saved = JSON.parse(localStorage.getItem(posKey(p.projectId)) ?? "{}");
+      // Older saves held the positions only.
+      setArranged(saved.pos ? { pos: saved.pos, frame: saved.frame ?? {} } : { pos: saved, frame: {} });
     } catch {
-      setMoved({});
+      setArranged({ pos: {}, frame: {} });
     }
   }, [p.projectId]);
   const persist = useCallback(
-    (next: Record<string, Pos>) => {
+    (next: Arranged) => {
       try {
         localStorage.setItem(posKey(p.projectId), JSON.stringify(next));
       } catch {}
@@ -183,21 +186,33 @@ function Flow(p: Props) {
   // A page let go after a drag isn't opened by the click that ends it.
   const lastDrag = useRef(0);
   const open = useCallback((r: string) => Date.now() - lastDrag.current > 250 && p.onOpen(r), [p]);
+  // The page being dragged: its frame doesn't stretch to follow it, so it can leave.
+  const [dragging, setDragging] = useState<string | null>(null);
 
-  const posOf = (r: string): Pos => moved[r] ?? layout.get(r) ?? { x: 0, y: 0 };
+  const posOf = (r: string): Pos => arranged.pos[r] ?? layout.get(r) ?? { x: 0, y: 0 };
   const nodeH = p.ipad ? Math.round(PHONE_W * 1.33) + 80 : NODE_H;
 
-  // Each category's frame wraps its pages where they are now.
+  // Categories after the user's changes: a page can leave its frame or join another.
+  const groups = auto.map((g) => ({ root: g.root, members: [] as string[] }));
+  for (const g of auto) {
+    for (const m of g.members) {
+      const to = m in arranged.frame ? arranged.frame[m] : g.root;
+      groups.find((x) => x.root === to)?.members.push(m);
+    }
+  }
+
+  // Each category's frame wraps its pages where they are now (all but the one in hand).
   const frames = groups
-    .filter((g) => !p.native || g.members.length > 1)
+    .map((g) => ({ ...g, inside: g.members.filter((m) => m !== dragging) }))
+    .filter((g) => g.inside.length && (!p.native || g.members.length > 1))
     .map((g) => {
-      const ps = g.members.map(posOf);
+      const ps = g.inside.map(posOf);
       const x = Math.min(...ps.map((q) => q.x)) - FRAME_PAD;
       const y = Math.min(...ps.map((q) => q.y)) - FRAME_PAD - FRAME_HEAD;
       const width = Math.max(...ps.map((q) => q.x)) + NODE_W + FRAME_PAD - x;
       const height = Math.max(...ps.map((q) => q.y)) + nodeH + FRAME_PAD - y;
       const title = p.screens.find((s) => s.route === g.root)?.title ?? g.root;
-      return { id: `frame:${g.root}`, members: g.members, x, y, data: { title, count: g.members.length, width, height } };
+      return { id: `frame:${g.root}`, root: g.root, members: g.members, x, y, data: { title, count: g.inside.length, width, height } };
     });
 
   // Sizes React Flow measured, handed back with every node: without them it hides the nodes to
@@ -215,31 +230,46 @@ function Flow(p: Props) {
     })),
   ];
 
+  /** Where a page dropped at `at` belongs: the frame under its middle, or none. */
+  const frameAt = (r: string, at: Pos) => {
+    const cx = at.x + NODE_W / 2;
+    const cy = at.y + nodeH / 2;
+    return frames.find((f) => cx >= f.x && cx <= f.x + f.data.width && cy >= f.y && cy <= f.y + f.data.height && !(f.members.length === 1 && f.members[0] === r))?.root ?? null;
+  };
+
   const onNodesChange = (changes: NodeChange[]) => {
-    if (changes.some((c) => c.type === "position")) lastDrag.current = Date.now();
-    let next: Record<string, Pos> | null = null;
-    let end = false;
+    let next: Arranged | null = null;
     for (const c of changes) {
       if (c.type === "dimensions" && c.dimensions) sizes.current.set(c.id, c.dimensions);
-      if (c.type !== "position" || !c.position) {
-        if (c.type === "position" && c.dragging === false) end = true;
-        continue;
-      }
-      next ??= { ...moved };
+      if (c.type !== "position") continue;
+      lastDrag.current = Date.now();
+      next ??= { pos: { ...arranged.pos }, frame: { ...arranged.frame } };
       const frame = frames.find((f) => f.id === c.id);
       if (frame) {
         // Moving a frame moves all its pages by the same amount.
-        const dx = c.position.x - frame.x;
-        const dy = c.position.y - frame.y;
-        for (const m of frame.members) {
-          const q = posOf(m);
-          next[m] = { x: q.x + dx, y: q.y + dy };
+        if (c.position) {
+          const dx = c.position.x - frame.x;
+          const dy = c.position.y - frame.y;
+          for (const m of frame.members) {
+            const q = posOf(m);
+            next.pos[m] = { x: q.x + dx, y: q.y + dy };
+          }
         }
-      } else next[c.id] = c.position;
-      if (c.dragging === false) end = true;
+      } else {
+        if (c.position) next.pos[c.id] = c.position;
+        if (c.dragging) setDragging(c.id);
+        else if (c.dragging === false) {
+          // Let go: it joins the frame it's over, or stands on its own.
+          const to = frameAt(c.id, next.pos[c.id] ?? posOf(c.id));
+          const home = auto.find((g) => g.members.includes(c.id))?.root ?? null;
+          if (to === home) delete next.frame[c.id];
+          else next.frame[c.id] = to;
+          setDragging(null);
+        }
+      }
+      if (c.dragging === false) persist(next);
     }
-    if (next) setMoved(next);
-    if (end) persist(next ?? moved);
+    if (next) setArranged(next);
   };
 
   const busy = new Set(p.screens.filter((s) => s.status === "building" || s.status === "verifying").map((s) => s.route));
