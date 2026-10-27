@@ -1,0 +1,7 @@
+[
+  { "id": "habits", "prompt": "A habit tracker: today's habits with checkboxes and streaks, a weekly stats chart, a habit detail page and reminders." },
+  { "id": "recipes", "prompt": "A recipe app: browse recipes as photo cards, filter by category, a recipe detail page with ingredients and steps." },
+  { "id": "budget", "prompt": "A personal budget app: monthly balance, spending by category with a chart, a transaction list and an add form." },
+  { "id": "todo", "prompt": "A to-do app with lists, due dates, a today view and a completed section." },
+  { "id": "weather", "prompt": "A weather app: current conditions, an hourly strip, a 7-day forecast and saved cities." }
+]
