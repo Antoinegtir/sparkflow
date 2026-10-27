@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# Sparkflow on your computer. Installed by https://sparkflow-ai.web.app/install.sh
+#
+#   sparkflow            start the server and connect it to the hosted site
+#   sparkflow doctor     check what Sparkflow needs (Node, Xcode, cloudflared…)
+#   sparkflow update     install the latest release (or: sparkflow update v0.3.0)
+#   sparkflow version    installed version
+#   sparkflow uninstall  remove Sparkflow (keeps your apps unless --all)
+set -euo pipefail
+
+HOME_DIR="${SPARKFLOW_HOME:-$HOME/.sparkflow}"
+APP="$HOME_DIR/current"
+SITE="${SPARKFLOW_SITE:-https://sparkflow-ai.web.app}"
+
+bold() { printf '\033[1m%s\033[0m\n' "$*"; }
+ok() { printf '  \033[32m✓\033[0m %s\n' "$*"; }
+warn() { printf '  \033[33m!\033[0m %s\n' "$*"; }
+bad() { printf '  \033[31m✗\033[0m %s\n' "$*"; }
+
+version() { node -p "require('$APP/package.json').version" 2>/dev/null || echo "not installed"; }
+
+# Same checks as the installer, with the reason for each. Exit 1 if a required one fails.
+doctor() {
+  local failed=0
+  bold "Sparkflow $(version)"
+  if command -v node >/dev/null; then
+    local major; major=$(node -p 'process.versions.node.split(".")[0]')
+    if [ "$major" -ge 20 ]; then ok "Node $(node -v)"; else bad "Node $(node -v): 20 or newer needed (brew install node)"; failed=1; fi
+  else bad "Node not found: brew install node"; failed=1; fi
+  command -v npm >/dev/null && ok "npm $(npm -v)" || { bad "npm not found"; failed=1; }
+  command -v git >/dev/null && ok "git $(git --version | awk '{print $3}')" || { bad "git not found (xcode-select --install)"; failed=1; }
+  command -v cloudflared >/dev/null && ok "cloudflared (tunnel to the hosted site)" || { bad "cloudflared not found: brew install cloudflared"; failed=1; }
+  if [ "$(uname)" = "Darwin" ]; then
+    xcode-select -p >/dev/null 2>&1 && ok "Xcode command line tools" || { bad "Xcode command line tools missing: xcode-select --install"; failed=1; }
+    if xcrun simctl help >/dev/null 2>&1; then ok "Xcode with iOS Simulator (native projects)"; else warn "Full Xcode not found: building Expo apps works, the iOS Simulator view does not"; fi
+  else
+    warn "Not macOS: the iOS Simulator features are unavailable"
+  fi
+  command -v watchman >/dev/null && ok "watchman" || warn "watchman not found (optional, faster reloads): brew install watchman"
+  [ -f "$HOME_DIR/.env" ] && grep -q '^MODEL_API_KEY=.' "$HOME_DIR/.env" && ok "MODEL_API_KEY set" || warn "No MODEL_API_KEY in $HOME_DIR/.env: demo mode (scripted agent)"
+  [ -d "$APP/.next-server" ] && ok "Server build present" || { bad "Server build missing: sparkflow update"; failed=1; }
+  return $failed
+}
+
+case "${1:-start}" in
+  start)
+    [ -d "$APP" ] || { echo "Sparkflow is not installed. curl -fsSL $SITE/install.sh | bash"; exit 1; }
+    doctor >/dev/null || { doctor; exit 1; }
+    cd "$APP"
+    export SPARKFLOW_DATA_DIR="$HOME_DIR/data" SPARKFLOW_SITE="$SITE"
+    exec node scripts/remote.mjs
+    ;;
+  doctor) doctor ;;
+  version | --version | -v) version ;;
+  update) curl -fsSL "$SITE/install.sh" | bash -s -- "${2:-}" ;;
+  uninstall)
+    rm -rf "$HOME_DIR/versions" "$HOME_DIR/current" "$HOME_DIR/bin"
+    [ "${2:-}" = "--all" ] && rm -rf "$HOME_DIR"
+    rm -f "$HOME/.local/bin/sparkflow"
+    echo "Sparkflow removed.$([ "${2:-}" = "--all" ] || echo " Your apps are still in $HOME_DIR/data.")"
+    ;;
+  help | --help | -h) sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//' ;;
+  *) echo "Unknown command: $1 (sparkflow help)"; exit 1 ;;
+esac

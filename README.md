@@ -14,15 +14,24 @@ npm run dev
 
 ## Hosted site + your computer
 
-The landing is hosted as static files on Firebase Hosting (https://sparkflow-ai.web.app). The builds still run on your computer:
+The site is hosted on Firebase Hosting (https://sparkflow-ai.web.app); the builds run on your computer. Install the server once:
 
 ```bash
-npm run remote
+curl -fsSL https://sparkflow-ai.web.app/install.sh | bash
 ```
 
-It builds and starts the server on port 3002, opens a Cloudflare quick tunnel (`brew install cloudflared`) and opens the hosted site connected to it, with a one-time token in the link. Requests through the tunnel without that token are refused; requests from this machine never need it. Ctrl+C stops both.
+The installer checks Node 20+, git, the Xcode command line tools (full Xcode for the iOS Simulator view), cloudflared and watchman, downloads the latest GitHub release (checksum verified) into `~/.sparkflow` and adds a `sparkflow` command:
 
-To publish a new version of the landing: `npm run deploy` (static export to `.next-static`, then `firebase deploy --only hosting`).
+- `sparkflow`: starts the server, opens a Cloudflare quick tunnel and opens the hosted site connected to it (one-time token in the link).
+- `sparkflow doctor`, `sparkflow update [vX.Y.Z]`, `sparkflow version`, `sparkflow uninstall [--all]`.
+
+Your apps live in `~/.sparkflow/data` and the API key in `~/.sparkflow/.env`, shared by every version.
+
+From a checkout, `npm run remote` does the same as `sparkflow`. `npm run deploy` publishes the site (static export to `.next-static`, then `firebase deploy --only hosting`).
+
+### Releases
+
+`npm run release -- patch` (or `minor`, `major`, `1.2.3`) bumps `package.json`, tags `vX.Y.Z` and pushes. The `Release` workflow builds the server on macOS and publishes `sparkflow-vX.Y.Z.tar.gz` and its `.sha256` on GitHub Releases, which `install.sh` and `sparkflow update` download.
 
 ## How it works
 

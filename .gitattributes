@@ -1,0 +1,5 @@
+# Left out of release archives (git archive): not needed to run Sparkflow.
+blender/ export-ignore
+eval/ export-ignore
+tests/ export-ignore
+.github/ export-ignore

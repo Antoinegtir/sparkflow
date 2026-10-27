@@ -1,0 +1,51 @@
+# Pushing a tag vX.Y.Z (npm run release) builds the server and publishes the GitHub release that
+# https://sparkflow-ai.web.app/install.sh downloads: sparkflow-vX.Y.Z.tar.gz + its .sha256.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Tag matches package.json
+        run: test "v$(node -p 'require("./package.json").version')" = "$GITHUB_REF_NAME"
+
+      - run: npm ci --no-audit --no-fund
+
+      - name: Build the server
+        run: NEXT_DIST_DIR=.next-server npx next build
+
+      - name: Package
+        run: |
+          TAG="$GITHUB_REF_NAME"
+          ASSET="sparkflow-$TAG.tar.gz"
+          # Tracked files at the tag (minus export-ignore paths) plus the prebuilt server.
+          git archive --format=tar -o release.tar "$TAG"
+          tar --exclude='.next-server/cache' -rf release.tar .next-server
+          gzip -9 -c release.tar > "$ASSET"
+          shasum -a 256 "$ASSET" > "$ASSET.sha256"
+          echo "ASSET=$ASSET" >> "$GITHUB_ENV"
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" "$ASSET" "$ASSET.sha256" \
+            --title "Sparkflow $GITHUB_REF_NAME" \
+            --generate-notes \
+            --notes "Install or update: \`curl -fsSL https://sparkflow-ai.web.app/install.sh | bash\`"

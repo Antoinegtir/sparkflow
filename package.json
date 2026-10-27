@@ -13,7 +13,8 @@
     "setup": "npm --prefix templates/expo-base install && npx playwright install chromium",
     "build:static": "node scripts/build-static.mjs",
     "deploy": "npm run build:static && firebase deploy --only hosting",
-    "remote": "node scripts/remote.mjs"
+    "remote": "node scripts/remote.mjs",
+    "release": "node scripts/release.mjs"
   },
   "dependencies": {
     "@grpc/grpc-js": "^1.14.6",
