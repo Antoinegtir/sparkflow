@@ -74,15 +74,16 @@ if [ -n "$WANTED" ]; then
   TAG="$WANTED"
   case "$TAG" in v*) ;; *) TAG="v$TAG" ;; esac
 else
-  TAG="$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -1)"
-  [ -n "$TAG" ] || die "Couldn't find the latest release of $REPO"
+  TAG="$( (curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" 2>/dev/null || true) | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -1)"
+  [ -n "$TAG" ] || die "No Sparkflow release is published yet (https://github.com/$REPO/releases): try again in a few minutes"
 fi
 ASSET="sparkflow-$TAG.tar.gz"
 URL="${SPARKFLOW_TARBALL_URL:-https://github.com/$REPO/releases/download/$TAG}"
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
-curl -fsSL "$URL/$ASSET" -o "$TMP/$ASSET" || die "Couldn't download $TAG ($URL/$ASSET)"
+echo "  $TAG from GitHub Releases…"
+curl -fL --progress-bar "$URL/$ASSET" -o "$TMP/$ASSET" || die "Couldn't download $TAG ($URL/$ASSET)"
 curl -fsSL "$URL/$ASSET.sha256" -o "$TMP/$ASSET.sha256" || die "Couldn't download the checksum of $TAG"
 (cd "$TMP" && shasum -a 256 -c "$ASSET.sha256" >/dev/null) || die "Checksum mismatch: the download is corrupted"
 ok "$TAG ($(du -h "$TMP/$ASSET" | cut -f1 | tr -d ' '), checksum verified)"

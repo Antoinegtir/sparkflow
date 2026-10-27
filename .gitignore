@@ -12,3 +12,8 @@ eval/results
 .static-stash
 .firebase
 .next-server
+
+# Local settings and API keys: never committed.
+.env
+.env.*
+!.env.example

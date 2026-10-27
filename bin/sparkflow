@@ -2,6 +2,7 @@
 # Sparkflow on your computer. Installed by https://sparkflow-ai.web.app/install.sh
 #
 #   sparkflow            start the server and connect it to the hosted site
+#   sparkflow key        set or change your Muse Spark API key (kept on this computer)
 #   sparkflow doctor     check what Sparkflow needs (Node, Xcode, cloudflared…)
 #   sparkflow update     install the latest release (or: sparkflow update v0.3.0)
 #   sparkflow version    installed version
@@ -37,7 +38,7 @@ doctor() {
     warn "Not macOS: the iOS Simulator features are unavailable"
   fi
   command -v watchman >/dev/null && ok "watchman" || warn "watchman not found (optional, faster reloads): brew install watchman"
-  [ -f "$HOME_DIR/.env" ] && grep -q '^MODEL_API_KEY=.' "$HOME_DIR/.env" && ok "MODEL_API_KEY set" || warn "No MODEL_API_KEY in $HOME_DIR/.env: demo mode (scripted agent)"
+  [ -f "$HOME_DIR/.env" ] && grep -q '^MODEL_API_KEY=.' "$HOME_DIR/.env" && ok "Muse Spark API key set (on this computer only)" || warn "No Muse Spark API key: demo mode (sparkflow key to add one)"
   [ -d "$APP/.next-server" ] && ok "Server build present" || { bad "Server build missing: sparkflow update"; failed=1; }
   return $failed
 }
@@ -50,6 +51,9 @@ case "${1:-start}" in
     export SPARKFLOW_DATA_DIR="$HOME_DIR/data" SPARKFLOW_SITE="$SITE"
     exec node scripts/remote.mjs
     ;;
+  key)
+    cd "$APP" && exec node scripts/remote.mjs --key
+    ;;
   doctor) doctor ;;
   version | --version | -v) version ;;
   update) curl -fsSL "$SITE/install.sh" | bash -s -- "${2:-}" ;;
@@ -59,6 +63,6 @@ case "${1:-start}" in
     rm -f "$HOME/.local/bin/sparkflow"
     echo "Sparkflow removed.$([ "${2:-}" = "--all" ] || echo " Your apps are still in $HOME_DIR/data.")"
     ;;
-  help | --help | -h) sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//' ;;
+  help | --help | -h) sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//' ;;
   *) echo "Unknown command: $1 (sparkflow help)"; exit 1 ;;
 esac
