@@ -113,6 +113,7 @@ export function useProject(id: string) {
       act(() => post(`/api/projects/${id}/capture${opts.dark ? "?scheme=dark" : opts.refresh ? "?refresh=1" : ""}`)),
     captureDark: () => act(() => (state?.native ? post(`/api/projects/${id}/capture?scheme=dark`) : post(`/api/projects/${id}/dark`))),
     captureDevice: (device: string, scheme: "light" | "dark") => act(() => post(`/api/projects/${id}/device-shots`, { device, scheme })),
+    captureSimulator: (scheme: "light" | "dark", refresh = false) => act(() => post(`/api/projects/${id}/sim-capture?scheme=${scheme}${refresh ? "&refresh" : ""}`)),
     rename: (name: string) => act(() => post(`/api/projects/${id}`, { name }, "PATCH")),
     setPreviewDevice: (device: string) => act(() => post(`/api/projects/${id}`, { previewDevice: device }, "PATCH")),
   };

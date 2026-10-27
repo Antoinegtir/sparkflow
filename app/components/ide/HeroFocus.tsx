@@ -82,7 +82,7 @@ export function HeroFocus(p: Props) {
   useEffect(() => {
     if (fromSim.current) return void (fromSim.current = false);
     if (!webSim || !simUdid || !p.state.preview) return;
-    void openInSimulator(simUdid, p.state.preview, s.previewPath ?? "/").catch(() => {});
+    void openInSimulator(simUdid, p.state.preview, s.previewPath ?? "/", s.route).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [webSim, simUdid, s.route]);
 
@@ -441,7 +441,7 @@ function ToolRail(p: Omit<Props, "onDevice"> & { style: React.CSSProperties; onR
                       onClick={() => {
                         p.onDevice("simulator");
                         setPicker(false);
-                        if (sim.device && p.state.preview) void openInSimulator(sim.device.udid, p.state.preview, p.screen.previewPath ?? "/").catch(() => {});
+                        if (sim.device && p.state.preview) void openInSimulator(sim.device.udid, p.state.preview, p.screen.previewPath ?? "/", p.screen.route).catch(() => {});
                       }}
                       className={clsx("flex w-full cursor-pointer items-center justify-between rounded-md px-2.5 py-1.5 text-left text-[12.5px] hover:bg-ink-800", p.device === "simulator" ? "text-ink-100" : "text-ink-300")}>
                       Simulator

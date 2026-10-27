@@ -79,6 +79,12 @@ export function IDE({ id, slug: initialSlug, initialPage }: { id: string; slug: 
           x = { ...s, screenshotUrl: shot && shot.version >= s.version ? shot.url : undefined, history: shot ? [{ version: 1, url: shot.url, ts: 0 }] : [], version: 1 };
         }
         x = inScheme(x, scheme);
+        // Web app in the live Simulator: the pages as captured there (status bar included), once ready.
+        if (!state.native && state.previewDevice === "simulator") {
+          const shot = s.devices?.simulator?.[scheme];
+          if (shot && shot.version >= s.version) return { ...x, screenshotUrl: shot.url };
+          return s.screenshotUrl ? { ...x, deviceLoading: true } : x;
+        }
         // Web: other preview devices get their own capture, so pages keep that device's proportions.
         const device = shotDevice(state.previewDevice);
         const dev = !state.native && device !== "iphone" ? s.devices?.[device]?.[scheme] : undefined;
@@ -268,6 +274,19 @@ export function IDE({ id, slug: initialSlug, initialPage }: { id: string; slug: 
     void api.captureDevice(device, scheme).finally(() => setCapturingDevice(false));
   }, [state, scheme, capturingDevice, capturingDark, api]);
 
+  // Web app shown in the live Simulator: capture its pages there (in Expo Go) when they aren't yet,
+  // or are older than the page. The Simulator is driven meanwhile, so it shows a spinner.
+  const triedSim = useRef(new Set<string>());
+  useEffect(() => {
+    if (!state || state.native || state.previewDevice !== "simulator" || !sim.device || state.status === "running" || simFrozen) return;
+    const stale = state.order.filter((r) => state.screens[r] && state.screens[r].devices?.simulator?.[scheme]?.version !== state.screens[r].version);
+    const key = `${scheme}:` + stale.map((r) => `${r}@${state.screens[r].version}`).join(",");
+    if (!stale.length || triedSim.current.has(key)) return;
+    triedSim.current.add(key);
+    setSimFrozen("Capturing pages…");
+    void api.captureSimulator(scheme).finally(() => setSimFrozen(null));
+  }, [state, scheme, sim.device, simFrozen, api]);
+
   // Native: after an agent run, re-capture both appearances.
   const prevStatus = useRef(state?.status);
   useEffect(() => {
@@ -451,7 +470,8 @@ export function IDE({ id, slug: initialSlug, initialPage }: { id: string; slug: 
             hiddenRoute={focused && !closing ? focused : null}
             scanning={new Set(capturingDark ? state.order.filter((r) => state.screens[r] && darkStale(state.screens[r])) : [])}
             ipad={ipad}
-            native={!!state.native}
+            // Simulator captures already hold the status bar: drawn bare, like a native app's.
+            native={!!state.native || state.previewDevice === "simulator"}
             dark={scheme === "dark"}
             device={shotDevice(state.previewDevice)}
             status={state.status}

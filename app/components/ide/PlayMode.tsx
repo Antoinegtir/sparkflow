@@ -96,7 +96,7 @@ export function PlayMode({ state, scheme, startPath, onClose, onSimButton, onDev
     if (!live || native || !state.preview || !udid) return;
     let cancelled = false;
     setOpening(true);
-    openInSimulator(udid, state.preview, startPath)
+    openInSimulator(udid, state.preview, startPath, matchRoute(startPath, state.order) ?? undefined)
       .catch(() => {})
       // The Simulator takes a moment to bring the app up after the call returns.
       .finally(() => setTimeout(() => !cancelled && setOpening(false), 1800));
