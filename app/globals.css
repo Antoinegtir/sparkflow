@@ -204,3 +204,6 @@
 @media (prefers-reduced-motion: reduce) {
   .hiw-pop, .hiw-type, .hiw-wave, .hiw-scan, .hiw-cursor { animation: none; max-width: none; }
 }
+
+/* Landing: in-page links (How it works, My apps) glide instead of jumping. */
+html:has([data-landing]) { scroll-behavior: smooth; }

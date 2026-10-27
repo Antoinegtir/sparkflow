@@ -14,6 +14,7 @@ export default function Home() {
   return (
     // Landing look: Aurora colors (globals.css [data-landing]), Bricolage Grotesque + Geist.
     <main
+      id="top"
       data-landing="aurora"
       className="relative min-h-screen overflow-x-clip bg-ink-950 font-sans"
       style={{ "--font-sans": "var(--font-geist)", "--font-mono": "var(--font-geist-mono)", "--landing-head": "var(--font-bricolage)" } as React.CSSProperties}>
@@ -31,11 +32,25 @@ export default function Home() {
       <DotLens />
 
       {/* Floating app bar: translucent and blurred over the page as it scrolls. */}
-      <header className="fixed inset-x-0 top-3 z-40 mx-auto flex w-[min(760px,calc(100%-32px))] items-center justify-between rounded-xl border border-white/10 bg-ink-950/55 py-2 pl-3 pr-2 shadow-[0_10px_40px_-12px_rgba(0,0,0,.6)] backdrop-blur-xl backdrop-saturate-150">
+      <header className="fixed inset-x-0 top-3 z-40 mx-auto grid w-[min(780px,calc(100%-32px))] grid-cols-[1fr_auto_1fr] items-center rounded-xl border border-white/10 bg-ink-950/55 py-2 pl-3 pr-2 shadow-[0_10px_40px_-12px_rgba(0,0,0,.6)] backdrop-blur-xl backdrop-saturate-150">
         <Logo />
-        <div className="flex items-center gap-1 text-[13px] text-ink-400">
-          <span className="hidden whitespace-nowrap px-2.5 font-mono text-[11px] sm:inline">{info.model}</span>
-          <span className="hidden whitespace-nowrap px-2.5 font-mono text-[11px] sm:inline">{info.sandbox} sandbox</span>
+        <nav className="hidden items-center gap-1 text-[13px] text-ink-300 md:flex">
+          <a href="#how" className="rounded-lg px-2.5 py-1.5 transition hover:bg-white/5 hover:text-ink-100">How it works</a>
+          <a href="#apps" className="rounded-lg px-2.5 py-1.5 transition hover:bg-white/5 hover:text-ink-100">My apps</a>
+          <a href="https://github.com/Antoinegtir/sparkflow" target="_blank" rel="noreferrer" className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 transition hover:bg-white/5 hover:text-ink-100">
+            <svg viewBox="0 0 16 16" className="size-3.5 fill-current" aria-hidden>
+              <path d="M8 0a8 8 0 0 0-2.53 15.59c.4.07.55-.17.55-.38v-1.33c-2.23.48-2.7-1.07-2.7-1.07-.36-.92-.89-1.17-.89-1.17-.73-.5.05-.49.05-.49.8.06 1.23.83 1.23.83.72 1.22 1.87.87 2.33.66.07-.52.28-.87.5-1.07-1.78-.2-3.65-.89-3.65-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.28.82 2.15 0 3.07-1.87 3.75-3.66 3.95.29.25.54.73.54 1.48v2.2c0 .21.15.46.55.38A8 8 0 0 0 8 0Z" />
+            </svg>
+            GitHub
+          </a>
+        </nav>
+        <div className="col-start-3 flex items-center justify-end gap-2">
+          <button type="button" className="cursor-pointer rounded-lg px-3 py-1.5 text-[13px] text-ink-200 transition hover:bg-white/5 hover:text-ink-100">
+            Sign in
+          </button>
+          <a href="#top" className="rounded-lg bg-spark-500 px-3 py-1.5 text-[13px] font-medium text-white transition hover:bg-spark-400">
+            Start building
+          </a>
         </div>
       </header>
       <div className="h-16" />
@@ -77,7 +92,9 @@ export default function Home() {
       <ScrollVideo src="/videos/phone.webm">
         <HowItWorks />
       </ScrollVideo>
-      <ProjectGrid />
+      <div id="apps" className="scroll-mt-20">
+        <ProjectGrid />
+      </div>
       {info.llm === "mock" && (
         <p className="relative mx-auto mb-12 max-w-lg px-6 text-center text-xs text-warn/90">
           Demo mode: no <code className="font-mono">MODEL_API_KEY</code> set, so a scripted agent builds a sample habit tracker. Add your Meta Model API key to <code className="font-mono">.env</code> to use Muse Spark.

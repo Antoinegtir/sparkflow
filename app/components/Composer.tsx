@@ -98,8 +98,8 @@ export function Composer() {
           void attach(e.dataTransfer.files[0]);
         }}
         className={clsx(
-          "rounded-3xl border bg-ink-900/80 p-4 pl-5 shadow-[0_30px_80px_-24px_var(--landing-glow)] backdrop-blur focus-within:border-ink-600",
-          dragging ? "border-spark-500" : "border-ink-700",
+          "rounded-3xl border bg-ink-900/80 p-4 pl-5 shadow-[0_30px_80px_-24px_var(--landing-glow)] backdrop-blur focus-within:border-[#3a4352]",
+          dragging ? "border-spark-500" : "border-[#2a3240]",
         )}>
         <textarea
           ref={input}
