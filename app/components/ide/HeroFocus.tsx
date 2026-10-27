@@ -70,6 +70,15 @@ export function HeroFocus(p: Props) {
   const [surface, setSurface] = useState<string | null>(null);
   const busy = s.status === "building" || s.status === "verifying";
 
+  // A generated app in the live Simulator: opening another page takes the app there too.
+  const simUdid = useSimDevice().device?.udid;
+  const webSim = !p.state.native && p.state.previewDevice === "simulator";
+  useEffect(() => {
+    if (!webSim || !simUdid || !p.state.preview) return;
+    void openInSimulator(simUdid, p.state.preview, s.previewPath ?? "/").catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [webSim, simUdid, s.route]);
+
   // Target rect: height clamp(h − 190, 380..800), aspect of the simulator (native) or 390×844.
   // Web projects: the page is previewed in the project's device, picked in the tool rail.
   const deviceId = p.state.previewDevice ?? "iphone";

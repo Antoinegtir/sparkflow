@@ -24,6 +24,9 @@ const PANEL_KEY = "sparkflow-panel-width";
 const EXPLORER_KEY = "sparkflow-explorer-width";
 const pageSlug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "page";
 
+/** The device the pages are captured in: the live Simulator shows the iPhone captures. */
+const shotDevice = (d?: string) => (!d || d === "simulator" ? "iphone" : d);
+
 export function IDE({ id, slug: initialSlug, initialPage }: { id: string; slug: string; initialPage: string[] }) {
   const api = useProject(id);
   const { state } = api;
@@ -77,9 +80,10 @@ export function IDE({ id, slug: initialSlug, initialPage }: { id: string; slug: 
         }
         x = inScheme(x, scheme);
         // Web: other preview devices get their own capture, so pages keep that device's proportions.
-        const dev = !state.native && state.previewDevice && state.previewDevice !== "iphone" ? s.devices?.[state.previewDevice]?.[scheme] : undefined;
+        const device = shotDevice(state.previewDevice);
+        const dev = !state.native && device !== "iphone" ? s.devices?.[device]?.[scheme] : undefined;
         if (dev && dev.version >= s.version) return { ...x, screenshotUrl: dev.url };
-        return !state.native && state.previewDevice && state.previewDevice !== "iphone" && s.screenshotUrl ? { ...x, deviceLoading: true } : x;
+        return !state.native && device !== "iphone" && s.screenshotUrl ? { ...x, deviceLoading: true } : x;
       });
   }, [state, scheme, ipad, sim.device]);
   const byRoute = useMemo(() => new Map(screens.map((s) => [s.route, s])), [screens]);
@@ -254,8 +258,8 @@ export function IDE({ id, slug: initialSlug, initialPage }: { id: string; slug: 
   const triedDevice = useRef(new Set<string>());
   const [capturingDevice, setCapturingDevice] = useState(false);
   useEffect(() => {
-    const device = state?.previewDevice;
-    if (!state || state.native || !device || device === "iphone" || state.status === "running" || capturingDevice || capturingDark) return;
+    const device = shotDevice(state?.previewDevice);
+    if (!state || state.native || device === "iphone" || state.status === "running" || capturingDevice || capturingDark) return;
     const stale = state.order.filter((r) => state.screens[r]?.screenshotUrl && state.screens[r].devices?.[device]?.[scheme]?.version !== state.screens[r].version);
     const key = `${device}:${scheme}:` + stale.map((r) => `${r}@${state.screens[r].version}`).join(",");
     if (!stale.length || triedDevice.current.has(key)) return;
@@ -449,7 +453,7 @@ export function IDE({ id, slug: initialSlug, initialPage }: { id: string; slug: 
             ipad={ipad}
             native={!!state.native}
             dark={scheme === "dark"}
-            device={state.previewDevice}
+            device={shotDevice(state.previewDevice)}
             status={state.status}
             canLink={!state.native && !running}
             // The canvas lights up again while the phone flies back.
