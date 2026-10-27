@@ -192,11 +192,16 @@ export function SimulatorView({
   }, [udid, onPageChange]);
 
   // ---- touches ----
-  const gesture = useRef<{ id: string; start: { x: number; y: number; t: number }; moved: boolean; inflight: boolean; queued: { x: number; y: number } | null } | null>(null);
-  const sendGesture = async (phase: "down" | "move" | "up", x: number, y: number) => {
-    const g = gesture.current;
-    if (!g || !udid) return;
-    await fetch(`/api/sim/${udid}/gesture`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: g.id, phase, x, y }), keepalive: phase === "up" }).catch(() => {});
+  type Gesture = { id: string; start: { x: number; y: number; t: number }; moved: boolean; inflight: boolean; queued: { x: number; y: number } | null; chain: Promise<unknown> };
+  const gesture = useRef<Gesture | null>(null);
+  // One gesture's requests go one after the other: through the tunnel a lift sent right after a
+  // touch-down could otherwise arrive first, and the finger would stay down.
+  const sendGesture = (phase: "down" | "move" | "up", x: number, y: number, g: Gesture | null = gesture.current) => {
+    if (!g || !udid) return Promise.resolve();
+    const send = () =>
+      fetch(`/api/sim/${udid}/gesture`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: g.id, phase, x, y }), keepalive: phase === "up" }).catch(() => {});
+    g.chain = g.chain.then(send, send);
+    return g.chain;
   };
   const flash = (msg: string) => {
     setError(msg);
@@ -207,7 +212,7 @@ export function SimulatorView({
     if (!udid || frozen || inspect) return;
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
     const p = toPoints(e.clientX, e.clientY);
-    gesture.current = { id: Math.random().toString(36).slice(2), start: { x: p.x, y: p.y, t: Date.now() }, moved: false, inflight: false, queued: null };
+    gesture.current = { id: Math.random().toString(36).slice(2), start: { x: p.x, y: p.y, t: Date.now() }, moved: false, inflight: false, queued: null, chain: Promise.resolve() };
     const id = Date.now();
     setRipples((r) => [...r, { id, x: e.clientX - p.r.left, y: e.clientY - p.r.top }]);
     setTimeout(() => setRipples((r) => r.filter((x) => x.id !== id)), 500);
@@ -236,7 +241,7 @@ export function SimulatorView({
     if (!g || !udid) return;
     gesture.current = null;
     const p = toPoints(e.clientX, e.clientY);
-    if (device?.stream) await sendGesture("up", p.x, p.y);
+    if (device?.stream) await sendGesture("up", p.x, p.y, g);
     else {
       const duration = (Date.now() - g.start.t) / 1000;
       const moved = Math.hypot(p.x - g.start.x, p.y - g.start.y) > 6;

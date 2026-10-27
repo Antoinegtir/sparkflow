@@ -5,6 +5,8 @@ const g = globalThis as unknown as { __sparkflowGestures?: Map<string, Gesture> 
 const gestures = (g.__sparkflowGestures ??= new Map());
 
 const WATCHDOG_MS = 5000;
+/** Gestures whose touch-down is still opening its stream, with the latest move or lift sent meanwhile. */
+const opening = new Map<string, { phase: "move" | "up"; x: number; y: number } | null>();
 
 function arm(key: string, ges: Gesture) {
   clearTimeout(ges.watchdog);
@@ -24,6 +26,11 @@ function arm(key: string, ges: Gesture) {
  */
 export async function gesture(udid: string, phase: "down" | "move" | "up", x: number, y: number, id = udid) {
   const key = `${udid}:${id}`;
+  // A lift that arrives while its touch-down is still opening the stream is applied right after.
+  if (phase !== "down" && opening.has(key)) {
+    opening.set(key, { phase, x, y });
+    return;
+  }
   if (phase === "down") {
     const prev = gestures.get(key);
     if (prev) {
@@ -31,11 +38,21 @@ export async function gesture(udid: string, phase: "down" | "move" | "up", x: nu
       prev.stream.end();
       clearTimeout(prev.watchdog);
     }
-    const stream = await openHidStream(udid);
+    opening.set(key, null);
+    let stream: Awaited<ReturnType<typeof openHidStream>>;
+    try {
+      stream = await openHidStream(udid);
+    } catch (err) {
+      opening.delete(key);
+      throw err;
+    }
     const ges: Gesture = { stream, last: { x, y }, watchdog: setTimeout(() => {}, 0) };
     gestures.set(key, ges);
     stream.write(touch(x, y, "DOWN"));
     arm(key, ges);
+    const early = opening.get(key);
+    opening.delete(key);
+    if (early) await gesture(udid, early.phase, early.x, early.y, id);
     return;
   }
   const ges = gestures.get(key);
