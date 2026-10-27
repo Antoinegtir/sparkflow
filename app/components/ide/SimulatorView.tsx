@@ -324,7 +324,7 @@ export function SimulatorView({
     <div className="relative h-full w-full touch-none select-none bg-black" onWheel={onWheel}>
       <canvas
         ref={canvas}
-        className={clsx("h-full w-full object-contain", inspect ? "cursor-crosshair" : "cursor-pointer")}
+        className={clsx("h-full w-full object-fill", inspect ? "cursor-crosshair" : "cursor-pointer")}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
