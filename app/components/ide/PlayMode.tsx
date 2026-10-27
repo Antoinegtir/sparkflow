@@ -67,7 +67,7 @@ export function PlayMode({ state, scheme, startPath, onClose, onSimButton }: { s
   };
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && dismiss();
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
@@ -129,6 +129,28 @@ export function PlayMode({ state, scheme, startPath, onClose, onSimButton }: { s
     }
   }, [measured]);
 
+  // Closing: the same flight backwards, back to the focus view's phone, then the overlay goes.
+  const closing = useRef(false);
+  const dismiss = () => {
+    if (closing.current) return;
+    closing.current = true;
+    const r = root.current;
+    const el = box.current;
+    const opts = { duration: 380, easing: "cubic-bezier(.4,0,.2,1)", fill: "forwards" as const };
+    if (r) {
+      r.animate([{ backgroundColor: "rgba(0,0,0,.85)", backdropFilter: "blur(12px)" }, { backgroundColor: "rgba(0,0,0,0)", backdropFilter: "blur(0px)" }], opts);
+      for (const bar of [r.firstElementChild, r.lastElementChild]) bar?.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 160, fill: "forwards" });
+    }
+    const from = document.querySelector("[data-hero-phone]")?.getBoundingClientRect();
+    const to = el?.getBoundingClientRect();
+    const anim =
+      el && to && from && from.width && to.width
+        ? el.animate([{ transformOrigin: "0 0", transform: "none" }, { transformOrigin: "0 0", transform: `translate(${from.left - to.left}px, ${from.top - to.top}px) scale(${from.width / to.width})` }], opts)
+        : el?.animate([{ opacity: 1, transform: "none" }, { opacity: 0, transform: "scale(.92)" }], opts);
+    // A timer rather than onfinish: animations don't advance in a background tab, the close must still happen.
+    setTimeout(onClose, anim ? opts.duration : 0);
+  };
+
   // A new frame size reloads the app: show the spinner until it repaints.
   const key = `${platform}:${device?.id ?? "web"}:${run}`;
   useEffect(() => setReady(false), [key]);
@@ -182,7 +204,7 @@ export function PlayMode({ state, scheme, startPath, onClose, onSimButton }: { s
 
   const seg = "cursor-pointer rounded-md px-2.5 py-1";
   return (
-    <div ref={root} data-ide className="fixed inset-0 z-[80] flex flex-col bg-black/85 backdrop-blur-md" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    <div ref={root} data-ide className="fixed inset-0 z-[80] flex flex-col bg-black/85 backdrop-blur-md" onMouseDown={(e) => e.target === e.currentTarget && dismiss()}>
       <div className="relative flex h-12 shrink-0 items-center justify-between px-4 text-[12.5px] text-white/80">
         <div className="flex items-center gap-2">
           {devices.length > 1 && (
@@ -237,12 +259,12 @@ export function PlayMode({ state, scheme, startPath, onClose, onSimButton }: { s
               </button>
             ))}
           </div>
-          <button onClick={onClose} aria-label="Close" className="grid size-8 cursor-pointer place-items-center rounded-md hover:bg-white/10">
+          <button onClick={dismiss} aria-label="Close" className="grid size-8 cursor-pointer place-items-center rounded-md hover:bg-white/10">
             <X size={16} />
           </button>
         </div>
       </div>
-      <div ref={stage} className="grid min-h-0 flex-1 place-items-center" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div ref={stage} className="grid min-h-0 flex-1 place-items-center" onMouseDown={(e) => e.target === e.currentTarget && dismiss()}>
         {/* The box takes the scaled size, so a tall device (iPad) is centred instead of overflowing. */}
         <div ref={box} style={{ width: outerW * fit, height: outerH * fit }}>
           <div className="origin-top-left" style={{ width: outerW, height: outerH, transform: `scale(${fit})` }}>
