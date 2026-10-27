@@ -300,7 +300,7 @@ export function HeroFocus(p: Props) {
       />
       <DotMagnifier />
 
-      <motion.div className="absolute" style={{ left: x, top: y, width: targetW, height: targetH, scale: sc, transformOrigin: "0 0" }}>
+      <motion.div data-hero-phone className="absolute" style={{ left: x, top: y, width: targetW, height: targetH, scale: sc, transformOrigin: "0 0" }}>
         {native ? (
         <PhoneFrame
           width={9999}

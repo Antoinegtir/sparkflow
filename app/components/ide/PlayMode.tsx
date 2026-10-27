@@ -33,8 +33,13 @@ const PREFS_KEY = "sparkflow-play";
 export function PlayMode({ state, scheme, startPath, onClose, onSimButton }: { state: ProjectState; scheme: AppScheme; startPath: string; onClose: () => void; onSimButton: (b: "VOLUME_UP" | "VOLUME_DOWN" | "SIDE_BUTTON", hold: number) => void }) {
   const native = !!state.native;
   const sim = useSimDevice();
-  const [platform, setPlatform] = useState<Platform>(native || !state.preview ? "ios" : "ios");
-  const [deviceId, setDeviceId] = useState<Record<Exclude<Platform, "web">, string>>({ ios: native || !state.preview ? "simulator" : "iphone", android: "pixel" });
+  // Opens on the device the page is shown on (the focus view's), so the phone carries straight over.
+  const current = native || !state.preview ? undefined : PREVIEW_DEVICES.find((d) => d.id === state.previewDevice);
+  const [platform, setPlatform] = useState<Platform>(current?.platform ?? "ios");
+  const [deviceId, setDeviceId] = useState<Record<Exclude<Platform, "web">, string>>({
+    ios: native || !state.preview ? "simulator" : current?.platform === "ios" ? current.id : "iphone",
+    android: current?.platform === "android" ? current.id : "pixel",
+  });
   const [path, setPath] = useState(startPath);
   const [run, setRun] = useState(0);
   const [ready, setReady] = useState(false);
@@ -42,14 +47,18 @@ export function PlayMode({ state, scheme, startPath, onClose, onSimButton }: { s
   const stage = useRef<HTMLDivElement>(null);
   const frame = useRef<HTMLIFrameElement>(null);
   const [fit, setFit] = useState(1);
+  const [measured, setMeasured] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  const box = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (native) return;
+    if (native || current) return;
     try {
       const saved = JSON.parse(localStorage.getItem(PREFS_KEY) ?? "null");
       if (saved?.platform) setPlatform(saved.platform);
       if (saved?.deviceId) setDeviceId((d) => ({ ...d, ...saved.deviceId }));
     } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [native]);
   const save = (p: Platform, ids: typeof deviceId) => {
     try {
@@ -90,10 +99,35 @@ export function PlayMode({ state, scheme, startPath, onClose, onSimButton }: { s
   useLayoutEffect(() => {
     const el = stage.current;
     if (!el) return;
-    const ro = new ResizeObserver(() => setFit(Math.min(1, (el.clientHeight - 40) / outerH, (el.clientWidth - 40) / outerW)));
+    const ro = new ResizeObserver(() => {
+      setFit(Math.min(1, (el.clientHeight - 40) / outerH, (el.clientWidth - 40) / outerW));
+      setMeasured(true);
+    });
     ro.observe(el);
     return () => ro.disconnect();
   }, [outerW, outerH]);
+
+  // Opening: the backdrop fades in and the device flies from where it sat in the focus view (hero),
+  // or grows in place when there is none (canvas).
+  useLayoutEffect(() => {
+    if (!measured) return;
+    const el = box.current;
+    const opts = { duration: 480, easing: "cubic-bezier(.2,.8,.2,1)" };
+    const r = root.current;
+    if (r) {
+      r.animate([{ backgroundColor: "rgba(0,0,0,0)", backdropFilter: "blur(0px)" }, { backgroundColor: "rgba(0,0,0,.85)", backdropFilter: "blur(12px)" }], { duration: 300, easing: "ease-out" });
+      for (const bar of [r.firstElementChild, r.lastElementChild]) bar?.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300, delay: 120, easing: "ease-out", fill: "backwards" });
+    }
+    if (!el) return;
+    const from = document.querySelector("[data-hero-phone]")?.getBoundingClientRect();
+    const to = el.getBoundingClientRect();
+    if (from && from.width && to.width) {
+      const s = from.width / to.width;
+      el.animate([{ transformOrigin: "0 0", transform: `translate(${from.left - to.left}px, ${from.top - to.top}px) scale(${s})` }, { transformOrigin: "0 0", transform: "none" }], opts);
+    } else {
+      el.animate([{ opacity: 0, transform: "scale(.92)" }, { opacity: 1, transform: "none" }], opts);
+    }
+  }, [measured]);
 
   // A new frame size reloads the app: show the spinner until it repaints.
   const key = `${platform}:${device?.id ?? "web"}:${run}`;
@@ -148,7 +182,7 @@ export function PlayMode({ state, scheme, startPath, onClose, onSimButton }: { s
 
   const seg = "cursor-pointer rounded-md px-2.5 py-1";
   return (
-    <div data-ide className="fixed inset-0 z-[80] flex flex-col bg-black/85 backdrop-blur-md" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    <div ref={root} data-ide className="fixed inset-0 z-[80] flex flex-col bg-black/85 backdrop-blur-md" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="relative flex h-12 shrink-0 items-center justify-between px-4 text-[12.5px] text-white/80">
         <div className="flex items-center gap-2">
           {devices.length > 1 && (
@@ -210,7 +244,7 @@ export function PlayMode({ state, scheme, startPath, onClose, onSimButton }: { s
       </div>
       <div ref={stage} className="grid min-h-0 flex-1 place-items-center" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
         {/* The box takes the scaled size, so a tall device (iPad) is centred instead of overflowing. */}
-        <div style={{ width: outerW * fit, height: outerH * fit }}>
+        <div ref={box} style={{ width: outerW * fit, height: outerH * fit }}>
           <div className="origin-top-left" style={{ width: outerW, height: outerH, transform: `scale(${fit})` }}>
             {body}
           </div>
