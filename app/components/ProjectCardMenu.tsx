@@ -3,18 +3,12 @@
 import clsx from "clsx";
 import { Download, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { apiFetch, backendUrl } from "@/lib/web/backend";
 
-/** Hover menu of a project card: rename, export, delete (two clicks). */
+/** Hover menu of a project card: rename, export, delete. */
 export function ProjectCardMenu({ id, native, onRename, onDeleted }: { id: string; native?: boolean; onRename: () => void; onDeleted: () => void }) {
   const [open, setOpen] = useState(false);
-  const [confirm, setConfirm] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!confirm) return;
-    const t = setTimeout(() => setConfirm(false), 3000);
-    return () => clearTimeout(t);
-  }, [confirm]);
 
   useEffect(() => {
     if (!open) return;
@@ -48,7 +42,7 @@ export function ProjectCardMenu({ id, native, onRename, onDeleted }: { id: strin
             <Pencil size={13} /> Rename
           </button>
           {!native && (
-            <a className={item} href={`/api/projects/${id}/export`} onClick={(e) => {
+            <a className={item} href={backendUrl(`/api/projects/${id}/export`)} onClick={(e) => {
                 // Let this inner link download instead of the card opening the project.
                 e.stopPropagation();
                 setOpen(false);
@@ -58,13 +52,13 @@ export function ProjectCardMenu({ id, native, onRename, onDeleted }: { id: strin
           )}
           <button
             className={clsx(item, "text-red-400")}
-            onClick={async () => {
-              if (!confirm) return setConfirm(true);
+            onClick={() => {
+              // Gone from the grid at once; the server deletes the folder and sandbox meanwhile.
               setOpen(false);
-              await fetch(`/api/projects/${id}`, { method: "DELETE" });
               onDeleted();
+              void apiFetch(`/api/projects/${id}`, { method: "DELETE" });
             }}>
-            <Trash2 size={13} /> {confirm ? "Delete?" : "Delete"}
+            <Trash2 size={13} /> Delete
           </button>
         </div>
       )}

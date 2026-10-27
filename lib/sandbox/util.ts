@@ -60,7 +60,8 @@ export function findFreePort(from: number): Promise<number> {
   return new Promise((resolve) => {
     const srv = net.createServer();
     srv.once("error", () => resolve(findFreePort(from + 1)));
-    srv.listen(from, "127.0.0.1", () => srv.close(() => resolve(from)));
+    // All interfaces, like Metro: a port taken on [::] can still look free on 127.0.0.1 alone.
+    srv.listen(from, () => srv.close(() => resolve(from)));
   });
 }
 
