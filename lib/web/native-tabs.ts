@@ -1,7 +1,7 @@
 import { accessibilityInfo, sendHid, touch, delay, type AxElement } from "./idb";
 import { screenPoints } from "./idb";
 
-export type Tab = { label: string; x: number; y: number; selected: boolean };
+export type Tab = { label: string; x: number; y: number; selected: boolean; index?: number };
 
 const flatten = (els: AxElement[]): AxElement[] => els.flatMap((e) => [e, ...flatten(e.children ?? [])]);
 const traits = (e: AxElement) => (e.traits ?? []).concat(e.role_description ? [e.role_description] : []);
@@ -14,6 +14,12 @@ export async function readTabs(udid: string): Promise<Tab[]> {
   // iPad: the top tab bar exposes TabButton elements directly.
   const buttons = all.filter((e) => traits(e).some((t) => /TabButton/i.test(t)) && e.AXLabel);
   if (buttons.length) return buttons.map((e) => ({ label: e.AXLabel!, ...center(e), selected: isSelected(e) }));
+  // JS tab bars (expo-router, React Navigation): buttons labelled "Title, tab, 2 of 4".
+  const js = all.flatMap((e) => {
+    const m = /^(.+), tab, (\d+) of (\d+)$/.exec(e.AXLabel?.trim() ?? "");
+    return m && e.frame ? [{ label: m[1], index: Number(m[2]), ...center(e), selected: isSelected(e) }] : [];
+  });
+  if (js.length) return js;
   const bar = all.find((e) => /tab bar/i.test(e.AXLabel ?? "") || /TabBar/i.test(e.type ?? ""));
   if (!bar?.frame) return [];
   const pts = await screenPoints(udid);
@@ -44,12 +50,14 @@ export async function pushedTitle(udid: string) {
   return h?.AXLabel ?? null;
 }
 
-export async function currentPage(udid: string) {
+export async function currentPage(udid: string): Promise<{ title: string; parent?: string; tab?: number } | null> {
   const pushed = await pushedTitle(udid);
   const tabs = await readTabs(udid);
-  const tab = tabs.find((t) => t.selected)?.label;
+  const sel = tabs.find((t) => t.selected);
+  const tab = sel?.label;
   if (pushed && pushed !== tab) return { title: pushed, ...(tab ? { parent: tab } : {}) };
-  return tab ? { title: tab } : null;
+  // The tab's position too: its label can differ from the page name ("Profil" for Profile).
+  return tab ? { title: tab, ...(sel?.index ? { tab: sel.index } : {}) } : null;
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
