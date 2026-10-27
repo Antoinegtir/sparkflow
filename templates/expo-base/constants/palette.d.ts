@@ -1,0 +1,11 @@
+export type Palette = Record<"primary" | "background" | "surface" | "text" | "muted" | "border" | "danger" | "success" | "onPrimary" | "onDanger", string>;
+export const KEYS: string[];
+export function rgb(hex: string): [number, number, number];
+export function mix(a: string, b: string, t: number): string;
+export function luminance(hex: string): number;
+export function contrast(a: string, b: string): number;
+export function onColor(bg: string): string;
+export function lift(fg: string, bg: string): string;
+export function deriveDark(light: Record<string, string>): Record<string, string>;
+export function buildPalettes(theme: Record<string, unknown>): { light: Palette; dark: Palette; radius: number };
+export function cssVars(p: Record<string, string>): string;

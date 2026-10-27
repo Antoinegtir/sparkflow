@@ -1,0 +1,12 @@
+{
+  "primary": "#6366F1",
+  "background": "#F5F6FA",
+  "surface": "#FFFFFF",
+  "text": "#0F172A",
+  "muted": "#556070",
+  "border": "#E2E8F0",
+  "danger": "#DC2626",
+  "success": "#16A34A",
+  "radius": 16,
+  "dark": {}
+}

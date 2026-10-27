@@ -4,3 +4,6 @@ next-env.d.ts
 *.tsbuildinfo
 .claude
 .DS_Store
+.sparkflow
+eval/results
+*.blend1
