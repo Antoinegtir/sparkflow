@@ -199,13 +199,18 @@ export function HeroFocus(p: Props) {
   const hoverKey = JSON.stringify(hover);
   useEffect(() => post({ type: "highlight", testId: hover?.testId ?? null, ...(hover?.anchors ? { anchors: hover.anchors } : {}) }), [hoverKey]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => post({ type: "selection", items: JSON.parse(selectedKey) }), [selectedKey, iframeReady]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    if (!src) return;
-    const t = setTimeout(() => setIframeReady(true), 8000);
-    return () => clearTimeout(t);
-  }, [src]);
   // No preview after 15 s (Metro down): stop the spinner and show the capture as is.
   const [gaveUp, setGaveUp] = useState(false);
+  // The app says "ready" once it runs. Right after the server starts, Metro is still bundling and the
+  // first load can fail for good: reload the iframe every 8 s until it does, keeping the capture
+  // (blurred, with the spinner) in front. After 6 tries, show the iframe anyway (an app without the
+  // bridge never says "ready").
+  const [attempt, setAttempt] = useState(0);
+  useEffect(() => {
+    if (!src || iframeReady) return;
+    const t = setTimeout(() => (attempt < 6 ? setAttempt((a) => a + 1) : setIframeReady(true)), 8000);
+    return () => clearTimeout(t);
+  }, [src, iframeReady, attempt]);
   useEffect(() => {
     if (src) return;
     const t = setTimeout(() => setGaveUp(true), 15000);
@@ -258,7 +263,7 @@ export function HeroFocus(p: Props) {
                 </div>
               </SafeAreaScreen>
               {srcLoaded && (
-                <ScaledIframe ref={iframe} src={srcLoaded} ready={iframeReady} dark={p.scheme === "dark"} surface={surface} areas={device.areas} onLoad={() => {}} />
+                <ScaledIframe key={attempt} ref={iframe} src={srcLoaded} ready={iframeReady} dark={p.scheme === "dark"} surface={surface} areas={device.areas} onLoad={() => {}} />
               )}
             </div>
           )}

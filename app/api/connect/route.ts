@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 
 export const dynamic = "force-dynamic";
 
@@ -13,5 +13,7 @@ export async function GET(req: Request) {
   const file = process.env.SPARKFLOW_CONNECTION;
   const data = file ? await readFile(file, "utf8").catch(() => null) : null;
   if (!data) return Response.json({ error: "Not connected yet" }, { status: 503 });
+  // An open Sparkflow tab picked up the link: `sparkflow` then doesn't open a second one.
+  await writeFile(`${file}.claimed`, "").catch(() => {});
   return new Response(data, { headers: { "content-type": "application/json", "cache-control": "no-store" } });
 }

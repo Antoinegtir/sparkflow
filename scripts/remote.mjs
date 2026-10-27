@@ -90,7 +90,7 @@ function draw() {
   ];
   if (ready) {
     lines.push(
-      `  ${green("●")} ${bold("Connected")} ${dim("— your browser opened Sparkflow")}`,
+      `  ${green("●")} ${bold("Connected")} ${dim(ready.picked ? "— your open Sparkflow tab picked it up" : "— your browser opened Sparkflow")}`,
       "",
       `    ${blue(linkTo(ready.link, "Open sparkflow-ai.web.app ↗"))}`,
       `    ${dim(new URL(ready.url).host)}`,
@@ -114,6 +114,7 @@ const children = [];
 function stop(code = 0) {
   clearInterval(timer);
   rmSync(connection, { force: true });
+  rmSync(`${connection}.claimed`, { force: true });
   for (const ch of children) ch.kill("SIGTERM");
   draw();
   if (tty) process.stdout.write("\x1b[?25h");
@@ -229,10 +230,18 @@ const watch = async (chunk) => {
     reachStep.detail = "slow to come up, the link may need a minute";
   }
   const link = `${SITE}/?backend=${encodeURIComponent(url)}&token=${token}`;
-  ready = { url, link };
+  rmSync(`${connection}.claimed`, { force: true });
   writeFileSync(connection, JSON.stringify({ url, token }), { mode: 0o600 });
+  ready = { url, link, picked: false };
   if (!tty) console.log(`Sparkflow is connected: ${link}`);
-  if (process.platform === "darwin" && !process.env.SPARKFLOW_NO_OPEN) spawn("open", [link]);
+  // A Sparkflow tab already waiting on the onboarding asks /api/connect within 2 s: give it the
+  // chance before opening a new tab, so the browser doesn't end up with two.
+  await new Promise((r) => setTimeout(r, 3000));
+  if (existsSync(`${connection}.claimed`)) {
+    ready.picked = true;
+  } else if (process.platform === "darwin" && !process.env.SPARKFLOW_NO_OPEN) {
+    spawn("open", [link]);
+  }
 };
 tunnel.stdout.on("data", watch);
 tunnel.stderr.on("data", watch);

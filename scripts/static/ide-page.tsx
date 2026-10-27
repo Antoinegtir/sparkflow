@@ -31,7 +31,7 @@ export default function IdeShell() {
   useEffect(open, [open]);
 
   if (state.kind === "found") return <IDE id={state.found.id} slug={state.found.slug} initialPage={state.found.page} />;
-  if (state.kind === "offline") return <ConnectOnboarding onConnected={open} />;
+  if (state.kind === "offline") return <ConnectOnboarding />;
   return (
     <div data-ide className="grid h-screen place-items-center text-center text-sm text-ink-400">
       {state.kind === "missing" ? (

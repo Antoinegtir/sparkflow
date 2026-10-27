@@ -13,15 +13,27 @@ const LOCAL = "http://localhost:3002";
 /** True once the connected computer answers: the saved tunnel, or a `sparkflow` just started here. */
 async function reachable(): Promise<boolean> {
   if (getBackend()) {
-    const ok = await fetch("/api/projects", { cache: "no-store" }).then((r) => r.ok).catch(() => false);
-    if (ok) return true;
+    if (await steady()) return true;
   }
   const link = await fetch(`${LOCAL}/api/connect`, { cache: "no-store" })
     .then((r) => (r.ok ? (r.json() as Promise<{ url: string; token: string }>) : null))
     .catch(() => null);
   if (!link?.url || !link.token) return false;
   setBackend({ url: link.url, token: link.token });
-  return fetch("/api/projects", { cache: "no-store" }).then((r) => r.ok).catch(() => false);
+  return steady();
+}
+
+/**
+ * A tunnel that just came up can answer once and still fail the next requests for a few seconds:
+ * wait for three good answers in a row before handing over to the IDE.
+ */
+async function steady(): Promise<boolean> {
+  for (let i = 0; i < 3; i++) {
+    const ok = await fetch("/api/projects", { cache: "no-store" }).then((r) => r.ok).catch(() => false);
+    if (!ok) return false;
+    await new Promise((r) => setTimeout(r, 700));
+  }
+  return true;
 }
 
 function CopyLine({ text }: { text: string }) {
@@ -93,9 +105,9 @@ function confetti() {
 
 /**
  * Shown when the hosted site has no computer to talk to: how to install and start `sparkflow`,
- * then a live check every 2 s. Once it answers: confetti, and `onConnected` opens the app.
+ * then a live check every 2 s. Once it answers steadily: confetti, and the page reloads into the app.
  */
-export function ConnectOnboarding({ onConnected }: { onConnected: () => void }) {
+export function ConnectOnboarding() {
   const [connected, setConnected] = useState(false);
   const [tries, setTries] = useState(0);
   const done = useRef(false);
@@ -108,7 +120,9 @@ export function ConnectOnboarding({ onConnected }: { onConnected: () => void }) 
         done.current = true;
         setConnected(true);
         confetti();
-        setTimeout(onConnected, 1600);
+        // A fresh page load once connected: the IDE then starts its live updates and previews on a
+        // tunnel that is known to work (opening it in place could leave them failing until a refresh).
+        setTimeout(() => location.reload(), 1600);
         return;
       }
       setTries((n) => n + 1);
@@ -116,7 +130,7 @@ export function ConnectOnboarding({ onConnected }: { onConnected: () => void }) 
     };
     void tick();
     return () => clearTimeout(timer);
-  }, [onConnected]);
+  }, []);
 
   const step = "relative pl-12";
   const num = "absolute left-0 top-0 grid size-8 place-items-center rounded-full border text-[13px] font-semibold";

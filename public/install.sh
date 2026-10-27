@@ -142,18 +142,35 @@ ok "$TAG ($(du -h "$TMP/$ASSET" | cut -f1 | tr -d ' '), checksum verified)"
 # ---------- Install ----------
 bold "Installing in $HOME_DIR"
 DEST="$HOME_DIR/versions/$TAG"
+# The version installed so far: its dependencies are reused when they haven't changed.
+PREV="$(cd "$HOME_DIR/current" 2>/dev/null && pwd -P || true)"
+if [ -n "$PREV" ] && [ "$PREV" = "$(cd "$DEST" 2>/dev/null && pwd -P || true)" ]; then
+  # Reinstalling the same version: keep the old copy aside until the new one is ready.
+  rm -rf "$DEST.prev" && mv "$DEST" "$DEST.prev" && PREV="$DEST.prev"
+fi
 rm -rf "$DEST"
 mkdir -p "$DEST" "$HOME_DIR/data" "$BIN_DIR"
 tar -xzf "$TMP/$ASSET" -C "$DEST"
 
+# node_modules of `dir` from the previous version when its package-lock.json is identical (an
+# instant APFS clone on macOS), otherwise a clean npm ci.
+deps() {
+  local dir="$1" label="$2"
+  if [ -n "$PREV" ] && [ -d "$PREV/$dir/node_modules" ] && cmp -s "$PREV/$dir/package-lock.json" "$DEST/$dir/package-lock.json"; then
+    cp -cR "$PREV/$dir/node_modules" "$DEST/$dir/" 2>/dev/null || cp -R "$PREV/$dir/node_modules" "$DEST/$dir/"
+    ok "$label (unchanged, reused)"
+  else
+    echo "  Installing $label (a few minutes the first time)…"
+    npm --prefix "$DEST/$dir" ci --no-audit --no-fund --loglevel=error >/dev/null || die "Installing $label failed"
+    ok "$label"
+  fi
+}
 cd "$DEST"
-echo "  Installing dependencies (a few minutes the first time)…"
-npm ci --no-audit --no-fund --loglevel=error >/dev/null || die "npm ci failed in $DEST"
-ok "Server dependencies"
-npm --prefix templates/expo-base ci --no-audit --no-fund --loglevel=error >/dev/null || die "Installing the Expo template failed"
-ok "Expo template"
+deps . "Server dependencies"
+deps templates/expo-base "Expo template"
 npx --yes playwright install chromium >/dev/null 2>&1 || die "Installing Playwright's Chromium failed"
 ok "Chromium for screenshots"
+rm -rf "$DEST.prev"
 
 # Settings and API key are shared by every version.
 [ -f "$HOME_DIR/.env" ] || cp .env.example "$HOME_DIR/.env" 2>/dev/null || touch "$HOME_DIR/.env"
