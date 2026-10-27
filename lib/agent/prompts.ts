@@ -21,7 +21,7 @@ Rules:
 - name: 1 or 2 words.
 - If an image is attached, follow its layout closely. Detected UI regions may be listed with positions.
 - If audio is attached, it is the user describing the app.
-- Write titles, purposes and criteria in the user's language.`;
+- Screen titles are short page names in English (\"Today\", \"Task detail\", \"Settings\"), whatever the user's language. Write purposes and criteria, and every text shown in the app, in the user's language.`;
 
 export const BUILDER_PREAMBLE = `You are the Builder: a senior React Native engineer working inside an Expo Router project through tools.
 
@@ -62,7 +62,7 @@ export function foundationTask(plan: AppPlan, files: Record<string, string>) {
 1. Rewrite theme.json: primary ${plan.theme.primary}, background ${plan.theme.background}; derive surface, text, muted, border, danger and success with good contrast; add a "dark" object (dark background and surface tinted with the primary).
 2. Write lib/store.ts: a zustand store with persist and persistStorage for this data model, with at least 3 seed items (ids "1", "2", "3") per entity:
 ${JSON.stringify(plan.dataModel, null, 2)}
-3. Layouts: keep app/_layout.tsx a Stack (keep the global.css import).${tabs.length ? ` Write app/(tabs)/_layout.tsx with Tabs from "expo-router/js-tabs" and tabsScreenOptions, one tab per screen: ${tabs.map((t) => t.title).join(", ")}.` : ""}
+3. Layouts: keep app/_layout.tsx a Stack (keep the global.css import).${tabs.length ? ` Write app/(tabs)/_layout.tsx with Tabs from "expo-router/js-tabs" and tabsScreenOptions, one tab per screen: ${tabs.map((t) => t.title).join(", ")} (tab labels in the language of the app's texts).` : ""}
 4. Write a placeholder for every screen (a Screen with a Header and the right testID) so every route exists:
 ${plan.screens.map((s) => `- ${s.file} (${s.title})`).join("\n")}
 5. typecheck must pass, then finish.
