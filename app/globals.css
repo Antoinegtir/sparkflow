@@ -235,3 +235,9 @@ html:has([data-landing]) { scroll-behavior: smooth; }
 /* A page being built: a blue light sweeping across it. */
 @keyframes build-sweep { from { transform: translateX(-120%) skewX(-12deg); } to { transform: translateX(220%) skewX(-12deg); } }
 .animate-build-sweep { animation: build-sweep 1.8s cubic-bezier(.45, 0, .55, 1) infinite; }
+
+/* Canvas frames: resize handles show on hover only, small and round like Figma's. */
+.react-flow__node-frame .frame-resize-line { border-color: transparent !important; pointer-events: auto; }
+.react-flow__node-frame .frame-resize-handle { width: 9px !important; height: 9px !important; border-radius: 3px !important; background: var(--color-ink-100) !important; border: 1.5px solid var(--color-spark-500) !important; opacity: 0; pointer-events: auto; transition: opacity .15s; }
+.react-flow__node-frame:hover .frame-resize-handle { opacity: 1; }
+.react-flow__node-frame:hover .frame-resize-line { border-color: rgba(10, 132, 255, .45) !important; }
