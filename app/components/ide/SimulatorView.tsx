@@ -81,19 +81,29 @@ export function SimulatorView({
     if (!udid) return;
     let alive = true;
     let ctrl: AbortController | null = null;
+    // Through the Cloudflare tunnel a streamed body can be held back with nothing arriving: if the
+    // stream gives no frame in time, switch to fetching screenshots back to back.
+    let polling = false;
     const stream = async () => {
       while (alive) {
         if (document.hidden) {
           await new Promise((r) => setTimeout(r, 500));
           continue;
         }
-        if (!device?.stream) {
+        if (!device?.stream || polling) {
           const r = await fetch(`/api/sim/${udid}/frame`, { cache: "no-store" }).catch(() => null);
           if (r?.ok) await paint(await r.blob());
-          await new Promise((r) => setTimeout(r, 1000));
+          await new Promise((r) => setTimeout(r, polling ? 60 : 1000));
           continue;
         }
         ctrl = new AbortController();
+        let got = false;
+        const c = ctrl;
+        const watchdog = setTimeout(() => {
+          if (got) return;
+          polling = true;
+          c.abort();
+        }, 2500);
         try {
           const res = await fetch(`/api/sim/${udid}/stream`, { signal: ctrl.signal });
           const reader = res.body!.getReader();
@@ -119,9 +129,13 @@ export function SimulatorView({
               last = buf.slice(s, e);
               buf = buf.slice(e);
             }
-            if (last) void paint(new Blob([last as Uint8Array<ArrayBuffer>], { type: "image/jpeg" }));
+            if (last) {
+              got = true;
+              void paint(new Blob([last as Uint8Array<ArrayBuffer>], { type: "image/jpeg" }));
+            }
           }
         } catch {}
+        clearTimeout(watchdog);
         if (alive) await new Promise((r) => setTimeout(r, 500));
       }
     };
