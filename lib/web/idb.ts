@@ -158,6 +158,8 @@ export async function openHidStream(udid: string) {
 export async function videoStream(udid: string) {
   const c = await companion(udid);
   const call = c.client.video_stream();
-  call.write({ start: { file_path: "", fps: 0, format: "MJPEG", compression_quality: 0.7, scale_factor: 0.5 } });
+  // Light frames (~38 KB): through the Cloudflare tunnel the stream is bound by bandwidth, and at
+  // quality 0.7 / scale 0.5 (~84 KB) a scroll came through at ~10 fps instead of ~24.
+  call.write({ start: { file_path: "", fps: 0, format: "MJPEG", compression_quality: 0.5, scale_factor: 0.45 } });
   return call as grpc.ClientDuplexStream<unknown, { payload?: { data?: Buffer } }>;
 }
