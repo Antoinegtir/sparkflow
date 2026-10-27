@@ -57,3 +57,12 @@ export function routeSlug(route: string) {
     .replace(/[^a-zA-Z0-9-]/g, "-");
   return s || "index";
 }
+
+/**
+ * The path to give Expo Go for a page. The first page needs its route group ("/(tabs)"): "/" in a
+ * link only brings the app to the front, on whatever page it was.
+ */
+export function expoGoPath(path: string, route?: string) {
+  if (path !== "/" || !route) return path;
+  return route.replace(/\/index$/, "") || "/";
+}

@@ -884,6 +884,18 @@ export class Orchestrator {
   }
 
   /** Pages captured from the simulator become the plan; screenshots identical below the status bar keep their version. */
+  /** Pages of a generated app captured elsewhere (the live Simulator), kept as that device's shots. */
+  async recordDeviceShots(id: string, device: string, dark: boolean, shots: { route: string; png: Buffer }[]) {
+    const rt = await this.runtime(id);
+    for (const { route, png } of shots) {
+      const s = rt.state.screens[route];
+      if (!s) continue;
+      const url = await this.store.saveShot(id, await this.shotName(rt, route, s.version, `-${device}${dark ? "-dark" : ""}`), png);
+      rt.emit({ type: "device_shot", route, device, dark, url, version: s.version });
+    }
+    await rt.flush();
+  }
+
   async recordNativePages(id: string, pages: NativePage[], opts: { dark?: boolean; refresh?: boolean; device?: string }) {
     const rt = await this.runtime(id);
     const routeOf = (p: { title: string; parent?: string }) => "/" + (p.parent ? `${slug(p.parent)}/` : "") + slug(p.title);
@@ -1047,7 +1059,7 @@ export async function sameBelowStatusBar(a: Buffer, b: Buffer) {
 }
 
 // Bump when the orchestrator changes in a way a running dev server must pick up without a restart.
-const INSTANCE_KEY = "__sparkflowOrchestrator_v8";
+const INSTANCE_KEY = "__sparkflowOrchestrator_v9";
 const g = globalThis as unknown as Record<string, Orchestrator | undefined>;
 
 /**

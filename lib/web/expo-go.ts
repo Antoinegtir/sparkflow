@@ -68,12 +68,13 @@ const flatten = (els: AxElement[]): AxElement[] => els.flatMap((e) => [e, ...fla
  * Opens an app URL in Expo Go. iOS asks "Open in Expo Go?" for links sent by simctl: that
  * dialog's Open button is tapped for the user.
  */
-export async function openInExpoGo(udid: string, url: string) {
+export async function openInExpoGo(udid: string, url: string, opts: { watch?: number } = {}) {
   await simctl("openurl", udid, url);
   // iOS can ask twice (once to leave the current app, once more as Expo Go starts): keep watching
-  // for a few seconds after each tap.
+  // for a few seconds after each tap (less when Expo Go is already in front).
+  const watch = opts.watch ?? 10;
   let taps = 0;
-  for (let quiet = 0; quiet < 10; quiet++) {
+  for (let quiet = 0; quiet < watch; quiet++) {
     await new Promise((r) => setTimeout(r, 400));
     const all = flatten(await accessibilityInfo(udid).catch(() => []));
     const label = (e: AxElement) => (e.AXLabel ?? "").trim();
