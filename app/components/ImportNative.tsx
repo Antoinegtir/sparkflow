@@ -3,6 +3,7 @@
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { apiFetch, openOnBackend } from "@/lib/web/backend";
 
 /** Lien discret sous la zone de saisie pour partir d'un projet existant. Un clic ouvre un champ de chemin. */
 export function ImportNative() {
@@ -16,10 +17,10 @@ export function ImportNative() {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch("/api/projects/import", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ dir }) });
+      const res = await apiFetch("/api/projects/import", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ dir }) });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Import failed");
-      router.push(`/p/${json.id}`); // redirects to the app's URL name
+      openOnBackend(`/p/${json.id}`, router.push); // redirects to the app's URL name
     } catch (err) {
       setError((err as Error).message);
       setBusy(false);

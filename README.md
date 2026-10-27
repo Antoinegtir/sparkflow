@@ -12,6 +12,18 @@ npm run dev
 
 `npm run setup` installs the Expo template's dependencies and Playwright's Chromium. Copy `.env.example` to `.env` and set `MODEL_API_KEY` to use Muse Spark; without a key a scripted mock agent builds a sample habit tracker.
 
+## Hosted site + your computer
+
+The landing is hosted as static files on Firebase Hosting (https://sparkflow-ai.web.app). The builds still run on your computer:
+
+```bash
+npm run remote
+```
+
+It builds and starts the server on port 3002, opens a Cloudflare quick tunnel (`brew install cloudflared`) and opens the hosted site connected to it, with a one-time token in the link. Requests through the tunnel without that token are refused; requests from this machine never need it. Ctrl+C stops both.
+
+To publish a new version of the landing: `npm run deploy` (static export to `.next-static`, then `firebase deploy --only hosting`).
+
 ## How it works
 
 - **Planner** turns the request (text, sketch, voice) into screens, navigation, a data model and visual acceptance criteria.

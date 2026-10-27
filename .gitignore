@@ -7,3 +7,8 @@ next-env.d.ts
 .sparkflow
 eval/results
 *.blend1
+
+.next-static
+.static-stash
+.firebase
+.next-server

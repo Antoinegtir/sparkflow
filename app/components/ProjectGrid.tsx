@@ -9,6 +9,7 @@ import { timeAgo } from "@/lib/web/media";
 import { InstallIcon } from "./InstallIcon";
 import { ProjectCardMenu } from "./ProjectCardMenu";
 import { deviceById, DeviceMockup } from "./ide/ui";
+import { apiFetch, appHref, BACKEND_EVENT, backendUrl } from "@/lib/web/backend";
 
 const COVER_W = 132;
 
@@ -28,7 +29,7 @@ export function ProjectGrid() {
   const [installs, setInstalls] = useState(0);
 
   const load = useCallback(async () => {
-    const res = await fetch("/api/projects", { cache: "no-store" }).catch(() => null);
+    const res = await apiFetch("/api/projects", { cache: "no-store" }).catch(() => null);
     if (res?.ok) setProjects(await res.json());
   }, []);
 
@@ -36,7 +37,12 @@ export function ProjectGrid() {
     void load();
     const onVisible = () => document.visibilityState === "visible" && void load();
     document.addEventListener("visibilitychange", onVisible);
-    return () => document.removeEventListener("visibilitychange", onVisible);
+    // Connecting (or disconnecting) the computer changes which apps there are.
+    addEventListener(BACKEND_EVENT, load);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      removeEventListener(BACKEND_EVENT, load);
+    };
   }, [load]);
 
   const anyRunning = projects?.some((p) => p.status === "running");
@@ -51,7 +57,7 @@ export function ProjectGrid() {
     setRenaming(null);
     if (!name) return;
     setProjects((ps) => ps?.map((p) => (p.id === id ? { ...p, name } : p)) ?? null);
-    await fetch(`/api/projects/${id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ name }) });
+    await apiFetch(`/api/projects/${id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ name }) });
   }
 
   return (
@@ -89,7 +95,7 @@ export function ProjectGrid() {
         {projects?.map((p) => {
           const st = STATUS[p.status] ?? STATUS.idle;
           return (
-            <Link key={p.id} href={`/${p.slug}`} className="group relative flex aspect-[4/5] flex-col overflow-hidden rounded-2xl border border-ink-700 bg-ink-900 shadow-[0_20px_50px_-30px_rgba(0,0,0,.8)] transition hover:-translate-y-1 hover:border-ink-600 hover:shadow-[0_30px_60px_-30px_var(--landing-glow)]">
+            <Link key={p.id} href={appHref(`/${p.slug}`)} className="group relative flex aspect-[4/5] flex-col overflow-hidden rounded-2xl border border-ink-700 bg-ink-900 shadow-[0_20px_50px_-30px_rgba(0,0,0,.8)] transition hover:-translate-y-1 hover:border-ink-600 hover:shadow-[0_30px_60px_-30px_var(--landing-glow)]">
               <ProjectCardMenu
                 id={p.id}
                 native={p.native}
@@ -115,7 +121,7 @@ export function ProjectGrid() {
                   <div className="relative translate-y-10 transition group-hover:translate-y-7">
                     <DeviceMockup device={deviceById(p.previewDevice)} width={deviceById(p.previewDevice).ipad ? COVER_W * 1.5 : COVER_W} dark={false} bare={p.native}>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={p.coverUrl} alt="" className="absolute inset-0 h-full w-full object-cover object-top" />
+                      <img src={backendUrl(p.coverUrl)} alt="" className="absolute inset-0 h-full w-full object-cover object-top" />
                     </DeviceMockup>
                   </div>
                 ) : (

@@ -10,13 +10,17 @@
     "typecheck": "tsc --noEmit",
     "smoke": "tsx scripts/smoke.ts",
     "eval": "tsx scripts/eval.ts",
-    "setup": "npm --prefix templates/expo-base install && npx playwright install chromium"
+    "setup": "npm --prefix templates/expo-base install && npx playwright install chromium",
+    "build:static": "node scripts/build-static.mjs",
+    "deploy": "npm run build:static && firebase deploy --only hosting",
+    "remote": "node scripts/remote.mjs"
   },
   "dependencies": {
     "@grpc/grpc-js": "^1.14.6",
     "@grpc/proto-loader": "^0.8.1",
     "@xyflow/react": "^12",
     "clsx": "^2.1.1",
+    "firebase": "^13.1.0",
     "lucide-react": "latest",
     "material-icon-theme": "^5.40.0",
     "modal": "^0.11.1",
