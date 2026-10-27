@@ -488,7 +488,9 @@ export function IDE({ id, slug: initialSlug, initialPage }: { id: string; slug: 
               ipad={ipad}
               simFrozen={simFrozen}
               onSimPage={(pg) => {
-                const r = state.order.find((x) => state.screens[x]?.title === pg.title);
+                const same = (a?: string) => a?.trim().toLowerCase() === pg.title.trim().toLowerCase();
+                const tabs = state.order.filter((x) => x.includes("/(tabs)/"));
+                const r = state.order.find((x) => same(state.screens[x]?.title)) ?? (pg.tab ? tabs[pg.tab - 1] : undefined);
                 if (r) setFocused(r);
               }}
               onSendPrompt={(t) => void send(t)}

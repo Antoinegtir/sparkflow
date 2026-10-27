@@ -44,7 +44,7 @@ type Props = {
   simPoints: { width: number; height: number } | null;
   ipad: boolean;
   simFrozen: string | null;
-  onSimPage: (p: { title: string; parent?: string }) => void;
+  onSimPage: (p: { title: string; parent?: string; tab?: number }) => void;
   onSendPrompt: (text: string) => void;
   onRestore: (v: number) => void;
   onUndo: () => void;
@@ -73,7 +73,14 @@ export function HeroFocus(p: Props) {
   // A generated app in the live Simulator: opening another page takes the app there too.
   const simUdid = useSimDevice().device?.udid;
   const webSim = !p.state.native && p.state.previewDevice === "simulator";
+  // A page change that came from the Simulator itself (the user tapped a tab there) needs no reopening.
+  const fromSim = useRef(false);
+  const onSimPage = (pg: { title: string; parent?: string; tab?: number }) => {
+    fromSim.current = true;
+    p.onSimPage(pg);
+  };
   useEffect(() => {
+    if (fromSim.current) return void (fromSim.current = false);
     if (!webSim || !simUdid || !p.state.preview) return;
     void openInSimulator(simUdid, p.state.preview, s.previewPath ?? "/").catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -247,7 +254,7 @@ export function HeroFocus(p: Props) {
             <div className="h-full" onPointerDown={() => setInteracted(true)}>
               <SimulatorView
                 page={nativePage}
-                onPageChange={p.onSimPage}
+                onPageChange={onSimPage}
                 frozen={!!p.simFrozen}
                 frozenLabel={p.simFrozen ?? undefined}
                 inspect={p.inspect}

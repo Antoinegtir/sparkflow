@@ -23,7 +23,7 @@ export function SimulatorView({
   highlights,
 }: {
   page?: { title: string; parent?: string } | null;
-  onPageChange?: (p: { title: string; parent?: string }) => void;
+  onPageChange?: (p: { title: string; parent?: string; tab?: number }) => void;
   frozen?: boolean;
   frozenLabel?: string;
   inspect?: boolean;
@@ -97,6 +97,8 @@ export function SimulatorView({
           continue;
         }
         ctrl = new AbortController();
+        // The server writes the first boundary at once: no byte at all means the tunnel holds the
+        // body back. (No frame alone means nothing: frames only come when the screen changes.)
         let got = false;
         const c = ctrl;
         const watchdog = setTimeout(() => {
@@ -104,6 +106,13 @@ export function SimulatorView({
           polling = true;
           c.abort();
         }, 2500);
+        // Meanwhile one screenshot, so an idle screen shows up at once.
+        void fetch(`/api/sim/${udid}/frame`, { cache: "no-store" })
+          .then((r) => (r.ok ? r.blob() : null))
+          .then((b) => {
+            if (b && !got) void paint(b);
+          })
+          .catch(() => {});
         try {
           const res = await fetch(`/api/sim/${udid}/stream`, { signal: ctrl.signal });
           const reader = res.body!.getReader();
@@ -111,6 +120,7 @@ export function SimulatorView({
           for (;;) {
             const { value, done } = await reader.read();
             if (done || !alive) break;
+            got = true;
             const next = new Uint8Array(buf.length + value.length);
             next.set(buf);
             next.set(value, buf.length);
@@ -129,10 +139,7 @@ export function SimulatorView({
               last = buf.slice(s, e);
               buf = buf.slice(e);
             }
-            if (last) {
-              got = true;
-              void paint(new Blob([last as Uint8Array<ArrayBuffer>], { type: "image/jpeg" }));
-            }
+            if (last) void paint(new Blob([last as Uint8Array<ArrayBuffer>], { type: "image/jpeg" }));
           }
         } catch {}
         clearTimeout(watchdog);
@@ -182,7 +189,7 @@ export function SimulatorView({
     if (!udid || !onPageChange) return;
     setTimeout(async () => {
       const r = await fetch(`/api/sim/${udid}/tab`).then((x) => x.json()).catch(() => null);
-      const sel = r?.selected as { title: string; parent?: string } | null;
+      const sel = r?.selected as { title: string; parent?: string; tab?: number } | null;
       if (!sel) return;
       const key = `${sel.parent ?? ""}/${sel.title}`;
       if (key === shown.current) return;
