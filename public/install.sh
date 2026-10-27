@@ -152,11 +152,16 @@ rm -rf "$DEST"
 mkdir -p "$DEST" "$HOME_DIR/data" "$BIN_DIR"
 tar -xzf "$TMP/$ASSET" -C "$DEST"
 
-# node_modules of `dir` from the previous version when its package-lock.json is identical (an
+# A package-lock.json without the app's own version, which every release bumps.
+same_lock() {
+  node -e 'const f=(p)=>{const j=JSON.parse(require("fs").readFileSync(p,"utf8"));delete j.version;if(j.packages?.[""])delete j.packages[""].version;return JSON.stringify(j)};process.exit(f(process.argv[1])===f(process.argv[2])?0:1)' "$1" "$2" 2>/dev/null
+}
+
+# node_modules of `dir` from the previous version when its dependencies are identical (an
 # instant APFS clone on macOS), otherwise a clean npm ci.
 deps() {
   local dir="$1" label="$2"
-  if [ -n "$PREV" ] && [ -d "$PREV/$dir/node_modules" ] && cmp -s "$PREV/$dir/package-lock.json" "$DEST/$dir/package-lock.json"; then
+  if [ -n "$PREV" ] && [ -d "$PREV/$dir/node_modules" ] && same_lock "$PREV/$dir/package-lock.json" "$DEST/$dir/package-lock.json"; then
     cp -cR "$PREV/$dir/node_modules" "$DEST/$dir/" 2>/dev/null || cp -R "$PREV/$dir/node_modules" "$DEST/$dir/"
     ok "$label (unchanged, reused)"
   else
