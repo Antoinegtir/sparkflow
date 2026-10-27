@@ -42,6 +42,9 @@ export function companion(udid: string): Promise<Companion> {
   let p = companions.get(udid);
   if (!p) {
     p = (async () => {
+      // Companions left by earlier runs (a server stopped with Ctrl+C doesn't get to kill them) fight
+      // this one for the touch input: only one may drive a simulator.
+      await run("pkill", ["-f", `idb_companion --udid ${udid}`]).catch(() => {});
       const port = await findFreePort(10882);
       const proc = spawn(companionPath(), ["--udid", udid, "--grpc-port", String(port)], { stdio: "ignore" });
       const client = new (service())(`127.0.0.1:${port}`, grpc.credentials.createInsecure()) as Client;
