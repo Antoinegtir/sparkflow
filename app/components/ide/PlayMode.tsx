@@ -85,6 +85,29 @@ export function PlayMode({ state, scheme, startPath, onClose, onSimButton, onDev
   const devices = platform === "web" ? [] : DEVICES[platform].filter((d) => !d.simulator || sim.supported || native);
   const device = platform === "web" ? null : (devices.find((d) => d.id === deviceId[platform]) ?? devices[0]);
   const live = !!device?.simulator;
+  // The Simulator shows whatever app it has open: for a generated app, open it there first (in
+  // Expo Go when the Simulator has it, otherwise in Safari), and cover the old app meanwhile.
+  const udid = sim.device?.udid;
+  const [opening, setOpening] = useState(false);
+  useEffect(() => {
+    if (!live || native || !state.preview || !udid) return;
+    let cancelled = false;
+    const { expoGoUrl, webUrl } = state.preview;
+    const path = startPath === "/" ? "" : startPath;
+    const launch = (url: string) =>
+      fetch(`/api/sim/${udid}/launch`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ url }) }).then((r) => {
+        if (!r.ok) throw new Error();
+      });
+    setOpening(true);
+    (expoGoUrl ? launch(`${expoGoUrl}${path ? `/--${path}` : ""}`).catch(() => launch(webUrl + startPath)) : launch(webUrl + startPath))
+      .catch(() => {})
+      // The Simulator takes a moment to bring the app up after the call returns.
+      .finally(() => setTimeout(() => !cancelled && setOpening(false), 1800));
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [live, udid, run]);
   // A device picked here becomes the project's preview device: the focus view (and the canvas) follow.
   useEffect(() => {
     if (native || !device || device.simulator || device.id === state.previewDevice) return;
@@ -189,6 +212,14 @@ export function PlayMode({ state, scheme, startPath, onClose, onSimButton, onDev
     body = (
       <PhoneFrame width={outerW} height={outerH} radius={dims!.r + dims!.bezel} bezel={dims!.bezel} hardware ipad={sim.device?.ipad} onButton={onSimButton}>
         <SimulatorView />
+        <div className={clsx("pointer-events-none absolute inset-0 grid place-items-center bg-black transition-opacity duration-300", opening ? "opacity-100" : "opacity-0")}>
+          <div className="flex flex-col items-center gap-3 text-[13px] text-white/70">
+            <span className="scale-[1.4]">
+              <CupertinoSpinner />
+            </span>
+            Opening {state.name} in the Simulator…
+          </div>
+        </div>
       </PhoneFrame>
     );
   } else {
