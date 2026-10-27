@@ -295,7 +295,7 @@ export function HeroFocus(p: Props) {
         initial={p.instant ? false : { opacity: 0 }}
         animate={{ opacity: p.closing ? 0 : 1 }}
         transition={{ duration: 0.25 }}
-        className="absolute inset-0 bg-[var(--panel-2)]/90"
+        className="absolute inset-0 bg-ink-950"
         style={{ backgroundImage: "radial-gradient(ellipse at 40% 30%, var(--hero-gradient-to), transparent 60%)" }}
       />
       <DotMagnifier />
@@ -351,7 +351,7 @@ export function HeroFocus(p: Props) {
           initial={p.instant ? false : { opacity: 0, x: 16 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.12 }}
-          className="absolute overflow-y-auto rounded-2xl border border-[var(--line)] bg-[var(--panel)]/95 p-4 backdrop-blur"
+          className="absolute overflow-y-auto rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-4"
           style={{ left: sideRight - sideW, top: ty, width: sideW, maxHeight: box.barTop - ty }}>
           <SidePanel {...p} srcReady={iframeReady} />
         </motion.aside>
