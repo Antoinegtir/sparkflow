@@ -1,4 +1,4 @@
-import os from "node:os";
+import { isMac } from "@/lib/web/platform";
 import { handle } from "@/lib/web/server";
 import { idbAvailable, screenPoints } from "@/lib/web/idb";
 import { bootedDevices, inputDriver } from "@/lib/web/simulator";
@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 /** Booted simulators with their size in points, the input driver and whether live streaming is available. */
 export const GET = handle(async () => {
-  if (os.platform() !== "darwin") return Response.json({ supported: false, devices: [] });
+  if (!isMac()) return Response.json({ supported: false, devices: [] });
   const [booted, driver] = await Promise.all([bootedDevices(), inputDriver()]);
   const stream = idbAvailable();
   const devices = await Promise.all(

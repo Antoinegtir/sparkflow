@@ -50,6 +50,29 @@ let ready = null; // { url, link } once everything is up
 let warning = "";
 let drawn = 0;
 
+/** Cuts a line to `width` visible characters, keeping its color and link escape codes whole. */
+function fit(line, width) {
+  let out = "";
+  let shown = 0;
+  for (let i = 0; i < line.length; ) {
+    const esc = line.slice(i).match(/^\x1b(\[[0-9;?]*[A-Za-z]|\]8;;[^\x07]*\x07)/);
+    if (esc) {
+      out += esc[0];
+      i += esc[0].length;
+      continue;
+    }
+    const ch = String.fromCodePoint(line.codePointAt(i));
+    if (shown >= width) {
+      out += "…";
+      break;
+    }
+    out += ch;
+    shown++;
+    i += ch.length;
+  }
+  return out + (tty ? "\x1b[0m" : "");
+}
+
 function draw() {
   if (!tty) return;
   const spin = FRAMES[frame++ % FRAMES.length];
@@ -73,8 +96,11 @@ function draw() {
   // One entry per screen line, so the redraw knows how far to go back up.
   if (warning) lines.push(...`  ${yellow("!")} ${warning}`.split("\n"), "");
   lines.push(`  ${dim(`Logs  ${short(logPath)}`)}`, `  ${dim("Stop  Ctrl+C")}`, "");
-  // Redraw in place: back up over the previous frame, then clear to the end of the screen.
-  process.stdout.write((drawn ? `\x1b[${drawn}F` : "") + "\x1b[0J" + lines.join("\n") + "\n");
+  // Redraw in place: back up over the previous frame, then clear to the end of the screen. Every
+  // line is cut to the terminal's width: a line that wraps takes two rows, and the redraw would
+  // then back up too little and push the screen down a row each frame.
+  const width = (process.stdout.columns || 80) - 1;
+  process.stdout.write((drawn ? `\x1b[${drawn}F` : "") + "\x1b[0J" + lines.map((l) => fit(l, width)).join("\n") + "\n");
   drawn = lines.length;
 }
 const timer = setInterval(draw, 80);

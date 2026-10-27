@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { readFile, rm } from "node:fs/promises";
 import os from "node:os";
+import { isMac } from "@/lib/web/platform";
 import path from "node:path";
 import { promisify } from "node:util";
 import { companionPath, idbAvailable, screenPoints, sendHid, swipe as hidSwipe, touch, delay } from "./idb";
@@ -22,7 +23,7 @@ export async function simctl(...args: string[]) {
 export type Booted = { udid: string; name: string; runtime: string };
 
 export async function bootedDevices(): Promise<Booted[]> {
-  if (os.platform() !== "darwin") return [];
+  if (!isMac()) return [];
   const json = JSON.parse(await simctl("list", "devices", "booted", "-j").catch(() => '{"devices":{}}'));
   return Object.entries(json.devices as Record<string, { udid: string; name: string; state: string }[]>).flatMap(([runtime, list]) =>
     list.filter((d) => d.state === "Booted").map((d) => ({ udid: d.udid, name: d.name, runtime: runtime.replace(/^.*SimRuntime\.iOS-/, "iOS ").replace(/-/g, ".") })),

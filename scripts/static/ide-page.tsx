@@ -14,7 +14,7 @@ export default function IdeShell() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!getBackend()) return setError("Run `npm run remote` on your computer and open the link it prints.");
+    if (!getBackend()) return setError("Run `sparkflow` on your computer and open the link it prints.");
     const parts = location.pathname.split("/").filter(Boolean).map(decodeURIComponent);
     const [key, ...page] = parts[0] === "p" ? parts.slice(1) : parts;
     fetch("/api/projects", { cache: "no-store" })
@@ -24,7 +24,7 @@ export default function IdeShell() {
         if (!p) return setError("This app isn't on the connected computer.");
         setFound({ id: p.id, slug: p.slug, page });
       })
-      .catch(() => setError("Can't reach your computer. Is `npm run remote` still running?"));
+      .catch(() => setError("Can't reach your computer. Run `sparkflow` in a terminal and open the link it prints."));
   }, []);
 
   if (found) return <IDE id={found.id} slug={found.slug} initialPage={found.page} />;

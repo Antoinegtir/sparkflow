@@ -2,6 +2,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
+import { isMac } from "@/lib/web/platform";
 import path from "node:path";
 import type { ExecResult, InspectJob, InspectTargetResult, Preview, Sandbox, SandboxDriver } from "./types";
 import { childEnv, dataDir, findFreePort, IGNORED_DIRS, lanIp, LineBuffer, repoRoot, templateDir } from "./util";
@@ -245,7 +246,7 @@ export class LocalDriver implements SandboxDriver {
       await mkdir(this.root, { recursive: true });
       await rm(dir, { recursive: true, force: true });
       // Copy-on-write clone on APFS / reflink on Linux: the template's node_modules costs nothing.
-      const cp = os.platform() === "darwin" ? `cp -cR ${q(templateDir())} ${q(dir)} || cp -R ${q(templateDir())} ${q(dir)}` : `cp -R --reflink=auto ${q(templateDir())} ${q(dir)}`;
+      const cp = isMac() ? `cp -cR ${q(templateDir())} ${q(dir)} || cp -R ${q(templateDir())} ${q(dir)}` : `cp -R --reflink=auto ${q(templateDir())} ${q(dir)}`;
       const r = await execIn(this.root, cp, 600);
       if (r.code !== 0) throw new Error(`Could not copy the template: ${r.stderr.slice(-500)}`);
       await rm(path.join(dir, ".expo"), { recursive: true, force: true });
