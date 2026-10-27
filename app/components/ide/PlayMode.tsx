@@ -85,8 +85,9 @@ export function PlayMode({ state, scheme, startPath, onClose, onSimButton, onDev
   const devices = platform === "web" ? [] : DEVICES[platform].filter((d) => !d.simulator || sim.supported || native);
   const device = platform === "web" ? null : (devices.find((d) => d.id === deviceId[platform]) ?? devices[0]);
   const live = !!device?.simulator;
-  // The Simulator shows whatever app it has open: for a generated app, open it there first (in
-  // Expo Go when the Simulator has it, otherwise in Safari), and cover the old app meanwhile.
+  // The Simulator shows whatever app it has open: for a generated app, open it there first, natively
+  // in Expo Go (installed on the Simulator the first time), Safari only if that fails; the old app
+  // stays covered meanwhile.
   const udid = sim.device?.udid;
   const [opening, setOpening] = useState(false);
   useEffect(() => {
@@ -98,8 +99,12 @@ export function PlayMode({ state, scheme, startPath, onClose, onSimButton, onDev
       fetch(`/api/sim/${udid}/launch`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ url }) }).then((r) => {
         if (!r.ok) throw new Error();
       });
+    const expoGo = () =>
+      fetch(`/api/sim/${udid}/expo-go`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ url: `${expoGoUrl}${path ? `/--${path}` : ""}` }) }).then((r) => {
+        if (!r.ok) throw new Error();
+      });
     setOpening(true);
-    (expoGoUrl ? launch(`${expoGoUrl}${path ? `/--${path}` : ""}`).catch(() => launch(webUrl + startPath)) : launch(webUrl + startPath))
+    (expoGoUrl ? expoGo().catch(() => launch(webUrl + startPath)) : launch(webUrl + startPath))
       .catch(() => {})
       // The Simulator takes a moment to bring the app up after the call returns.
       .finally(() => setTimeout(() => !cancelled && setOpening(false), 1800));
@@ -217,7 +222,8 @@ export function PlayMode({ state, scheme, startPath, onClose, onSimButton, onDev
             <span className="scale-[1.4]">
               <CupertinoSpinner />
             </span>
-            Opening {state.name} in the Simulator…
+            Opening {state.name} in Expo Go…
+            <span className="text-[11.5px] text-white/40">The first time, Expo Go is installed on the Simulator.</span>
           </div>
         </div>
       </PhoneFrame>
