@@ -6,6 +6,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { isAppMessage, matchRoute, type ProjectState } from "@/lib/shared";
 import { withScheme, type AppScheme } from "@/lib/web/app-scheme";
 import { useSimDevice } from "@/lib/web/sim-device";
+import { openInSimulator } from "@/lib/web/sim-open";
 import { SimulatorView } from "./SimulatorView";
 import { PREVIEW_DEVICES, SE_CHIN } from "@/lib/web/devices";
 import { CupertinoSpinner, PhoneFrame, SafeAreaScreen, SeFrame, type SafeAreas } from "./ui";
@@ -94,18 +95,8 @@ export function PlayMode({ state, scheme, startPath, onClose, onSimButton, onDev
   useEffect(() => {
     if (!live || native || !state.preview || !udid) return;
     let cancelled = false;
-    const { expoGoUrl, webUrl } = state.preview;
-    const path = startPath === "/" ? "" : startPath;
-    const launch = (url: string) =>
-      fetch(`/api/sim/${udid}/launch`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ url }) }).then((r) => {
-        if (!r.ok) throw new Error();
-      });
-    const expoGo = () =>
-      fetch(`/api/sim/${udid}/expo-go`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ url: `${expoGoUrl}${path ? `/--${path}` : ""}` }) }).then((r) => {
-        if (!r.ok) throw new Error();
-      });
     setOpening(true);
-    (expoGoUrl ? expoGo().catch(() => launch(webUrl + startPath)) : launch(webUrl + startPath))
+    openInSimulator(udid, state.preview, startPath)
       .catch(() => {})
       // The Simulator takes a moment to bring the app up after the call returns.
       .finally(() => setTimeout(() => !cancelled && setOpening(false), 1800));

@@ -8,6 +8,7 @@ import { isAppMessage, matchRoute, qualityFixPrompt, type ProjectState, type Scr
 import { withScheme, type AppScheme } from "@/lib/web/app-scheme";
 import { outerSize, PREVIEW_DEVICES } from "@/lib/web/devices";
 import { useSimDevice } from "@/lib/web/sim-device";
+import { openInSimulator } from "@/lib/web/sim-open";
 import { DotLens } from "../DotLens";
 import type { LayoutPick } from "./LayoutTree";
 import type { Selection } from "./PromptBar";
@@ -335,7 +336,7 @@ export function HeroFocus(p: Props) {
       {!p.closing && box.w > 0 && (
         <ToolRail
           {...p}
-          device={native ? null : device.id}
+          device={p.state.native ? null : native ? "simulator" : device.id}
           onDevice={pickDevice}
           // Vertically centred on the phone.
           style={{ left: Math.max(8, tx - RAIL), top: ty + targetH / 2, transform: "translateY(-50%)" }}
@@ -418,6 +419,19 @@ function ToolRail(p: Omit<Props, "onDevice"> & { style: React.CSSProperties; onR
               {(["ios", "android"] as const).map((pf) => (
                 <div key={pf}>
                   <p className="px-2.5 pt-1.5 pb-1 text-[10px] font-semibold uppercase tracking-wide text-ink-500">{pf === "ios" ? "iOS" : "Android"}</p>
+                  {/* The live iOS Simulator (Mac with Xcode): the app opens in it, natively in Expo Go. */}
+                  {pf === "ios" && sim.supported && p.state.preview && (
+                    <button
+                      onClick={() => {
+                        p.onDevice("simulator");
+                        setPicker(false);
+                        if (sim.device && p.state.preview) void openInSimulator(sim.device.udid, p.state.preview, p.screen.previewPath ?? "/").catch(() => {});
+                      }}
+                      className={clsx("flex w-full cursor-pointer items-center justify-between rounded-md px-2.5 py-1.5 text-left text-[12.5px] hover:bg-ink-800", p.device === "simulator" ? "text-ink-100" : "text-ink-300")}>
+                      Simulator
+                      {p.device === "simulator" && <Check size={13} className="text-spark-400" />}
+                    </button>
+                  )}
                   {PREVIEW_DEVICES.filter((d) => d.platform === pf).map((d) => (
                     <button
                       key={d.id}
