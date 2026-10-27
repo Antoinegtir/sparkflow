@@ -23,13 +23,17 @@ export const SKILLS: Skill[] = [
 - Older app without components/kit/Glass.tsx: write \`components/glass.tsx\`:
 \`\`\`tsx
 import { GlassView, isLiquidGlassAvailable } from "expo-glass-effect";
+import { cssInterop } from "nativewind";
 import { Platform, View, type ViewProps } from "react-native";
+cssInterop(GlassView, { className: "style" }); // required, see below
 const real = Platform.OS === "ios" && isLiquidGlassAvailable();
 export function Glass({ className, ...p }: ViewProps & { className?: string }) {
   return real ? <GlassView glassEffectStyle="regular" className={\`rounded-theme overflow-hidden \${className ?? ""}\`} {...p} />
     : <View className={\`rounded-theme overflow-hidden border border-white/30 bg-surface/70 \${className ?? ""}\`} {...p} />;
 }
 \`\`\`
+- GlassView is a native view: NativeWind ignores its className unless it is registered once with \`cssInterop(GlassView, { className: "style" })\` (the kit does it). Without it, padding and rounded corners vanish and the cards look flat and broken.
+- Don't put glass inside a kit List or Card (they draw their own solid surface): use glass cards directly on the screen.
 - Glass shows what is behind it: give the screen a colored or image background (a LinearGradient in Screen's background, see "gradients"), or let content scroll under a floating glass bar. Over a flat color it is nearly invisible.
 - Glass tab bar: \`tabsScreenOptions(c, { glass: true })\`; it floats, so end each tab screen with \`<View className="h-24" />\`.
 - Keep text \`text-text\` / \`text-muted\` (4.5:1 contrast).`,

@@ -1,9 +1,13 @@
 import { GlassView, isLiquidGlassAvailable } from "expo-glass-effect";
+import { cssInterop } from "nativewind";
 import type { ReactNode } from "react";
 import { Platform, StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
 import { useIsDark } from "@/constants/theme";
 import { cn } from "@/lib/cn";
 import { SurfaceContext } from "./surface";
+
+// GlassView is a native view NativeWind doesn't know: without this its className (padding, radius) is dropped.
+cssInterop(GlassView, { className: "style" });
 
 /** True on iOS 26+, where Glass is Apple's real Liquid Glass. */
 export const liquidGlass = Platform.OS === "ios" && isLiquidGlassAvailable();
