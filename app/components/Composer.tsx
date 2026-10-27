@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import type { MediaInput } from "@/lib/shared";
 import { blobToWav, imageToInput, startRecording } from "@/lib/web/media";
+import { requireSignIn } from "@/lib/web/auth";
+import { apiFetch, openOnBackend, STATIC_SITE } from "@/lib/web/backend";
 
 const EXAMPLES = [
   "A habit tracker: today's habits with checkboxes and streaks, a weekly stats chart, a habit detail page and reminders.",
@@ -65,19 +67,23 @@ export function Composer() {
     }
   }
 
+  const buildButton = useRef<HTMLButtonElement>(null);
+
   async function submit() {
     if (!ready) return;
+    // The hosted site builds on your computer for signed-in people only.
+    if (STATIC_SITE && !(await requireSignIn("Sign in to build your app.", buildButton.current))) return;
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch("/api/projects", {
+      const res = await apiFetch("/api/projects", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ prompt: value, ...(image ? { image: image.input } : {}), ...(audio ? { audio: audio.input } : {}) }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Could not start the build.");
-      router.push(`/p/${json.id}`); // redirects to the app's URL name
+      openOnBackend(`/p/${json.id}`, router.push); // redirects to the app's URL name
     } catch (err) {
       setError((err as Error).message);
       setBusy(false);
@@ -102,6 +108,7 @@ export function Composer() {
           dragging ? "border-spark-500" : "border-[#2a3240]",
         )}>
         <textarea
+          id="composer"
           ref={input}
           value={value}
           onChange={(e) => setValue(e.target.value)}
@@ -155,6 +162,7 @@ export function Composer() {
             </button>
           </div>
           <button
+            ref={buildButton}
             disabled={!ready}
             onClick={() => void submit()}
             className={clsx(

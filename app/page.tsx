@@ -7,6 +7,8 @@ import { ReactLogo } from "./components/ReactLogo";
 import { ImportNative } from "./components/ImportNative";
 import { ProjectGrid } from "./components/ProjectGrid";
 import { Logo } from "./components/Logo";
+import { SignIn } from "./components/SignIn";
+import { StartBuilding } from "./components/StartBuilding";
 
 export default function Home() {
   // Pas encore de backend : valeurs affichées dans la barre du haut.
@@ -45,12 +47,8 @@ export default function Home() {
           </a>
         </nav>
         <div className="col-start-3 flex items-center justify-end gap-2">
-          <button type="button" className="cursor-pointer rounded-lg px-3 py-1.5 text-[13px] text-ink-200 transition hover:bg-white/5 hover:text-ink-100">
-            Sign in
-          </button>
-          <a href="#top" className="rounded-lg bg-spark-500 px-3 py-1.5 text-[13px] font-medium text-white transition hover:bg-spark-400">
-            Start building
-          </a>
+          <SignIn />
+          <StartBuilding />
         </div>
       </header>
       <div className="h-16" />
