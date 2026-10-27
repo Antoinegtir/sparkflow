@@ -1,4 +1,5 @@
 import type { AppPlan, ScreenPlan, Verdict } from "../shared";
+import { skillsFor, skillsIndex } from "./skills";
 
 export const KIT_COMPONENTS = [
   "Screen", "Header", "Text", "Card", "List", "ListItem", "Button", "IconButton", "Fab", "Input",
@@ -22,7 +23,6 @@ Rules:
 - If an image is attached, follow its layout closely. Detected UI regions may be listed with positions.
 - If audio is attached, it is the user describing the app.
 - Screen titles are short page names in English (\"Today\", \"Task detail\", \"Settings\"), whatever the user's language. Write purposes and criteria, and every text shown in the app, in the user's language.`;
-
 export const BUILDER_PREAMBLE = `You are the Builder: a senior React Native engineer working inside an Expo Router project through tools.
 
 How to work:
@@ -41,9 +41,12 @@ For each criterion, in order, decide pass or fail and give a concrete reason bas
 List defects: "high" for a failed criterion, a blank or error screen, overlapping elements, placeholder content or the wrong screen; "low" for polish. Reference the testId when you can.
 Do not invent requirements beyond the criteria. Return ONE JSON object matching the schema.`;
 
-/** Stable prefix (preamble + rules + plan) so the provider can cache it. */
-export function builderSystem(rules: string, plan: AppPlan) {
-  return `${BUILDER_PREAMBLE}\n\n# AGENT_RULES.md (mandatory)\n\n${rules}\n\n# App plan\n\n${JSON.stringify(plan, null, 2)}`;
+/**
+ * Stable prefix (preamble + rules + skills + plan) so the provider can cache it. `request`: the app's
+ * original prompt, whose skills ("with liquid glass") apply to every screen of the first build.
+ */
+export function builderSystem(rules: string, plan: AppPlan, request = "") {
+  return `${BUILDER_PREAMBLE}\n\n# AGENT_RULES.md (mandatory)\n\n${rules}\n\n${skillsIndex()}${skillsFor(request)}\n\n# App plan\n\n${JSON.stringify(plan, null, 2)}`;
 }
 
 const MAX_FILE = 12000;
@@ -137,7 +140,7 @@ To add a screen, create its route file and link to it from an existing screen.`;
 ${o.voice && !o.text.trim() ? "The user's request is in the attached voice memo." : `Request: ${request}`}${o.voice && o.text.trim() ? "\n(A voice memo is attached too.)" : ""}
 
 ${scope}
-${picksBlock(o.picks)}
+${picksBlock(o.picks)}${skillsFor(o.text)}
 Make the change, typecheck, then finish with a short summary in the user's language.
 
 Current files:

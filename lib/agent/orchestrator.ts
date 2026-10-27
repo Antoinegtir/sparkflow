@@ -340,7 +340,7 @@ export class Orchestrator {
     if (!plan.screens.some((s) => s.file === "app/index.tsx")) await sb.exec("rm -f app/index.tsx");
 
     const rules = await sb.readFile("AGENT_RULES.md").catch(() => "");
-    const system = builderSystem(rules, plan);
+    const system = builderSystem(rules, plan, prompt);
     rt.emit({ type: "phase", phase: "builder", detail: "foundation" });
     const ctx = await this.toolCtx(rt);
     const files = await this.readFiles(sb, ["theme.json", "lib/storage.ts", "lib/store.ts", "app/_layout.tsx", ...plan.screens.map((s) => s.file).filter((f) => f.endsWith("_layout.tsx"))]);
@@ -1059,7 +1059,7 @@ export async function sameBelowStatusBar(a: Buffer, b: Buffer) {
 }
 
 // Bump when the orchestrator changes in a way a running dev server must pick up without a restart.
-const INSTANCE_KEY = "__sparkflowOrchestrator_v9";
+const INSTANCE_KEY = "__sparkflowOrchestrator_v10";
 const g = globalThis as unknown as Record<string, Orchestrator | undefined>;
 
 /**

@@ -4,6 +4,7 @@ import type { InspectStep, Sandbox } from "../sandbox/types";
 import type { ContentPart, ToolSpec } from "./llm/types";
 import { generateImage, IMAGE_SIZES, segmentUI, describeSegments } from "./meta";
 import { toJsonSchema } from "./schema";
+import { skillByName, SKILLS } from "./skills";
 
 export const PROTECTED = [
   /^app\/\+html\.tsx$/,
@@ -119,15 +120,20 @@ export const TOOLS = {
     },
   }),
   apply_patch: def({
-    description: "Replace exact snippets in a file. Each `old` must appear exactly once.",
-    schema: z.object({ path: z.string(), edits: z.array(z.object({ old: z.string(), new: z.string() })).min(1) }),
+    description: "Replace exact snippets in a file. Each `old` must appear exactly once, unless `all: true` (then every occurrence is replaced).",
+    schema: z.object({ path: z.string(), edits: z.array(z.object({ old: z.string(), new: z.string(), all: z.boolean().optional() })).min(1) }),
     run: async (ctx, a) => {
       const p = cleanPath(a.path);
       assertWritable(ctx, p);
       let text = await ctx.sandbox.readFile(p);
       for (const [i, e] of a.edits.entries()) {
         const count = text.split(e.old).length - 1;
-        if (count !== 1) throw new Error(`Edit ${i + 1}: the old text appears ${count} times in ${p}; it must appear exactly once. Re-read the file and retry.`);
+        if (e.all && count > 0) {
+          text = text.split(e.old).join(e.new);
+          continue;
+        }
+        if (count !== 1)
+          throw new Error(`Edit ${i + 1}: the old text appears ${count} times in ${p}; it must appear exactly once (add more context, or set all: true to replace every occurrence).`);
         text = text.replace(e.old, () => e.new);
       }
       await ctx.sandbox.writeFile(p, text);
@@ -246,6 +252,15 @@ export const TOOLS = {
       return sha ? `Committed ${sha}.` : "Nothing to commit.";
     },
   }),
+  skill: def({
+    description: "Read a mobile skill (an exact recipe for an iOS / Android feature: liquid-glass, haptics, animations, sheets…). See the index in the system prompt.",
+    schema: z.object({ name: z.string() }),
+    run: async (_ctx, a) => {
+      const s = skillByName(a.name);
+      if (!s) return `Error: no skill "${a.name}". Skills: ${SKILLS.map((x) => x.name).join(", ")}.`;
+      return `# ${s.title}\n\n${s.body}`;
+    },
+  }),
   finish: def({
     description: "Finish the task with a 1–2 sentence summary for the user.",
     schema: z.object({ summary: z.string() }),
@@ -260,7 +275,7 @@ export type ToolName = keyof typeof TOOLS;
 
 export const DEFAULT_TOOLS: ToolName[] = [
   "list_files", "read_file", "write_file", "apply_patch", "delete_file", "run", "typecheck",
-  "app_logs", "screenshot", "ui_tree", "interact", "generate_image", "finish",
+  "app_logs", "screenshot", "ui_tree", "interact", "generate_image", "skill", "finish",
 ];
 
 export const toolSpecs = (names: ToolName[]): ToolSpec[] =>
