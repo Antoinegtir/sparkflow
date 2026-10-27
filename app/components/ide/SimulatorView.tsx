@@ -192,17 +192,13 @@ export function SimulatorView({
   }, [udid, onPageChange]);
 
   // ---- touches ----
-  type Gesture = { id: string; start: { x: number; y: number; t: number }; moved: boolean; inflight: boolean; queued: { x: number; y: number } | null; chain: Promise<unknown> };
-  const gesture = useRef<Gesture | null>(null);
-  // One gesture's requests go one after the other: through the tunnel a lift sent right after a
-  // touch-down could otherwise arrive first, and the finger would stay down.
-  const sendGesture = (phase: "down" | "move" | "up", x: number, y: number, g: Gesture | null = gesture.current) => {
-    if (!g || !udid) return Promise.resolve();
-    const send = () =>
-      fetch(`/api/sim/${udid}/gesture`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: g.id, phase, x, y }), keepalive: phase === "up" }).catch(() => {});
-    g.chain = g.chain.then(send, send);
-    return g.chain;
-  };
+  // Live finger (idb): every gesture of this view goes through one ordered queue.
+  const live = useRef<GestureSender | null>(null);
+  if (udid && device?.stream && live.current?.udid !== udid) live.current = gestureSender(udid, () => afterLiftRef.current());
+  const afterLiftRef = useRef(afterLift);
+  afterLiftRef.current = afterLift;
+  // Without idb: clicks and drags are replayed as a tap or a swipe on release.
+  const down = useRef<{ x: number; y: number; px: number; py: number; t: number } | null>(null);
   const flash = (msg: string) => {
     setError(msg);
     setTimeout(() => setError(null), 3000);
@@ -210,88 +206,80 @@ export function SimulatorView({
 
   const onPointerDown = (e: React.PointerEvent) => {
     if (!udid || frozen || inspect) return;
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {}
     const p = toPoints(e.clientX, e.clientY);
-    gesture.current = { id: Math.random().toString(36).slice(2), start: { x: p.x, y: p.y, t: Date.now() }, moved: false, inflight: false, queued: null, chain: Promise.resolve() };
-    const id = Date.now();
+    const id = Date.now() + Math.random();
     setRipples((r) => [...r, { id, x: e.clientX - p.r.left, y: e.clientY - p.r.top }]);
     setTimeout(() => setRipples((r) => r.filter((x) => x.id !== id)), 500);
-    if (device?.stream) void sendGesture("down", p.x, p.y);
+    if (live.current) return live.current.down(p);
+    down.current = { x: p.x, y: p.y, px: e.clientX, py: e.clientY, t: performance.now() };
   };
   const onPointerMove = (e: React.PointerEvent) => {
-    const g = gesture.current;
-    if (!g || !e.buttons) return;
-    const p = toPoints(e.clientX, e.clientY);
-    if (Math.hypot(p.x - g.start.x, p.y - g.start.y) > 2) g.moved = true;
-    if (!device?.stream) return;
-    // Coalesce: only the latest position is sent while a request is in flight.
-    if (g.inflight) return void (g.queued = { x: p.x, y: p.y });
-    g.inflight = true;
-    void sendGesture("move", p.x, p.y).finally(() => {
-      g.inflight = false;
-      if (g.queued) {
-        const q = g.queued;
-        g.queued = null;
-        void sendGesture("move", q.x, q.y);
-      }
-    });
+    if (e.buttons && live.current?.active) live.current.move(toPoints(e.clientX, e.clientY));
   };
   const onPointerUp = async (e: React.PointerEvent) => {
-    const g = gesture.current;
-    if (!g || !udid) return;
-    gesture.current = null;
-    const p = toPoints(e.clientX, e.clientY);
-    if (device?.stream) await sendGesture("up", p.x, p.y, g);
-    else {
-      const duration = (Date.now() - g.start.t) / 1000;
-      const moved = Math.hypot(p.x - g.start.x, p.y - g.start.y) > 6;
-      const body = moved ? { swipe: { x: g.start.x, y: g.start.y, x2: p.x, y2: p.y, duration: Math.max(0.1, duration) } } : { tap: { x: p.x, y: p.y, duration } };
-      const r = await fetch(`/api/sim/${udid}/input`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }).catch(() => null);
-      if (r && !r.ok) flash((await r.json().catch(() => ({}))).error ?? "Input failed");
-    }
+    if (live.current) return live.current.up(toPoints(e.clientX, e.clientY));
+    const start = down.current;
+    down.current = null;
+    if (!start || !udid) return;
+    const end = toPoints(e.clientX, e.clientY);
+    const duration = (performance.now() - start.t) / 1000;
+    const moved = Math.hypot(e.clientX - start.px, e.clientY - start.py) > 6;
+    const body = moved ? { swipe: { x: start.x, y: start.y, x2: end.x, y2: end.y, duration: Math.max(0.1, duration) } } : { tap: { x: start.x, y: start.y, duration } };
+    const r = await fetch(`/api/sim/${udid}/input`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }).catch(() => null);
+    if (r && !r.ok) flash((await r.json().catch(() => ({}))).error ?? "Input failed");
     afterLift();
   };
 
-  // Trackpad / wheel → a finger drag on both axes, away from the status bar and home indicator.
-  const wheel = useRef<{ id: string; x: number; y: number; sx: number; sy: number; timer?: ReturnType<typeof setTimeout> } | null>(null);
-  const onWheel = (e: React.WheelEvent) => {
-    if (!udid || frozen || inspect || !device?.stream) return;
-    const p = toPoints(e.clientX, e.clientY);
-    const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? p.r.height : 1;
-    const scale = p.w / p.r.width;
-    const dx = -e.deltaX * unit * scale;
-    const dy = -e.deltaY * unit * scale;
-    const clampX = (x: number) => Math.max(30, Math.min(p.w - 30, x));
-    const clampY = (y: number) => Math.max(90, Math.min(p.h - 110, y));
-    let w = wheel.current;
-    const send = (phase: "down" | "move" | "up", x: number, y: number) =>
-      fetch(`/api/sim/${udid}/gesture`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: w!.id, phase, x, y }) }).catch(() => {});
-    if (!w) {
-      const sx = clampX(p.x);
-      const sy = clampY(p.y);
-      w = wheel.current = { id: Math.random().toString(36).slice(2), x: sx, y: sy, sx, sy };
-      void send("down", sx, sy);
-    }
-    let nx = w.x + dx;
-    let ny = w.y + dy;
-    if (nx < 5 || nx > p.w - 5 || ny < 40 || ny > p.h - 40) {
-      // Re-grip: lift and start again from where the gesture began.
-      void send("up", w.x, w.y);
-      w.id = Math.random().toString(36).slice(2);
-      nx = w.sx + dx;
-      ny = w.sy + dy;
-      void send("down", w.sx, w.sy);
-    }
-    w.x = nx;
-    w.y = ny;
-    void send("move", nx, ny);
-    clearTimeout(w.timer);
-    w.timer = setTimeout(() => {
-      const cur = wheel.current;
-      wheel.current = null;
-      if (cur) void send("up", cur.x, cur.y).then(afterLift);
-    }, 120);
-  };
+  // Trackpad / mouse wheel → a finger dragging the content (both axes), in the same queue as the
+  // touches. The finger lifts 120 ms after the last wheel event; if it would leave the screen it
+  // lifts and starts again from where the scroll began. Native listener: the page behind must not scroll.
+  const blocked = useRef(false);
+  blocked.current = !!frozen || !!inspect;
+  useEffect(() => {
+    const el = canvas.current;
+    const sender = live.current;
+    if (!el || !sender) return;
+    let wheel: { start: Pt; finger: Pt } | null = null;
+    let lift: ReturnType<typeof setTimeout> | undefined;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      if (blocked.current) return;
+      const p = toPoints(e.clientX, e.clientY);
+      const k = p.w / p.r.width; // CSS px → device points
+      const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? p.r.height : 1;
+      if (!wheel) {
+        // Keep clear of the status bar and the home-indicator edge.
+        const start = { x: clamp(p.x, 30, p.w - 30), y: clamp(p.y, 90, p.h - 110) };
+        wheel = { start, finger: { ...start } };
+        sender.down(start);
+      }
+      const w = wheel;
+      const next = { x: w.finger.x - e.deltaX * unit * k, y: w.finger.y - e.deltaY * unit * k };
+      if (next.x < 10 || next.x > p.w - 10 || next.y < 40 || next.y > p.h - 40) {
+        sender.up(w.finger);
+        w.finger = { ...w.start };
+        sender.down(w.start);
+      } else {
+        w.finger = next;
+        sender.move(next);
+      }
+      clearTimeout(lift);
+      lift = setTimeout(() => {
+        if (wheel) sender.up(wheel.finger);
+        wheel = null;
+      }, 120);
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+      clearTimeout(lift);
+      if (wheel) sender.up(wheel.finger);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [udid, device?.stream, loaded]);
 
   // ---- inspect layer ----
   const last = useRef(0);
@@ -326,13 +314,14 @@ export function SimulatorView({
   const pct = (b: Area) => ({ left: `${(b.x / (points?.width ?? 1)) * 100}%`, top: `${(b.y / (points?.height ?? 1)) * 100}%`, width: `${(b.width / (points?.width ?? 1)) * 100}%`, height: `${(b.height / (points?.height ?? 1)) * 100}%` });
 
   return (
-    <div className="relative h-full w-full touch-none select-none bg-black" onWheel={onWheel}>
+    <div className="relative h-full w-full touch-none select-none bg-black">
       <canvas
         ref={canvas}
         className={clsx("h-full w-full object-fill", inspect ? "cursor-crosshair" : "cursor-pointer")}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
+        onPointerCancel={(e) => live.current?.up(toPoints(e.clientX, e.clientY))}
         onMouseMove={inspect ? onInspectMove : undefined}
         onMouseLeave={() => setHover(null)}
         onClick={() => {
@@ -368,4 +357,66 @@ export function SimulatorView({
 
 function Message({ text }: { text: string }) {
   return <div className="grid h-full place-items-center p-6 text-center text-[12.5px] text-ink-400">{text}</div>;
+}
+
+type Pt = { x: number; y: number };
+const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi);
+
+interface GestureSender {
+  udid: string;
+  readonly active: boolean;
+  down(p: Pt): void;
+  move(p: Pt): void;
+  up(p: Pt): void;
+}
+
+/**
+ * Sends live touch gestures to the server in order, one request at a time: a touch-down never
+ * overtakes the lift before it, even through the tunnel. Moves are coalesced: while a request is
+ * in flight only the latest pointer position is kept, so a fast drag never builds a backlog.
+ */
+function gestureSender(udid: string, onLift?: () => void): GestureSender {
+  let queue: Promise<unknown> = Promise.resolve();
+  let id: string | null = null;
+  let pending: Pt | null = null;
+  let scheduled = false;
+  const post = (gid: string, phase: "down" | "move" | "up", p: Pt) =>
+    fetch(`/api/sim/${udid}/gesture`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id: gid, phase, x: p.x, y: p.y }),
+      keepalive: phase === "up",
+    }).catch(() => {});
+  return {
+    udid,
+    get active() {
+      return id !== null;
+    },
+    down(p) {
+      const gid = Math.random().toString(36).slice(2, 10);
+      id = gid;
+      pending = null;
+      queue = queue.then(() => post(gid, "down", p));
+    },
+    move(p) {
+      if (!id) return;
+      pending = p;
+      if (scheduled) return;
+      scheduled = true;
+      const gid = id;
+      queue = queue.then(async () => {
+        scheduled = false;
+        const q = pending;
+        pending = null;
+        if (q) await post(gid, "move", q);
+      });
+    },
+    up(p) {
+      if (!id) return;
+      const gid = id;
+      id = null;
+      pending = null;
+      queue = queue.then(() => post(gid, "up", p)).then(() => onLift?.());
+    },
+  };
 }
