@@ -124,7 +124,7 @@ export function PromptBar(p: Props) {
 
   return (
     <div data-prompt-bar className="pointer-events-auto absolute bottom-4 left-1/2 z-40 w-[min(760px,calc(100%-32px))] -translate-x-1/2">
-      <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)]/95 p-2.5 shadow-[0_20px_60px_-20px_rgba(0,0,0,.6)] backdrop-blur-xl">
+      <div className={clsx("rounded-2xl border bg-[var(--panel)]/95 p-2.5 shadow-[0_20px_60px_-20px_rgba(0,0,0,.6)] backdrop-blur-xl transition-colors", running ? "agent-glow border-transparent" : "border-[var(--line)]")}>
         <div className="mb-2 flex items-center justify-between gap-3 px-1">
           <PhasePipeline state={p.state} />
           {p.focusedTitle && (

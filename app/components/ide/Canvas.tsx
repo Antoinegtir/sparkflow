@@ -90,13 +90,16 @@ export function ScreenContent({ screen, scanning, light }: { screen: ScreenState
           <div className={clsx("h-4 w-2/3 rounded", block)} />
           <div className={clsx("h-2 w-1/3 rounded", block)} />
           {[0, 1, 2].map((i) => (
-            <div key={i} className={clsx("h-10 rounded-lg opacity-70", block)} />
+            // While building, the blocks pulse one after the other, like parts being laid out.
+            <div key={i} className={clsx("h-10 rounded-lg opacity-70", block, s.status === "building" && "animate-pulse-soft")} style={s.status === "building" ? { animationDelay: `${i * 0.25}s` } : undefined} />
           ))}
         </div>
       )}
       {s.status === "building" && (
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          <div className="animate-shimmer absolute inset-0 bg-gradient-to-r from-transparent via-violet-400/20 to-transparent" />
+          <div className="animate-build-sweep absolute inset-y-0 left-0 w-1/2 bg-gradient-to-r from-transparent via-sky-400/30 to-transparent" />
+          {/* A blue edge breathing inside the screen. */}
+          <div className="animate-pulse-soft absolute inset-0 shadow-[inset_0_0_24px_rgba(10,132,255,.45)] ring-1 ring-inset ring-sky-400/40" />
         </div>
       )}
       {s.deviceLoading && (

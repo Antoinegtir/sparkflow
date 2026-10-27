@@ -207,3 +207,31 @@
 
 /* Landing: in-page links (How it works, My apps) glide instead of jumping. */
 html:has([data-landing]) { scroll-behavior: smooth; }
+
+/* IDE prompt bar while the agent works: a blue light running around the edge, with a soft glow. */
+@property --agent-a { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+.agent-glow { position: relative; isolation: isolate; }
+.agent-glow::before,
+.agent-glow::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  pointer-events: none;
+  background: conic-gradient(from var(--agent-a), transparent 0 50%, rgba(10, 132, 255, 0.9) 68%, #64d2ff 80%, rgba(10, 132, 255, 0.9) 90%, transparent 100%);
+  animation: agent-spin 2.6s linear infinite;
+}
+/* Both show only as a ring: the sharp 1.5px line, and the glow, blurred and kept outside the bar. */
+.agent-glow::before,
+.agent-glow::after {
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+.agent-glow::before { padding: 1.5px; }
+.agent-glow::after { inset: -16px; padding: 16px; border-radius: 30px; filter: blur(10px); opacity: 0.6; }
+@keyframes agent-spin { to { --agent-a: 360deg; } }
+
+/* A page being built: a blue light sweeping across it. */
+@keyframes build-sweep { from { transform: translateX(-120%) skewX(-12deg); } to { transform: translateX(220%) skewX(-12deg); } }
+.animate-build-sweep { animation: build-sweep 1.8s cubic-bezier(.45, 0, .55, 1) infinite; }
