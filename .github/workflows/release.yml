@@ -1,4 +1,5 @@
-# Pushing a tag vX.Y.Z (npm run release) builds the server and publishes the GitHub release that
+# Pushing a tag vX.Y.Z (npm run release) builds the server (on Linux: the output is platform-independent
+# JavaScript, and install.sh installs the native dependencies on your Mac) and publishes the GitHub release that
 # https://sparkflow-ai.web.app/install.sh downloads: sparkflow-vX.Y.Z.tar.gz + its .sha256.
 name: Release
 
@@ -11,7 +12,7 @@ permissions:
 
 jobs:
   release:
-    runs-on: macos-14
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
         with:

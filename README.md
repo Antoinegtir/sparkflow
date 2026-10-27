@@ -31,7 +31,7 @@ From a checkout, `npm run remote` does the same as `sparkflow`. `npm run deploy`
 
 ### Releases
 
-`npm run release -- patch` (or `minor`, `major`, `1.2.3`) bumps `package.json`, tags `vX.Y.Z` and pushes. The `Release` workflow builds the server on macOS and publishes `sparkflow-vX.Y.Z.tar.gz` and its `.sha256` on GitHub Releases, which `install.sh` and `sparkflow update` download.
+`npm run release -- patch` (or `minor`, `major`, `1.2.3`) bumps `package.json`, tags `vX.Y.Z` and pushes. The `Release` workflow builds the server on Ubuntu and publishes `sparkflow-vX.Y.Z.tar.gz` and its `.sha256` on GitHub Releases, which `install.sh` and `sparkflow update` download.
 
 ## How it works
 

@@ -29,7 +29,9 @@ function askSecret(prompt) {
     stdin.resume();
     let value = "";
     const onData = (buf) => {
-      for (const ch of buf.toString("utf8")) {
+      // Pasting wraps the text in bracketed-paste markers (ESC[200~ … ESC[201~): not part of the key.
+      const text = buf.toString("utf8").replace(/\x1b\[20[01]~/g, "").replace(/\x1b\[[0-9;]*[A-Za-z~]/g, "");
+      for (const ch of text) {
         if (ch === "\r" || ch === "\n") {
           stdin.setRawMode(false);
           stdin.pause();
@@ -37,7 +39,12 @@ function askSecret(prompt) {
           process.stdout.write("\n");
           return resolve(value.trim());
         }
-        if (ch === "\u0003") process.exit(130); // Ctrl+C
+        if (ch === "\u0003" || ch === "\u0004") {
+          // Ctrl+C / Ctrl+D: leave without saving anything.
+          stdin.setRawMode(false);
+          process.stdout.write(`\n  ${dim("Cancelled, nothing saved.")}\n`);
+          process.exit(130);
+        }
         if (ch === "\u007f") {
           if (value) {
             value = value.slice(0, -1);
