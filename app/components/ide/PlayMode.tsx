@@ -108,10 +108,12 @@ export function PlayMode({ state, scheme, startPath, onClose, onSimButton, onDev
   // A device picked here becomes the project's preview device: the focus view (and the canvas) follow.
   useEffect(() => {
     // The Simulator too: the focus view then shows the live Simulator instead of the web preview.
-    if (native || !device || device.id === state.previewDevice) return;
+    // Not before the simulator list has loaded: until then "Simulator" isn't offered and the first
+    // device (SE) would replace it.
+    if (native || !sim.loaded || !device || device.id === state.previewDevice) return;
     onDevice(device.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [device?.id]);
+  }, [device?.id, sim.loaded]);
   const simPoints = sim.device?.points;
 
   // Outer size of what is drawn, for fitting it to the stage.
