@@ -3,11 +3,23 @@ import { errorResponse, orchestrator } from "@/lib/web/server";
 
 export const dynamic = "force-dynamic";
 
-/** Server-sent events: replay from Last-Event-ID / ?since=, then live, with a ping every 15 s. */
+/** Server-sent events: replay from Last-Event-ID / ?since=, then live, with a ping every 15 s (or one JSON batch with ?poll=1). */
 export async function GET(req: Request, { params }: RouteCtx) {
   const { id } = await params;
   const url = new URL(req.url);
   const since = Number(req.headers.get("last-event-id") ?? url.searchParams.get("since") ?? 0) || 0;
+  // ?poll=1: the events since `since` as JSON, for the hosted site (the Cloudflare quick tunnel
+  // holds back a streamed body, so it polls instead).
+  if (url.searchParams.has("poll")) {
+    try {
+      const events: unknown[] = [];
+      const unsubscribe = await orchestrator().streamEvents(id, since, (e) => events.push(e));
+      unsubscribe();
+      return Response.json(events, { headers: { "cache-control": "no-store" } });
+    } catch (err) {
+      return errorResponse(err);
+    }
+  }
   const enc = new TextEncoder();
   let cleanup = () => {};
   try {

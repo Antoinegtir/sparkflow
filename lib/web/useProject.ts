@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { applyEvent, type ProjectState, type PromptRequest, type StoredEvent } from "../shared";
+import { getBackend } from "./backend";
 
 async function post(url: string, body?: unknown, method = "POST") {
   const res = await fetch(url, { method, headers: { "content-type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
@@ -27,6 +28,7 @@ export function useProject(id: string) {
 
   useEffect(() => {
     let es: EventSource | undefined;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     let cancelled = false;
     (async () => {
       const res = await fetch(`/api/projects/${id}`, { cache: "no-store" });
@@ -34,6 +36,28 @@ export function useProject(id: string) {
       if (cancelled) return;
       if (!res.ok) return setError(json.error ?? "Project not found");
       setState(json);
+      // Through the tunnel (hosted site) a streamed body doesn't get through: poll every second.
+      if (getBackend()) {
+        let since: number = json.lastSeq;
+        const poll = async () => {
+          if (cancelled) return;
+          try {
+            const r = await fetch(`/api/projects/${id}/events?poll=1&since=${since}`, { cache: "no-store" });
+            if (!r.ok) throw new Error();
+            const events = (await r.json()) as StoredEvent[];
+            setConnected(true);
+            if (events.length) {
+              since = events[events.length - 1].seq;
+              setState((s) => (s ? events.reduce(applyEvent, s) : s));
+            }
+          } catch {
+            setConnected(false);
+          }
+          timer = setTimeout(poll, 1000);
+        };
+        void poll();
+        return;
+      }
       es = new EventSource(`/api/projects/${id}/events?since=${json.lastSeq}`);
       es.onopen = () => setConnected(true);
       es.onerror = () => setConnected(false);
@@ -45,6 +69,7 @@ export function useProject(id: string) {
     return () => {
       cancelled = true;
       es?.close();
+      clearTimeout(timer);
     };
   }, [id]);
 
