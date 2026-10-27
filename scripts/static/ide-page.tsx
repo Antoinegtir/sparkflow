@@ -18,6 +18,13 @@ export default function IdeShell() {
   const open = useCallback(() => {
     if (!getBackend()) return setState({ kind: "offline" });
     const parts = location.pathname.split("/").filter(Boolean).map(decodeURIComponent);
+    // /connect: where the landing sends you when no computer answers; once connected, back to it.
+    if (parts[0] === "connect") {
+      fetch("/api/projects", { cache: "no-store" })
+        .then((r) => (r.ok ? location.replace("/") : setState({ kind: "offline" })))
+        .catch(() => setState({ kind: "offline" }));
+      return;
+    }
     const [key, ...page] = parts[0] === "p" ? parts.slice(1) : parts;
     fetch("/api/projects", { cache: "no-store" })
       .then((r) => (r.ok ? (r.json() as Promise<ProjectSummary[]>) : Promise.reject(new Error(`HTTP ${r.status}`))))

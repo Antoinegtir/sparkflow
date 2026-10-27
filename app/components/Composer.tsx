@@ -7,7 +7,9 @@ import { useEffect, useRef, useState } from "react";
 import type { MediaInput } from "@/lib/shared";
 import { blobToWav, imageToInput, startRecording } from "@/lib/web/media";
 import { requireSignIn } from "@/lib/web/auth";
-import { apiFetch, openOnBackend, STATIC_SITE } from "@/lib/web/backend";
+import { apiFetch, getBackend, openOnBackend, STATIC_SITE } from "@/lib/web/backend";
+
+const PENDING = "sparkflow.pendingPrompt";
 
 const EXAMPLES = [
   "A habit tracker: today's habits with checkboxes and streaks, a weekly stats chart, a habit detail page and reminders.",
@@ -29,6 +31,17 @@ export function Composer() {
   const input = useRef<HTMLTextAreaElement>(null);
   const file = useRef<HTMLInputElement>(null);
   const ready = (value.trim().length > 0 || !!image || !!audio) && !busy && !recording;
+
+  // A prompt kept while the hosted site walked you through connecting your computer.
+  useEffect(() => {
+    try {
+      const kept = sessionStorage.getItem(PENDING);
+      if (kept) {
+        sessionStorage.removeItem(PENDING);
+        setValue(kept);
+      }
+    } catch {}
+  }, []);
 
   useEffect(() => {
     if (!recording) return;
@@ -85,6 +98,15 @@ export function Composer() {
       if (!res.ok) throw new Error(json.error ?? "Could not start the build.");
       openOnBackend(`/p/${json.id}`, router.push); // redirects to the app's URL name
     } catch (err) {
+      // Hosted site with no computer answering (never connected, or `sparkflow` stopped): keep the
+      // prompt and show how to start it.
+      if (STATIC_SITE && (err instanceof TypeError || !getBackend())) {
+        try {
+          sessionStorage.setItem(PENDING, value);
+        } catch {}
+        location.href = "/connect";
+        return;
+      }
       setError((err as Error).message);
       setBusy(false);
     }
