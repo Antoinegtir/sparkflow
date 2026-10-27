@@ -8,7 +8,6 @@ import {
   Controls,
   Handle,
   MarkerType,
-  NodeResizer,
   Position,
   ReactFlow,
   ReactFlowProvider,
@@ -23,7 +22,7 @@ import clsx from "clsx";
 import { Sparkles } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { NavEdge, ScreenState } from "@/lib/shared";
-import { edgeSides, FRAME_HEAD, FRAME_PAD, layoutGroups, NODE_H, NODE_W, pageGroups, PHONE_H, PHONE_W } from "@/lib/web/layout";
+import { edgeSides, layoutScreens, NODE_W, PHONE_H, PHONE_W } from "@/lib/web/layout";
 import { CupertinoSpinner, deviceById, DeviceMockup, PhoneFrame, StatusPill } from "./ui";
 
 export type PhoneData = { screen: ScreenState; hidden: boolean; scanning: boolean; ipad: boolean; native: boolean; dark: boolean; device?: string; onOpen: (route: string) => void };
@@ -119,75 +118,7 @@ export function ScreenContent({ screen, scanning, light }: { screen: ScreenState
   );
 }
 
-type Rect = { x: number; y: number; width: number; height: number };
-type FrameData = {
-  title: string;
-  count: number;
-  width: number;
-  height: number;
-  onResizeStart: () => void;
-  onResize: (r: Rect) => void;
-  onResizeEnd: () => void;
-  onRename: (name: string) => void;
-};
-
-/**
- * A category's frame behind its pages, as in Figma: drag it by its title to move the whole group,
- * pull its edges or corners to resize it, double-click the title to rename it.
- */
-const FrameNode = memo(function FrameNode({ data }: NodeProps<Node<FrameData>>) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(data.title);
-  const commit = () => {
-    setEditing(false);
-    if (draft.trim() !== data.title) data.onRename(draft.trim());
-  };
-  return (
-    <div className="group/frame rounded-3xl border border-white/[0.07] bg-white/[0.018] transition-colors hover:border-white/[0.14]" style={{ width: data.width, height: data.height }}>
-      <NodeResizer
-        minWidth={NODE_W}
-        minHeight={NODE_H}
-        lineClassName="frame-resize-line"
-        handleClassName="frame-resize-handle"
-        onResizeStart={data.onResizeStart}
-        onResize={(_, r) => data.onResize(r)}
-        onResizeEnd={data.onResizeEnd}
-      />
-      {/* Only the title takes the mouse: the rest of the frame lets the canvas pan. */}
-      <div className="frame-handle pointer-events-auto flex w-fit cursor-grab items-center gap-2 px-5 active:cursor-grabbing" style={{ height: FRAME_HEAD + 14 }}>
-        {editing ? (
-          <input
-            autoFocus
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onBlur={commit}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") commit();
-              if (e.key === "Escape") {
-                setDraft(data.title);
-                setEditing(false);
-              }
-            }}
-            className="nodrag w-40 rounded-md border border-spark-500/60 bg-ink-900 px-1.5 py-0.5 text-[13px] font-semibold text-ink-100 outline-none"
-          />
-        ) : (
-          <span
-            title="Double-click to rename"
-            onDoubleClick={() => {
-              setDraft(data.title);
-              setEditing(true);
-            }}
-            className="text-[13px] font-semibold text-ink-200">
-            {data.title}
-          </span>
-        )}
-        <span className="rounded-full bg-white/[0.06] px-1.5 text-[11px] text-ink-500">{data.count}</span>
-      </div>
-    </div>
-  );
-});
-
-const nodeTypes = { phone: PhoneNode, frame: FrameNode };
+const nodeTypes = { phone: PhoneNode };
 // Bottom padding keeps the pages clear of the floating prompt bar.
 const FIT = { padding: { top: "36px", left: "48px", right: "48px", bottom: "180px" }, maxZoom: 1 } as const;
 
@@ -212,151 +143,50 @@ type Props = {
 
 type Pos = { x: number; y: number };
 const posKey = (id: string) => `sparkflow.canvas.${id}`;
-/**
- * What the user arranged: moved pages, pages taken out of their category or put in another one
- * (null: no frame), frames resized (box) and renamed.
- */
-type Arranged = { pos: Record<string, Pos>; frame: Record<string, string | null>; box: Record<string, Rect>; names: Record<string, string> };
-const EMPTY: Arranged = { pos: {}, frame: {}, box: {}, names: {} };
-
 function Flow(p: Props) {
-  const routes = useMemo(() => p.screens.map((s) => s.route), [p.screens]);
-  const auto = useMemo(() => pageGroups(routes, p.edges, p.native), [routes, p.edges, p.native]);
-  const layout = useMemo(() => layoutGroups(auto), [auto]);
-  const [arranged, setArranged] = useState<Arranged>(EMPTY);
+  const layout = useMemo(() => layoutScreens(p.screens.map((s) => s.route), p.edges), [p.screens, p.edges]);
+  // Pages the user moved, kept per project in this browser; the others follow the automatic layout.
+  const [moved, setMoved] = useState<Record<string, Pos>>({});
   useEffect(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(posKey(p.projectId)) ?? "{}");
-      // Older saves held the positions only.
-      setArranged(saved.pos ? { ...EMPTY, ...saved } : { ...EMPTY, pos: saved });
+      // Saves from the frames version held { pos, ... }.
+      setMoved(saved.pos ?? saved);
     } catch {
-      setArranged(EMPTY);
+      setMoved({});
     }
   }, [p.projectId]);
-  const persist = useCallback(
-    (next: Arranged) => {
-      try {
-        localStorage.setItem(posKey(p.projectId), JSON.stringify(next));
-      } catch {}
-    },
-    [p.projectId],
-  );
   // A page let go after a drag isn't opened by the click that ends it.
   const lastDrag = useRef(0);
   const open = useCallback((r: string) => Date.now() - lastDrag.current > 250 && p.onOpen(r), [p]);
-  // The page being dragged: its frame doesn't stretch to follow it, so it can leave.
-  const [dragging, setDragging] = useState<string | null>(null);
-  // While a frame is resized, React Flow also reports it moving: that must not move its pages.
-  const resizing = useRef(false);
-
-  const posOf = (r: string): Pos => arranged.pos[r] ?? layout.get(r) ?? { x: 0, y: 0 };
-  const nodeH = p.ipad ? Math.round(PHONE_W * 1.33) + 80 : NODE_H;
-
-  // Categories after the user's changes: a page can leave its frame or join another.
-  const groups = auto.map((g) => ({ root: g.root, members: [] as string[] }));
-  for (const g of auto) {
-    for (const m of g.members) {
-      const to = m in arranged.frame ? arranged.frame[m] : g.root;
-      groups.find((x) => x.root === to)?.members.push(m);
-    }
-  }
-
-  // Each category's frame wraps its pages where they are now (all but the one in hand).
-  const frames = groups
-    .map((g) => ({ ...g, inside: g.members.filter((m) => m !== dragging) }))
-    .filter((g) => g.inside.length && (!p.native || g.members.length > 1))
-    .map((g) => {
-      // The pages' bounds, grown to the size the user gave the frame (never smaller than its pages).
-      const ps = g.inside.map(posOf);
-      const box = arranged.box[g.root];
-      const x = Math.min(...ps.map((q) => q.x - FRAME_PAD), box?.x ?? Infinity);
-      const y = Math.min(...ps.map((q) => q.y - FRAME_PAD - FRAME_HEAD), box?.y ?? Infinity);
-      const width = Math.max(...ps.map((q) => q.x + NODE_W + FRAME_PAD), box ? box.x + box.width : -Infinity) - x;
-      const height = Math.max(...ps.map((q) => q.y + nodeH + FRAME_PAD), box ? box.y + box.height : -Infinity) - y;
-      const root = g.root;
-      const title = arranged.names[root] || (p.screens.find((s) => s.route === root)?.title ?? root);
-      const data: FrameData = {
-        title,
-        count: g.inside.length,
-        width,
-        height,
-        onResizeStart: () => (resizing.current = true),
-        onResize: (r) => setArranged((a) => ({ ...a, box: { ...a.box, [root]: r } })),
-        onResizeEnd: () => {
-          resizing.current = false;
-          setArranged((a) => (persist(a), a));
-        },
-        onRename: (name) =>
-          setArranged((a) => {
-            const names = { ...a.names };
-            if (name) names[root] = name;
-            else delete names[root];
-            const next = { ...a, names };
-            persist(next);
-            return next;
-          }),
-      };
-      return { id: `frame:${root}`, root, members: g.members, x, y, data };
-    });
+  const posOf = (r: string): Pos => moved[r] ?? layout.get(r) ?? { x: 0, y: 0 };
 
   // Sizes React Flow measured, handed back with every node: without them it hides the nodes to
   // measure them again, which made the canvas blink while dragging.
   const sizes = useRef(new Map<string, { width: number; height: number }>());
-  const nodes: Node[] = [
-    ...frames.map((f) => ({ id: f.id, type: "frame", width: f.data.width, height: f.data.height, measured: { width: f.data.width, height: f.data.height }, position: { x: f.x, y: f.y }, data: f.data, zIndex: 0, selectable: false, dragHandle: ".frame-handle", style: { pointerEvents: "none" as const } })),
-    ...p.screens.map((s) => ({
-      id: s.route,
-      type: "phone",
-      position: posOf(s.route),
-      measured: sizes.current.get(s.route),
-      zIndex: 1,
-      data: { screen: s, hidden: p.hiddenRoute === s.route, scanning: p.scanning.has(s.route), ipad: p.ipad, native: p.native, dark: p.dark, device: p.device, onOpen: open } satisfies PhoneData,
-    })),
-  ];
-
-  /** Where a page dropped at `at` belongs: the frame under its middle, or none. */
-  const frameAt = (r: string, at: Pos) => {
-    const cx = at.x + NODE_W / 2;
-    const cy = at.y + nodeH / 2;
-    return frames.find((f) => cx >= f.x && cx <= f.x + f.data.width && cy >= f.y && cy <= f.y + f.data.height && !(f.members.length === 1 && f.members[0] === r))?.root ?? null;
-  };
+  const nodes: Node<PhoneData>[] = p.screens.map((s) => ({
+    id: s.route,
+    type: "phone",
+    position: posOf(s.route),
+    measured: sizes.current.get(s.route),
+    data: { screen: s, hidden: p.hiddenRoute === s.route, scanning: p.scanning.has(s.route), ipad: p.ipad, native: p.native, dark: p.dark, device: p.device, onOpen: open },
+  }));
 
   const onNodesChange = (changes: NodeChange[]) => {
-    let next: Arranged | null = null;
+    let next: Record<string, Pos> | null = null;
     for (const c of changes) {
       if (c.type === "dimensions" && c.dimensions) sizes.current.set(c.id, c.dimensions);
       if (c.type !== "position") continue;
       lastDrag.current = Date.now();
-      const frame = frames.find((f) => f.id === c.id);
-      if (frame && resizing.current) continue;
-      next ??= { ...arranged, pos: { ...arranged.pos }, frame: { ...arranged.frame }, box: { ...arranged.box } };
-      if (frame) {
-        // Moving a frame moves all its pages (and the size it was given) by the same amount.
-        if (c.position) {
-          const dx = c.position.x - frame.x;
-          const dy = c.position.y - frame.y;
-          for (const m of frame.members) {
-            const q = posOf(m);
-            next.pos[m] = { x: q.x + dx, y: q.y + dy };
-          }
-          const box = next.box[frame.root];
-          if (box) next.box[frame.root] = { ...box, x: box.x + dx, y: box.y + dy };
-        }
-      } else {
-        if (c.position) next.pos[c.id] = c.position;
-        if (c.dragging) setDragging(c.id);
-        else if (c.dragging === false) {
-          // Let go: it joins the frame it's over, or stands on its own.
-          const to = frameAt(c.id, next.pos[c.id] ?? posOf(c.id));
-          const home = auto.find((g) => g.members.includes(c.id))?.root ?? null;
-          if (to === home) delete next.frame[c.id];
-          else next.frame[c.id] = to;
-          setDragging(null);
-        }
+      next ??= { ...moved };
+      if (c.position) next[c.id] = c.position;
+      if (c.dragging === false) {
+        try {
+          localStorage.setItem(posKey(p.projectId), JSON.stringify(next));
+        } catch {}
       }
-      if (c.dragging === false) persist(next);
     }
-    if (next) setArranged(next);
+    if (next) setMoved(next);
   };
 
   const busy = new Set(p.screens.filter((s) => s.status === "building" || s.status === "verifying").map((s) => s.route));
