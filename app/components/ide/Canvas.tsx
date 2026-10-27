@@ -60,7 +60,7 @@ export const PhoneNode = memo(function PhoneNode({ data }: NodeProps<Node<PhoneD
         ) : (
           // The project's preview device (iPhone, SE, iPad mini, Pixel, Galaxy), as in the focus view.
           <DeviceMockup device={deviceById(data.device)} width={PHONE_W} dark={data.dark} glow={busy ? "spark" : s.status === "failed" ? "bad" : null}>
-            <ScreenContent screen={s} scanning={data.scanning} />
+            <ScreenContent screen={s} scanning={data.scanning} light={!data.dark} />
           </DeviceMockup>
         )}
       </button>
@@ -76,19 +76,21 @@ export const PhoneNode = memo(function PhoneNode({ data }: NodeProps<Node<PhoneD
   );
 });
 
-export function ScreenContent({ screen, scanning }: { screen: ScreenState; scanning?: boolean }) {
+/** `light`: the placeholder matches a light status bar and home indicator around it. */
+export function ScreenContent({ screen, scanning, light }: { screen: ScreenState; scanning?: boolean; light?: boolean }) {
   const s = screen;
+  const block = light ? "bg-zinc-200" : "bg-ink-700";
   return (
-    <div className="relative h-full w-full overflow-hidden bg-ink-800">
+    <div className={clsx("relative h-full w-full overflow-hidden", light ? "bg-white" : "bg-ink-800")}>
       {s.screenshotUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img key={s.screenshotUrl} src={s.screenshotUrl} alt={s.title} className={clsx("animate-fade-in h-full w-full object-cover object-top transition", s.deviceLoading && "scale-105 blur-md")} draggable={false} />
       ) : (
         <div className={clsx("flex h-full flex-col gap-2 p-3", s.status === "pending" && "opacity-40")}>
-          <div className="h-4 w-2/3 rounded bg-ink-700" />
-          <div className="h-2 w-1/3 rounded bg-ink-700" />
+          <div className={clsx("h-4 w-2/3 rounded", block)} />
+          <div className={clsx("h-2 w-1/3 rounded", block)} />
           {[0, 1, 2].map((i) => (
-            <div key={i} className="h-10 rounded-lg bg-ink-700/70" />
+            <div key={i} className={clsx("h-10 rounded-lg opacity-70", block)} />
           ))}
         </div>
       )}
