@@ -1,0 +1,80 @@
+"use client";
+
+import clsx from "clsx";
+import { Check, ChevronDown, Loader2, Smartphone, Tablet } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { SIM_CHANGED } from "@/lib/web/sim-device";
+
+type Device = { udid: string; name: string; runtime: string; booted: boolean; kind: "iphone" | "ipad" };
+
+/** Simulator picker grouped iPhone / iPad. Switching boots the device and reinstalls the app there. */
+export function DevicePicker({ bundleId, onSwitching }: { bundleId?: string; onSwitching: (name: string | null) => void }) {
+  const [devices, setDevices] = useState<Device[]>([]);
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const load = () => fetch("/api/sim/devices").then((r) => r.json()).then((d) => Array.isArray(d) && setDevices(d)).catch(() => {});
+
+  useEffect(() => {
+    void load();
+  }, []);
+  useEffect(() => {
+    if (!open) return;
+    void load();
+    const close = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [open]);
+
+  const current = devices.find((d) => d.booted);
+  async function pick(d: Device) {
+    setOpen(false);
+    if (d.booted) return;
+    setBusy(true);
+    onSwitching(d.name);
+    try {
+      const res = await fetch("/api/sim/devices", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ udid: d.udid, bundleId }) });
+      const json = await res.json();
+      if (!res.ok) alert(json.error ?? "Could not switch the simulator");
+      window.dispatchEvent(new Event(SIM_CHANGED));
+      await load();
+    } finally {
+      setBusy(false);
+      onSwitching(null);
+    }
+  }
+
+  const group = (kind: Device["kind"], label: string) => {
+    const list = devices.filter((d) => d.kind === kind);
+    if (!list.length) return null;
+    return (
+      <div>
+        <p className="px-2.5 pt-2 pb-1 text-[10.5px] font-semibold uppercase tracking-wide text-ink-500">{label}</p>
+        {list.map((d) => (
+          <button key={d.udid} onClick={() => void pick(d)} className="flex w-full cursor-pointer items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-[12.5px] text-ink-200 hover:bg-ink-800">
+            <span className="flex-1 truncate">{d.name}</span>
+            <span className="text-[10.5px] text-ink-500">{d.runtime}</span>
+            {d.booted && <Check size={13} className="text-spark-400" />}
+          </button>
+        ))}
+      </div>
+    );
+  };
+
+  return (
+    <div ref={ref} className="relative">
+      <button onClick={() => setOpen((o) => !o)} className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--line)] px-2 py-1 text-[12px] text-ink-300 hover:text-ink-100">
+        {busy ? <Loader2 size={13} className="animate-spin" /> : current?.kind === "ipad" ? <Tablet size={13} /> : <Smartphone size={13} />}
+        <span className="max-w-[140px] truncate">{current?.name ?? "No simulator"}</span>
+        <ChevronDown size={12} />
+      </button>
+      {open && (
+        <div className={clsx("absolute right-0 z-50 mt-1 max-h-96 w-72 overflow-auto rounded-xl border border-[var(--line)] bg-[var(--panel)] p-1 shadow-2xl")}>
+          {group("iphone", "iPhone")}
+          {group("ipad", "iPad")}
+          {!devices.length && <p className="p-3 text-[12px] text-ink-500">No iOS simulators found. Install one in Xcode.</p>}
+        </div>
+      )}
+    </div>
+  );
+}

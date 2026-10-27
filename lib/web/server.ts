@@ -1,0 +1,26 @@
+import { ZodError } from "zod";
+import { BusyError, getOrchestrator } from "../agent/orchestrator";
+
+export const orchestrator = getOrchestrator;
+
+export type RouteCtx<P extends Record<string, string> = { id: string }> = { params: Promise<P> };
+
+export function errorResponse(err: unknown) {
+  if (err instanceof BusyError) return Response.json({ error: err.message }, { status: 409 });
+  if (err instanceof ZodError) return Response.json({ error: err.issues.map((i) => i.message).join("; ") }, { status: 400 });
+  const message = String((err as Error)?.message ?? err);
+  if (/not found/i.test(message)) return Response.json({ error: message }, { status: 404 });
+  console.error("[sparkflow]", err);
+  return Response.json({ error: message }, { status: 500 });
+}
+
+/** Wraps a handler so every thrown error becomes a JSON response. */
+export function handle<A extends unknown[]>(fn: (...args: A) => Promise<Response>) {
+  return async (...args: A) => {
+    try {
+      return await fn(...args);
+    } catch (err) {
+      return errorResponse(err);
+    }
+  };
+}
