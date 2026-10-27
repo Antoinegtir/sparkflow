@@ -83,8 +83,17 @@ export default function Home() {
           Demo mode: no <code className="font-mono">MODEL_API_KEY</code> set, so a scripted agent builds a sample habit tracker. Add your Meta Model API key to <code className="font-mono">.env</code> to use Muse Spark.
         </p>
       )}
-      <footer className="relative px-6 pb-8 text-center text-[11px] text-ink-500">
-        Apple and the Apple logo are trademarks of Apple Inc. Android robot © Google, CC BY 3.0. Sparkflow is not affiliated with Apple or Google.
+      <footer className="relative mx-auto max-w-5xl border-t border-ink-800 px-6 pb-10 pt-6">
+        <div className="flex flex-col items-center justify-between gap-3 text-[12.5px] text-ink-400 sm:flex-row">
+          <span className="flex items-center gap-2">
+            <span className="font-medium text-ink-200">Sparkflow</span>
+            <span className="text-ink-600">·</span>© {new Date().getFullYear()} Antoine Gonthier. All rights reserved.
+          </span>
+          <span className="text-ink-500">Built with Muse Spark, Expo and React Native</span>
+        </div>
+        <p className="mt-4 text-center text-[11px] text-ink-600 sm:text-left">
+          Apple and the Apple logo are trademarks of Apple Inc. Android robot © Google, CC BY 3.0. Sparkflow is not affiliated with Apple or Google.
+        </p>
       </footer>
     </main>
   );

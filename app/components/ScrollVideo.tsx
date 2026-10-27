@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { PhoneSteps } from "./PhoneSteps";
 
 /** Video box size: square clip, as large as fits comfortably. */
 const SIZE = "min(70vh, 640px)";
@@ -10,6 +11,9 @@ const MIN_SCALE = 0.03;
 const GROW_SPEED = 6;
 /** Width of the upright phone inside the square clip (measured on the last frame). */
 const PHONE_RATIO = 0.294;
+/** The phone's screen inside it: share of the phone's width, and of the clip's height. */
+const SCREEN_W = 0.93;
+const SCREEN_H = 0.6;
 /** Width of the content beside the phone, and the gap between them. */
 const SIDE_W = 520;
 const GAP = 20;
@@ -44,6 +48,7 @@ export function ScrollVideo({ src, className, children }: { src: string; classNa
   const section = useRef<HTMLDivElement>(null);
   const video = useRef<HTMLVideoElement>(null);
   const after = useRef<HTMLDivElement>(null);
+  const screen = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const v = video.current;
     const el = section.current;
@@ -146,16 +151,22 @@ export function ScrollVideo({ src, className, children }: { src: string; classNa
       // half-turned frame squashed flat is what made the line change width and shake on the way up.
       if (grow < 1 || grown < 0.98) shown = Math.min(shown, target);
       if (grown < 0.98) shown = 0;
-      // After it stands up, the phone slides into the middle of the left column.
+      // After it stands up, the content fades in beside it.
       if (after.current) {
         // The content only shows up once the phone has almost reached its spot, so the two
         // never cross: it fades in and eases from the right and slightly below.
         const k = Math.min(1, Math.max(0, (slid - 0.7) / 0.3));
         const e = 1 - (1 - k) ** 3;
         after.current.style.opacity = String(e);
+        // The live screen lights up inside the phone together with the content.
+        if (screen.current) {
+          screen.current.style.opacity = String(e);
+          screen.current.style.pointerEvents = e > 0.5 ? "auto" : "none";
+        }
         after.current.style.transform = `translate(${(1 - e) * 40}px, ${(1 - e) * 24}px)`;
       }
-      v.style.transform = `translateX(${-shift * slid}px) scaleY(${MIN_SCALE + (1 - MIN_SCALE) * grown})`;
+      // The phone stays centred; the content beside it adapts instead.
+      v.style.transform = `scaleY(${MIN_SCALE + (1 - MIN_SCALE) * grown})`;
       // Skip while the previous seek is still decoding: queuing seeks is what makes it stutter.
       if (v.duration && !v.seeking && Math.abs(v.currentTime - shown * v.duration) > 0.01) {
         v.currentTime = Math.min(v.duration - 0.04, shown * v.duration);
@@ -196,11 +207,25 @@ export function ScrollVideo({ src, className, children }: { src: string; classNa
         />
       </div>
       {children && (
+        // Live screen over the phone's glass: a second sticky layer at the same spot (outside the
+        // blended one, which would wash it out), pulled back up by its own height.
+        <div className="pointer-events-none sticky z-10 hidden justify-center lg:flex" style={{ top: `calc(50vh - ${SIZE} / 2)`, height: SIZE, marginTop: `calc(-1 * ${SIZE})` }}>
+          <div className="grid place-items-center" style={{ width: SIZE, height: SIZE }}>
+            <div
+              ref={screen}
+              className="overflow-hidden opacity-0"
+              style={{ width: `calc(${SIZE} * ${PHONE_RATIO} * ${SCREEN_W})`, height: `calc(${SIZE} * ${SCREEN_H})`, borderRadius: `calc(${SIZE} * 0.042)` }}>
+              <PhoneSteps />
+            </div>
+          </div>
+        </div>
+      )}
+      {children && (
         // Hidden until the phone has slid left (fades in with it, so they never overlap); its top
         // then sits level with the top of the pinned phone.
         <div
           ref={after}
-          className="scroll-video-side pointer-events-auto relative px-6 pb-[20vh] opacity-0 lg:px-0"
+          className="scroll-video-side pointer-events-auto relative px-6 pb-[8vh] opacity-0 lg:px-0"
           style={
             {
               marginTop: `calc(${(ROTATE_VH + SLIDE_VH) * 100 + SIDE_DROP_VH}vh - ${SIZE})`,

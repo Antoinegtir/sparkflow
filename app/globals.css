@@ -35,7 +35,172 @@
 /* Content beside the pinned phone (ScrollVideo): phone + gap + content, centered as one group. */
 @media (min-width: 1024px) {
   .scroll-video-side {
-    width: var(--side-w);
-    margin-left: calc(50% + (var(--phone-w) + var(--gap) - var(--side-w)) / 2 + var(--nudge, 0px));
+    /* Right of the centred phone, narrowing rather than pushing the phone aside. */
+    --w: min(var(--side-w), calc(50% - var(--phone-w) / 2 - var(--gap) - 24px));
+    width: var(--w);
+    margin-left: calc(50% + var(--phone-w) / 2 + var(--gap));
   }
+}
+
+/* ---------- IDE ---------- */
+
+[data-ide] {
+  font-family: var(--font-inter), system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, monospace;
+  --canvas-dot: rgba(255, 255, 255, 0.16);
+  --dot: rgba(255, 255, 255, 0.16);
+  --edge: #3a4250;
+  --edge-marker: #5b6474;
+  --phone-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.7);
+  --hero-gradient-to: rgba(10, 132, 255, 0.07);
+  --panel: #0c1016;
+  --panel-2: #10151d;
+  --line: #2a3240;
+}
+/* Light theme: the ink scale flips, everything built on it follows. */
+:root[data-theme="light"] [data-ide] {
+  --color-ink-950: #f6f7f9;
+  --color-ink-900: #ffffff;
+  --color-ink-800: #eef0f4;
+  --color-ink-700: #dfe3ea;
+  --color-ink-600: #c6ccd6;
+  --color-ink-500: #7d8696;
+  --color-ink-400: #5b6474;
+  --color-ink-300: #3f4756;
+  --color-ink-200: #262c37;
+  --color-ink-100: #11151c;
+  --canvas-dot: rgba(15, 23, 42, 0.22);
+  --dot: rgba(15, 23, 42, 0.22);
+  --edge: #b7bfcc;
+  --edge-marker: #8b94a3;
+  --phone-shadow: 0 24px 60px -24px rgba(15, 23, 42, 0.35);
+  --hero-gradient-to: rgba(10, 132, 255, 0.05);
+  --panel: #ffffff;
+  --panel-2: #f8f9fb;
+  --line: #d3d8e0;
+}
+
+@keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+@keyframes scan { 0% { top: -10%; } 100% { top: 105%; } }
+@keyframes pulse-soft { 50% { opacity: 0.45; } }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes tap { from { transform: scale(0.3); opacity: 0.6; } to { transform: scale(1.6); opacity: 0; } }
+@keyframes cupertino-fade { from { opacity: 1; } to { opacity: 0.15; } }
+@keyframes marching-ants { to { background-position: 20px 0, -20px 100%, 0 -20px, 100% 20px; } }
+.animate-shimmer { animation: shimmer 1.6s linear infinite; }
+.animate-scan { animation: scan 1.4s ease-in-out infinite; }
+.animate-pulse-soft { animation: pulse-soft 1.6s ease-in-out infinite; }
+.animate-fade-in { animation: fade-in 0.35s ease-out both; }
+.animate-tap { animation: tap 0.45s ease-out forwards; }
+.marching-ants {
+  background-image: linear-gradient(90deg, var(--color-spark-500) 50%, transparent 50%), linear-gradient(90deg, var(--color-spark-500) 50%, transparent 50%),
+    linear-gradient(0deg, var(--color-spark-500) 50%, transparent 50%), linear-gradient(0deg, var(--color-spark-500) 50%, transparent 50%);
+  background-repeat: repeat-x, repeat-x, repeat-y, repeat-y;
+  background-size: 10px 1.5px, 10px 1.5px, 1.5px 10px, 1.5px 10px;
+  background-position: 0 0, 0 100%, 0 0, 100% 0;
+  animation: marching-ants 0.6s linear infinite;
+}
+
+/* React Flow */
+[data-ide] .react-flow__attribution { display: none; }
+[data-ide] .react-flow__controls { border-radius: 10px; overflow: hidden; border: 1px solid var(--line); box-shadow: none; }
+[data-ide] .react-flow__controls-button { background: var(--panel); border-bottom: 1px solid var(--line); color: var(--color-ink-300); fill: currentColor; }
+[data-ide] .react-flow__controls-button:hover { background: var(--panel-2); }
+[data-ide] .react-flow__edge-path { stroke: var(--edge); stroke-width: 1.5; }
+[data-ide] .edge-active .react-flow__edge-path { stroke: var(--color-spark-500); stroke-dasharray: 6 6; animation: dash 0.6s linear infinite; }
+@keyframes dash { to { stroke-dashoffset: -12; } }
+[data-ide] .link-handle { opacity: 0; transition: opacity 0.15s; }
+[data-ide] .react-flow__node:hover .link-handle { opacity: 1; }
+[data-ide] .canvas-focused .react-flow__node,
+[data-ide] .canvas-focused .react-flow__edge { opacity: 0.35; transition: opacity 0.2s; }
+
+/* Code tokens */
+.tok-comment { color: #6b7380; font-style: italic; }
+.tok-string { color: #9fd47d; }
+.tok-tag { color: #6cb6ff; }
+.tok-keyword { color: #c792ea; }
+.tok-literal { color: #f78c6c; }
+.tok-number { color: #f78c6c; }
+.tok-fn { color: #82aaff; }
+.tok-prop { color: #ffcb6b; }
+.tok-type { color: #4fd1c5; }
+:root[data-theme="light"] .tok-comment { color: #8b94a3; }
+:root[data-theme="light"] .tok-string { color: #2f7d32; }
+:root[data-theme="light"] .tok-tag { color: #0a5bd6; }
+:root[data-theme="light"] .tok-keyword { color: #8e24aa; }
+:root[data-theme="light"] .tok-literal,
+:root[data-theme="light"] .tok-number { color: #c2410c; }
+:root[data-theme="light"] .tok-fn { color: #1d4ed8; }
+:root[data-theme="light"] .tok-prop { color: #a16207; }
+:root[data-theme="light"] .tok-type { color: #0f766e; }
+
+/* "How it works": the title and a summary of the steps mirror the text across the phone. */
+@media (min-width: 1024px) {
+  .hiw-summary {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    right: calc(100% + var(--phone-w) + 2 * var(--gap) + 16px);
+    /* Same width as the text column (its containing block). */
+    width: 100%;
+    display: block;
+  }
+  .hiw-title {
+    visibility: hidden;
+  }
+}
+@media (max-width: 1023px) {
+  .hiw-summary {
+    display: none;
+  }
+}
+
+/* iOS install animation on the "New app" tile (InstallIcon): dark veil with a growing hole, ring then pie. */
+.install-veil {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.58);
+  --hole: calc(47% * var(--s, 0) + var(--v, 0) * 58%);
+  -webkit-mask-image: radial-gradient(circle, transparent var(--hole), #000 calc(var(--hole) + 0.5px));
+  mask-image: radial-gradient(circle, transparent var(--hole), #000 calc(var(--hole) + 0.5px));
+}
+.install-pie {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 66%;
+  height: 66%;
+  border-radius: 50%;
+  border: 2.5px solid transparent;
+  background: conic-gradient(transparent calc(var(--p, 0) * 360deg), rgba(0, 0, 0, 0.58) 0);
+  background-clip: padding-box;
+  transform: scale(var(--s));
+}
+
+.install-shimmer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: linear-gradient(100deg, rgba(255, 255, 255, 0) 35%, rgba(255, 255, 255, 0.22) 50%, rgba(255, 255, 255, 0) 65%);
+  background-size: 250% 100%;
+  animation: install-shimmer 1.4s linear infinite;
+}
+@keyframes install-shimmer {
+  from { background-position: 125% 0; }
+  to { background-position: -125% 0; }
+}
+
+/* Mini demos inside the pinned "How it works" phone (PhoneSteps). */
+@keyframes hiw-pop { from { opacity: 0; transform: translateY(6px) scale(.98); } to { opacity: 1; transform: none; } }
+.hiw-pop { animation: hiw-pop .45s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes hiw-type { from { max-width: 0; } to { max-width: 100%; } }
+.hiw-type { max-width: 0; animation: hiw-type .5s steps(24) forwards; }
+@keyframes hiw-wave { 0%, 100% { height: 20%; } 50% { height: 100%; } }
+.hiw-wave { height: 20%; animation: hiw-wave .9s ease-in-out infinite; }
+@keyframes hiw-scan { from { top: -10%; } to { top: 100%; } }
+.hiw-scan { animation: hiw-scan 1.8s linear infinite; }
+@keyframes hiw-cursor { 0% { left: 75%; top: 80%; } 45%, 70% { left: 55%; top: 42%; transform: scale(1); } 55% { transform: scale(.85); } 100% { left: 75%; top: 80%; } }
+.hiw-cursor { animation: hiw-cursor 2.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .hiw-pop, .hiw-type, .hiw-wave, .hiw-scan, .hiw-cursor { animation: none; max-width: none; }
 }

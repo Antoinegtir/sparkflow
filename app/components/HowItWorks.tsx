@@ -3,6 +3,7 @@
 import clsx from "clsx";
 import { Eye, Hammer, Map as MapIcon, MessageSquareText, MousePointerClick, RefreshCcw, Rocket } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { STEP_EVENT } from "./PhoneSteps";
 
 /** The process, step by step, as shown on the landing's vertical timeline. */
 const STEPS = [
@@ -65,6 +66,10 @@ export function HowItWorks() {
   const root = useRef<HTMLDivElement>(null);
   const [fill, setFill] = useState(0);
   const [reached, setReached] = useState(-1);
+  // The pinned phone follows the step being read.
+  useEffect(() => {
+    dispatchEvent(new CustomEvent(STEP_EVENT, { detail: Math.max(0, reached) }));
+  }, [reached]);
   useEffect(() => {
     const el = root.current;
     if (!el) return;
@@ -93,7 +98,21 @@ export function HowItWorks() {
     <div>
       {/* Placed beside the pinned phone by ScrollVideo. */}
       <div ref={root} className="relative w-full">
-        <p className="landing-head mb-12 text-3xl font-semibold text-ink-100">How it works</p>
+        <p className="hiw-title landing-head mb-12 text-3xl font-semibold text-ink-100">How it works</p>
+        {/* The title and a summary of the steps, on the other side of the phone. */}
+        <nav className="hiw-summary">
+          <div className="sticky top-[calc(50vh-180px)] text-right">
+            <p className="landing-head mb-8 text-3xl font-semibold text-ink-100">How it works</p>
+            <ol className="flex flex-col gap-3">
+              {STEPS.map(({ kicker, title }, i) => (
+                <li key={kicker} className={clsx("transition-colors duration-500", i === reached ? "text-ink-100" : i < reached ? "text-ink-400" : "text-ink-600")}>
+                  <span className={clsx("mr-3 font-mono text-[11px] tracking-[0.18em]", i <= reached ? "text-spark-400" : "text-ink-600")}>{kicker.slice(0, 2)}</span>
+                  <span className="text-[14px]">{title}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </nav>
         {/* Rail and its scroll-driven fill. */}
         <div className="absolute bottom-0 left-[15px] top-24 w-px bg-ink-700" />
         <div

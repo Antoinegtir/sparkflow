@@ -9,7 +9,8 @@ const GAP = 22; // dot pitch, same as the CSS grid behind
  * toward it, swell a little and turn white. A canvas redraws them; the flat CSS
  * dots are hollowed out underneath through --lx/--ly/--lr on <main>.
  */
-export function DotLens() {
+/** `contained`: draws inside its [data-landing] parent instead of the whole window (the IDE focus view). */
+export function DotLens({ contained = false }: { contained?: boolean } = {}) {
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const canvas = ref.current;
@@ -18,8 +19,9 @@ export function DotLens() {
     const ctx = canvas.getContext("2d")!;
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     const resize = () => {
-      canvas.width = innerWidth * dpr;
-      canvas.height = innerHeight * dpr;
+      const box = contained ? main.getBoundingClientRect() : { width: innerWidth, height: innerHeight };
+      canvas.width = box.width * dpr;
+      canvas.height = box.height * dpr;
     };
     resize();
     window.addEventListener("resize", resize);
@@ -56,8 +58,10 @@ export function DotLens() {
       main.style.setProperty("--ly", `${pos.y - r.top}px`);
       main.style.setProperty("--lr", `${R * 1.4 * shown}px`);
 
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, innerWidth, innerHeight);
+      // Drawing stays in window coordinates; a contained canvas is shifted to its parent's origin.
+      const off = contained ? main.getBoundingClientRect() : { left: 0, top: 0 };
+      ctx.setTransform(dpr, 0, 0, dpr, -off.left * dpr, -off.top * dpr);
+      ctx.clearRect(off.left, off.top, canvas.width / dpr, canvas.height / dpr);
       if (shown < 0.01) return;
       const css = getComputedStyle(main);
       // White on the dark theme; the light theme sets --lens-dot (near-black).
@@ -106,5 +110,5 @@ export function DotLens() {
     };
   }, []);
 
-  return <canvas ref={ref} aria-hidden className="pointer-events-none fixed inset-0 z-0 h-screen w-screen" />;
+  return <canvas ref={ref} aria-hidden className={contained ? "pointer-events-none absolute inset-0 z-0 h-full w-full" : "pointer-events-none fixed inset-0 z-0 h-screen w-screen"} />;
 }
