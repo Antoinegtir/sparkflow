@@ -95,7 +95,11 @@ export async function accessibilityInfo(udid: string, point?: { x: number; y: nu
   if (android.isAndroidId(udid)) return android.accessibilityInfo(udid, point);
   const c = await companion(udid);
   const read = async () => {
-    const res = await unary<{ json: string }>(c.client, "accessibility_info", { ...(point ? { point } : {}), format: "LEGACY" });
+    // On the home screen or while booting no app is in front: that's an empty screen, not an error.
+    const res = await unary<{ json: string }>(c.client, "accessibility_info", { ...(point ? { point } : {}), format: "LEGACY" }).catch((err: Error) => {
+      if (/no frontmost application/i.test(err.message)) return { json: "[]" };
+      throw err;
+    });
     const parsed = JSON.parse(res.json || "null");
     return (Array.isArray(parsed) ? parsed : parsed ? [parsed] : []) as AxElement[];
   };
