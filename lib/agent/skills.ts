@@ -104,7 +104,10 @@ const style = useAnimatedStyle(() => ({ transform: [{ scale: s.value }] }));
 \`\`\`
 - Progress / numbers: animate a shared value with \`withTiming(v, { duration: 600 })\` and read it in \`useAnimatedStyle\` (width as a percentage string).
 - Put animated values in \`style\`; keep NativeWind classes on a plain inner View.
-- Keep it short (150–400 ms) and avoid animating every element at once.`,
+- Keep it short (150–400 ms) and avoid animating every element at once.
+- Respect Reduce Motion: \`FadeInDown.reduceMotion(ReduceMotion.System)\` on layout animations, and \`useReducedMotion()\` to skip decorative loops.
+- Animate \`transform\` and \`opacity\` (they stay on the UI thread); never animate the width, height or margins of many views at once.
+- A worklet can't call React state setters directly: \`scheduleOnRN(fn, arg)\` from "react-native-worklets" (Reanimated 4), not \`runOnJS\`.`,
   },
   {
     name: "gestures",
@@ -253,7 +256,11 @@ export async function scheduleDaily(hour: number, minute: number, title: string)
     body: `- More than ~30 rows: \`FlatList\` (or \`SectionList\`) instead of mapping in a ScrollView; \`keyExtractor={(i) => i.id}\`, \`contentContainerClassName="px-5 gap-3 pb-24"\`.
 - A FlatList scrolls by itself: use \`<Screen scroll={false}>\` around it.
 - Pull to refresh: \`refreshControl={<RefreshControl refreshing={busy} onRefresh={reload} tintColor={c.primary} />}\`.
-- Empty: \`ListEmptyComponent={<EmptyState … />}\`.`,
+- Empty: \`ListEmptyComponent={<EmptyState … />}\`.
+- Rows: a memoized component (\`const Row = memo(function Row({ item }: { item: Item }) {…})\`) and a \`renderItem\` in \`useCallback\`.
+- Fixed-height rows: \`getItemLayout={(_, i) => ({ length: 72, offset: 72 * i, index: i })}\`. Big lists: \`initialNumToRender={10}\`, \`windowSize={7}\`.
+- Never nest a vertical FlatList in a ScrollView (virtualization breaks): put what is above it in \`ListHeaderComponent\`.
+- Images in rows: expo-image with \`recyclingKey={item.id}\` (skill "images").`,
   },
   {
     name: "keyboard-forms",
@@ -265,6 +272,114 @@ export async function scheduleDaily(hour: number, minute: number, title: string)
 - Right keyboards: \`keyboardType="email-address"\`, \`autoCapitalize="none"\`, \`textContentType="emailAddress" | "password"\`, \`secureTextEntry\` for passwords.
 - Disable the submit button until the form is valid; show errors under the field in \`text-danger\`.`,
   },
+  {
+    name: "performance",
+    title: "Performance: 60 fps, re-renders, startup",
+    when: "slow, laggy, janky, stutter, performance, optimize, big data, many items",
+    triggers: /\bslow|\blent\b|\blag|jank|saccad|stutter|perf|optimi[sz]|\bfps\b|fluidit/i,
+    body: `- Re-renders: select the smallest slice of a zustand store (\`useStore((s) => s.habits)\`); several fields with \`useShallow\` (\`import { useShallow } from "zustand/react/shallow"\`). Never select the whole store.
+- Derive with \`useMemo\` (filters, sorts, totals); handlers passed to memoized children or lists with \`useCallback\`.
+- Lists over ~30 rows: FlatList with memoized rows (skill "lists"). Never \`.map()\` hundreds of items in a ScrollView.
+- Animations on the UI thread: Reanimated shared values, \`transform\` / \`opacity\`; no \`setState\` in \`onScroll\` (use \`useAnimatedScrollHandler\`).
+- Images: expo-image (memory and disk cache), sized to how they are shown.
+- Heavy work after a tap: update the UI first, compute after (\`requestAnimationFrame\`), never block the JS thread for more than a frame.
+- No \`console.log\` in render or scroll paths. Timers and listeners are cleaned up in the effect's return.`,
+  },
+  {
+    name: "accessibility",
+    title: "Accessibility: VoiceOver, TalkBack, Dynamic Type",
+    when: "accessibility, a11y, VoiceOver, TalkBack, screen reader, larger text, color blindness",
+    triggers: /accessib|a11y|voice.?over|talk.?back|screen.?reader|lecteur d'?[ée]cran|dynamic type|malvoyant|daltonien|color.?blind/i,
+    body: `- Every control: \`accessibilityRole\` ("button", "link", "switch", "checkbox", "tab", "header", "image", "adjustable") and an \`accessibilityLabel\` saying what it does ("Delete Santorini", not "trash icon").
+- State: \`accessibilityState={{ selected, checked, disabled, expanded }}\` on toggles, tabs, checkboxes and accordions; \`accessibilityHint\` only when the result isn't obvious.
+- A card is one element: \`accessible\` + one label summing it up ("Kyoto, Japan, rated 4.8"); the icons inside don't need their own.
+- Screen and section titles: \`accessibilityRole="header"\`, so VoiceOver's rotor jumps between them.
+- Dynamic Type: never fix the height of a row with text; let it grow (\`min-h-11\`, not \`h-11\`). Cap only tight UI with \`maxFontSizeMultiplier={1.4}\` (badges, chips).
+- Changes the user doesn't see happen (saved, error): \`AccessibilityInfo.announceForAccessibility("Saved")\`.
+- Never convey meaning by color alone: add an icon or a word ("Overdue").
+- 44×44 pt targets, 4.5:1 text contrast, Reduce Motion respected (skill "animations").`,
+  },
+  {
+    name: "navigation",
+    title: "Navigation: stacks, params, deep links, flows",
+    when: "detail page, back button, route params, deep link, redirect, onboarding flow, header buttons",
+    triggers: /navigat|d[ée]tail|back button|bouton retour|\bparams?\b|deep.?link|redirect|onboarding|\bstack\b/i,
+    body: `- Detail routes take an id: \`app/place/[id].tsx\`, read with \`const { id } = useLocalSearchParams<{ id: string }>();\`, then the item comes from the store. Pass ids in URLs, never whole objects.
+- Missing id or item: \`<EmptyState title="Not found" />\`, never a crash.
+- \`router.push\` to go deeper, \`router.back()\` to return, \`router.replace\` when the user must not come back (after onboarding, after creating an item that opens its page), \`router.dismiss()\` to close a sheet.
+- Rows that open a page: \`<Link href={\`/place/\${id}\`} asChild><Pressable …/></Link>\`, real paths, never group names.
+- One-time flows (onboarding): a persisted store flag, and \`<Redirect href="/onboarding" />\` in the first tab while it is false.
+- Detail pages live outside (tabs): they cover the tab bar and use \`<Header back />\`. Android's back button is handled by the Stack.`,
+    native: `- Keep the project's navigator (React Navigation or Expo Router) and add screens to it rather than nesting new navigators.
+- Pass ids in params (\`navigation.navigate("Place", { id })\` / \`router.push(\`/place/\${id}\`)\`), never whole objects, and read them typed.
+- Missing item: an empty state, never a crash.
+- push to go deeper, goBack to return, replace / reset when the user must not come back (after onboarding or sign-in).
+- Native headers: titles and buttons through the screen's \`options\` / \`navigation.setOptions\` (\`headerLargeTitle\` on iOS for top-level lists); don't draw a custom header over a native one.`,
+  },
+  {
+    name: "images",
+    title: "Images: expo-image, placeholders, caching",
+    when: "photos in a feed, covers, thumbnails, galleries, remote pictures",
+    triggers: /\bimages?\b|thumbnail|vignette|\bcovers?\b|couverture|carousel|carrousel/i,
+    body: `${INSTALL("expo-image")}
+
+\`\`\`tsx
+import { Image } from "expo-image";
+<Image source={{ uri }} contentFit="cover" transition={200} cachePolicy="memory-disk" recyclingKey={id}
+  accessibilityLabel="Santorini at sunset" style={{ width: "100%", aspectRatio: 4 / 3, borderRadius: 16 }} />
+\`\`\`
+- Always give a size (width + aspectRatio, or a height): an image without one renders 0×0.
+- \`recyclingKey\` in list rows, so a recycled row never flashes the previous picture.
+- Local assets: \`source={require("@/assets/…")}\`. Decorative images: \`accessible={false}\`; meaningful ones get a label.
+- Text over a photo: a LinearGradient scrim from transparent to \`rgba(0,0,0,0.6)\` under it (skill "gradients"), white text.`,
+  },
+  {
+    name: "async-states",
+    title: "Loading, empty and error states, fetching",
+    when: "API, fetch, network, loading, skeleton, error, retry, offline, search",
+    triggers: /\bapi\b|\bfetch|network|r[ée]seau|loading|chargement|spinner|skeleton|\berrors?\b|erreur|retry|offline|hors.?ligne|search|recherche/i,
+    body: `A screen that waits for data has four states: loading, empty, error (with Retry), content. Never a blank screen.
+
+\`\`\`tsx
+const [state, setState] = useState<{ status: "loading" | "error" | "done"; data: Item[] }>({ status: "loading", data: [] });
+const load = useCallback(async (signal?: AbortSignal) => {
+  setState((s) => ({ ...s, status: "loading" }));
+  try {
+    const res = await fetch(url, { signal });
+    if (!res.ok) throw new Error(String(res.status));
+    setState({ status: "done", data: await res.json() });
+  } catch (e) {
+    if ((e as Error).name !== "AbortError") setState((s) => ({ ...s, status: "error" }));
+  }
+}, []);
+useEffect(() => {
+  const c = new AbortController();
+  void load(c.signal);
+  return () => c.abort();
+}, [load]);
+\`\`\`
+- Loading: skeleton rows the size of the real ones (\`bg-border/50 rounded-theme\`), or \`<ActivityIndicator />\` for short waits; keep old data on screen while refreshing.
+- Error: \`<EmptyState icon="cloud-offline-outline" title="Couldn't load" actionTitle="Retry" onAction={() => load()} />\`.
+- Search: debounce typing (300 ms), cancel the previous request, show "No results for …".
+- Buttons that send: \`loading\` while pending and disabled against double taps; likes and toggles update at once and roll back on error.
+- Generated apps have no backend: keep data in the zustand store unless the user gives an API.`,
+  },
+  {
+    name: "persistence",
+    title: "Saving data: store, migrations, formatting",
+    when: "save, persist, remember, favorites, settings, offline data",
+    triggers: /\bsave|sauvegard|persist|remember|m[ée]moris|favori|favorite|settings|param[èe]tres|r[ée]glages|storage/i,
+    body: `- One zustand store per domain in lib/, persisted with \`persistStorage\` (see AGENT_RULES "Data").
+- Actions live in the store (\`toggleFavorite(id)\`); screens never rebuild state by hand. Ids from \`uid()\`; dates stored as ISO strings or timestamps, never Date objects.
+- Selectors return stored values; derive with \`useMemo\`; several fields with \`useShallow\`.
+- Shape change: bump the store \`name\` (or \`version\` + \`migrate\`) so old saved data can't crash new code.
+- Show dates and numbers in the device's locale: \`new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(d)\`, \`Intl.NumberFormat\` for prices.
+- Never store secrets or tokens in AsyncStorage (not encrypted).`,
+    native: `- Keep the project's state library and storage (zustand, Redux, Context, MMKV, AsyncStorage…); don't add another.
+- Persisted data is plain JSON (ISO dates, ids), with a version or key bump when its shape changes and defaults for missing fields.
+- Select the smallest slice of state; derive with useMemo.
+- Dates and numbers through Intl in the device's locale. Secrets go in the Keychain / Keystore package the project has, never AsyncStorage.`,
+  },
 ];
 
 /** Reminds the model the result is a phone app: native features come from native modules. */
@@ -273,7 +388,21 @@ export const MOBILE_CONTEXT = `# You are building a native mobile app
 This is a real iOS / Android app running on a phone or the simulator, not a website. A web preview is only used for screenshots.
 - Words like "liquid glass", "haptics", "sheet", "blur", "SF Symbols", "native tabs" name native iOS / Android features. Implement them with the native module from the matching skill, never with a CSS look-alike (semi-transparent backgrounds, borders, shadows, backdrop-filter, gradients). If a native effect doesn't show on the web preview, that is expected.
 - Follow Apple's Human Interface Guidelines and Material Design: safe areas, 44 pt touch targets, native navigation (stacks, tabs, sheets), system fonts, dynamic type, dark mode, haptics on meaningful actions.
-- Think like a mobile designer: thumb reach, one primary action per screen, content scrolling under translucent bars.`;
+- Think like a mobile designer: thumb reach, one primary action per screen, content scrolling under translucent bars.
+
+# Code quality
+
+Write what a senior React Native engineer would ship:
+- Strict TypeScript: typed props, store and route params; no \`any\`, no \`@ts-ignore\`.
+- A screen composes small named components (rows, cards, sections); no 300-line render function.
+- Nothing allocated per render that a list or memoized child depends on: derive with \`useMemo\`, pass stable handlers with \`useCallback\`.
+- Effects only to sync with the outside (timers, subscriptions, fetch), each one cleaned up; never to copy props into state.
+- Every screen holds up to: empty data, a missing item, long text (\`numberOfLines\`, rows that grow), large Dynamic Type, both themes, an iPhone SE and a Pro Max.
+- More than ~30 items: a virtualized FlatList. Images: expo-image with a size.
+- Platform differences through \`Platform.select\` in one place, not duplicated screens.
+- Accessibility is part of done: roles, labels, states, 44 pt targets, 4.5:1 contrast.
+- No dead code, commented-out blocks, unused imports or console.log.
+Skills "performance", "accessibility", "navigation", "async-states" and "persistence" go deeper.`;
 
 /** Generated apps only: what the Sparkflow Dev client can run. */
 export const DEV_CLIENT_CONTEXT = `# Sparkflow Dev
