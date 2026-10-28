@@ -3,14 +3,15 @@
 import clsx from "clsx";
 import { Smartphone } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ProjectSummary } from "@/lib/shared";
 import { timeAgo } from "@/lib/web/media";
 import { InstallIcon } from "./InstallIcon";
 import { ProjectCardMenu } from "./ProjectCardMenu";
 import { deviceById, DeviceMockup } from "./ide/ui";
-import { watchUser } from "@/lib/web/auth";
-import { apiFetch, appHref, BACKEND_EVENT, backendUrl } from "@/lib/web/backend";
+import { requireSignIn, watchUser } from "@/lib/web/auth";
+import { apiFetch, appHref, BACKEND_EVENT, backendUrl, openOnBackend } from "@/lib/web/backend";
 import { loadSavedApps, saveApps, type SavedApp } from "@/lib/web/cloud-apps";
 
 const COVER_W = 132;
@@ -38,6 +39,10 @@ export function ProjectGrid() {
   const draft = useRef("");
   const [installs, setInstalls] = useState(0);
   const lastSave = useRef(0);
+  const router = useRouter();
+  // Everyone sees the demo app, even signed out and without sparkflow: it invites them in. Hidden
+  // once their own Wander (seeded by sparkflow) is listed.
+  const hasDemo = [...(projects ?? []), ...(saved ?? [])].some((p) => p.slug === "wander");
 
   useEffect(() => watchUser((u) => setUid(u?.uid ?? null)), []);
 
@@ -219,6 +224,36 @@ export function ProjectGrid() {
             </div>
           </Link>
         ))}
+        {!hasDemo && (
+          <button
+            type="button"
+            onClick={async (e) => {
+              // Sign in first (GitHub or Google), then the demo opens: on this computer's sparkflow, or
+              // the steps to start it.
+              if (!(await requireSignIn("Sign in to open the Wander demo.", e.currentTarget))) return;
+              openOnBackend("/wander", router.push);
+            }}
+            className="group relative flex aspect-[4/5] cursor-pointer flex-col overflow-hidden rounded-2xl border border-ink-700 bg-ink-900 text-left shadow-[0_20px_50px_-30px_rgba(0,0,0,.8)] transition hover:-translate-y-1 hover:border-spark-500/60 hover:shadow-[0_30px_60px_-30px_var(--landing-glow)]">
+            <div className="relative grid flex-1 place-items-center overflow-hidden bg-[radial-gradient(circle_at_50%_30%,color-mix(in_oklab,var(--color-spark-500)_22%,transparent),transparent_70%)] pt-4">
+              <div className="relative translate-y-10 transition group-hover:translate-y-7">
+                <DeviceMockup device={deviceById("iphone")} width={COVER_W} dark={false}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/demo/wander-cover.jpg" alt="" className="absolute inset-0 h-full w-full object-cover object-top" />
+                </DeviceMockup>
+              </div>
+            </div>
+            <div className="relative border-t border-ink-800 bg-ink-900 px-3.5 py-3">
+              <p className="truncate text-sm font-medium text-ink-100">Wander</p>
+              <div className="mt-1.5 flex items-center gap-2 text-xs text-ink-500">
+                <span className="flex items-center gap-1.5 rounded-full bg-spark-500/15 px-2 py-0.5 text-spark-400">
+                  <span className="size-1.5 rounded-full bg-current" />
+                  demo
+                </span>
+                <span className="truncate">{uid ? "Open the demo app" : "Sign in to try it"}</span>
+              </div>
+            </div>
+          </button>
+        )}
       </div>
       {projects && !projects.length && <p className="mt-4 text-sm text-ink-500">Your apps will show up here once you build one.</p>}
     </section>
