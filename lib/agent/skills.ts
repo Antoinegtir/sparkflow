@@ -3,8 +3,9 @@
  * glass", "haptics", "bottom sheet"…). The Builder sees the index in its system prompt and reads a
  * skill with the `skill` tool; a request that names one gets it inlined in the task right away.
  *
- * Every recipe works in Expo Go (SDK 58) and keeps the web build rendering, since pages are
- * verified on web screenshots.
+ * Generated apps run in the "Sparkflow Dev" development client (SDK 58), which ships a fixed set of
+ * native modules: recipes only use those, and keep the web build rendering, since pages are verified
+ * on web screenshots.
  */
 export type Skill = {
   name: string;
@@ -17,7 +18,14 @@ export type Skill = {
 };
 
 const INSTALL = (pkg: string) =>
-  `Installed in new apps. If \`${pkg}\` is missing from package.json (older app), run \`npx expo install ${pkg}\` first (allowed: it edits package.json for you).`;
+  `Installed in new apps and built into Sparkflow Dev. If \`${pkg}\` is missing from package.json (older app), run \`npx expo install ${pkg}\` first (allowed: it edits package.json for you).`;
+
+/** Native modules built into the Sparkflow Dev client (templates/expo-base/package.json). */
+export const DEV_CLIENT_NATIVE = [
+  "@callstack/liquid-glass", "react-native-bottom-tabs", "expo-haptics", "expo-blur", "expo-symbols",
+  "expo-linear-gradient", "expo-image", "expo-image-picker", "expo-clipboard", "react-native-reanimated",
+  "react-native-gesture-handler", "@react-native-async-storage/async-storage",
+];
 
 export const SKILLS: Skill[] = [
   {
@@ -25,25 +33,14 @@ export const SKILLS: Skill[] = [
     title: "Liquid Glass (iOS 26)",
     when: "liquid glass, glass, glassy / translucent iOS 26 look, frosted cards or bars",
     triggers: /liquid\s*glass|\bglass(y|morphism)?\b|\bverre\b|ios\s*26|translucid|translucent/i,
-    body: `Apple's real Liquid Glass comes from expo-glass-effect (in Expo Go). Never fake it with bg-surface/60, backdrop-blur or borders.
+    body: `Apple's real Liquid Glass comes from @callstack/liquid-glass (built into Sparkflow Dev), wrapped by the kit. Never fake it with bg-surface/60, backdrop-blur or borders, and never import expo-glass-effect (not in the app).
 
-- Kit (new apps): \`<Card glass>\`, \`<Glass variant="regular" | "clear" interactive? tint?>\`, \`<GlassFill />\` (fills its parent), \`liquidGlass\` (true on iOS 26). They fall back to a blurred translucent surface on web, Android and older iOS.
-- Older app without components/kit/Glass.tsx: write \`components/glass.tsx\`:
-\`\`\`tsx
-import { GlassView, isLiquidGlassAvailable } from "expo-glass-effect";
-import { cssInterop } from "nativewind";
-import { Platform, View, type ViewProps } from "react-native";
-cssInterop(GlassView, { className: "style" }); // required, see below
-const real = Platform.OS === "ios" && isLiquidGlassAvailable();
-export function Glass({ className, ...p }: ViewProps & { className?: string }) {
-  return real ? <GlassView glassEffectStyle="regular" className={\`rounded-theme overflow-hidden \${className ?? ""}\`} {...p} />
-    : <View className={\`rounded-theme overflow-hidden border border-white/30 bg-surface/70 \${className ?? ""}\`} {...p} />;
-}
-\`\`\`
-- GlassView is a native view: NativeWind ignores its className unless it is registered once with \`cssInterop(GlassView, { className: "style" })\` (the kit does it). Without it, padding and rounded corners vanish and the cards look flat and broken.
+- Kit (from "@/components/kit"): \`<Card glass>\`, \`<Glass variant="regular" | "clear" interactive? tint? className?>\` (a glass surface; \`interactive\` for buttons and chips, \`tint\` e.g. \`withAlpha("primary", 0.2)\`), \`<GlassFill variant? />\` (fills its parent, for custom bars and headers), \`<GlassGroup className="flex-row gap-2">\` (a row of Glass controls), \`liquidGlass\` (true on iOS 26).
+- Real glass only on iOS 26; on web, Android and older iOS the kit draws a blurred translucent surface by itself. No Platform guard needed.
+- Glass shows what is behind it: put it over a scroll, an image or a colored background (a LinearGradient behind the content, see "gradients"). Over a flat color it is nearly invisible.
 - Don't put glass inside a kit List or Card (they draw their own solid surface): use glass cards directly on the screen.
-- Glass shows what is behind it: give the screen a colored or image background (a LinearGradient in Screen's background, see "gradients"), or let content scroll under a floating glass bar. Over a flat color it is nearly invisible.
-- Glass tab bar: \`tabsScreenOptions(c, { glass: true })\`; it floats, so end each tab screen with \`<View className="h-24" />\`.
+- Tab bar: kit \`<Tabs>\` is the system tab bar, already Liquid Glass on iOS 26. Don't paint over it or build a custom glass bar; \`<Tabs glass>\` only changes the web bar. \`<Screen>\` keeps content clear of it.
+- Using LiquidGlassView directly: register it once with \`cssInterop(LiquidGlassView, { className: "style" })\` (the kit does it for its own), or NativeWind drops its padding and corners.
 - Keep text \`text-text\` / \`text-muted\` (4.5:1 contrast).`,
     native: `Liquid Glass is a native iOS 26 material: it must come from a native view. Never fake it with rgba backgrounds, borders, shadows, backdrop-filter, BlurView or a gradient: that is NOT Liquid Glass.
 
@@ -54,15 +51,15 @@ import { LiquidGlassView, LiquidGlassContainerView, isLiquidGlassSupported } fro
 <LiquidGlassView effect="regular" interactive tintColor={undefined} style={[{ borderRadius: 24, padding: 16 }, !isLiquidGlassSupported && { backgroundColor: "rgba(255,255,255,0.8)" }]}>…</LiquidGlassView>
 // Shapes that merge when close: wrap them in <LiquidGlassContainerView spacing={12}>.
 \`\`\`
-- expo-glass-effect:
+- expo-glass-effect (Expo projects that have it):
 \`\`\`tsx
-import { GlassView, GlassContainer, isLiquidGlassAvailable } from "expo-glass-effect";
+import { GlassView, isLiquidGlassAvailable } from "expo-glass-effect";
 <GlassView glassEffectStyle="regular" isInteractive style={[{ borderRadius: 24, padding: 16 }, !isLiquidGlassAvailable() && { backgroundColor: "rgba(255,255,255,0.8)" }]}>…</GlassView>
 \`\`\`
 - Style glass with \`style\` (radius, padding, overflow). The solid fallback is only for devices without iOS 26.
-- Native tab bars (@bottom-tabs/react-navigation, expo-router/unstable-native-tabs) and native headers / UIKit controls already become Liquid Glass on iOS 26: don't paint a background over them (remove opaque tabBarStyle / headerStyle backgrounds instead).
+- Native tab bars (react-native-bottom-tabs / @bottom-tabs/react-navigation, expo-router/unstable-native-tabs) and native headers / UIKit controls already become Liquid Glass on iOS 26: don't paint a background over them (remove opaque tabBarStyle / headerStyle backgrounds instead).
 - Glass shows what is behind it: put it over scrolling content, an image or a colored background, not over a flat color.
-- If neither package is installed: don't imitate it. Finish and tell the user to run \`npx expo install expo-glass-effect\` (Expo) or \`npm i @callstack/liquid-glass\` + pod install, then ask again.`,
+- If neither package is installed: don't imitate it. Finish and tell the user to run \`npm i @callstack/liquid-glass\` + pod install (or \`npx expo install expo-glass-effect\` in an Expo project) and rebuild, then ask again.`,
   },
   {
     name: "haptics",
@@ -136,7 +133,7 @@ import ReanimatedSwipeable from "react-native-gesture-handler/ReanimatedSwipeabl
     triggers: /bottom.?sheet|\bsheets?\b|\bmodale?s?\b|pop.?up|feuille|panneau/i,
     body: `Use the native sheet from expo-router (iOS form sheet with detents and grabber; a modal page on Android and web).
 
-1. The sheet is a route, e.g. app/new-task.tsx (outside (tabs)).
+1. The sheet is a route, e.g. app/new-task.tsx (outside (tabs), so it covers the native tab bar).
 2. In app/_layout.tsx declare it on the Stack:
 \`\`\`tsx
 <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: c.background } }}>
@@ -212,7 +209,7 @@ const pick = async () => {
     title: "Local notifications and reminders",
     when: "reminders, daily notification, alarm-like alerts (local, no server)",
     triggers: /notif|reminder|rappel|alarm/i,
-    body: `Run \`npx expo install expo-notifications\` (not preinstalled). Local notifications work in Expo Go; remote push does not.
+    body: `expo-notifications is NOT built into Sparkflow Dev, and a new native package can't load without rebuilding the dev client: don't install it in a generated app. Build the reminder UI (toggle, time, stored in the zustand store) and tell the user notifications need a native rebuild. In a project that already has expo-notifications:
 
 \`\`\`ts
 import * as Notifications from "expo-notifications";
@@ -242,6 +239,8 @@ export async function scheduleDaily(hour: number, minute: number, title: string)
     when: "native feel, iOS-like / Material / Android-specific design, platform differences",
     triggers: /native feel|natif|material|android|ios.?like|look ios|style ios|apple.?like|platform/i,
     body: `- \`Platform.select({ ios: …, android: …, default: … })\` or \`Platform.OS\` for differences. Web counts as "default".
+- Bottom tabs: kit \`<Tabs>\` in app/(tabs)/_layout.tsx with \`<Tabs.Screen name="x" options={{ title, icon: { sf: "house.fill", ion: "home-outline" }, badge? }} />\`: the system tab bar on iOS (Liquid Glass on iOS 26), Material bottom navigation on Android. No custom bar, no expo-router/js-tabs, no tabBarIcon.
+- Native-only modules must keep web working: kit Tabs and Glass already do; guard anything else with \`Platform.OS !== "web"\`.
 - iOS: large bold titles, grouped inset lists (kit List), SF Symbols (skill "sf-symbols"), sheets with grabbers (skill "sheets"), subtle haptics (skill "haptics"), swipe actions on rows.
 - Android: ripple on pressables (\`android_ripple={{ color: withAlpha("primary", 0.12) }}\`), FAB for the main action (kit Fab), back button handled by the Stack.
 - Keep one design system: adapt details, don't build two UIs.`,
@@ -271,10 +270,18 @@ export async function scheduleDaily(hour: number, minute: number, title: string)
 /** Reminds the model the result is a phone app: native features come from native modules. */
 export const MOBILE_CONTEXT = `# You are building a native mobile app
 
-This is a real iOS / Android app running on a phone (Expo Go or the simulator), not a website. A web preview is only used for screenshots.
+This is a real iOS / Android app running on a phone or the simulator, not a website. A web preview is only used for screenshots.
 - Words like "liquid glass", "haptics", "sheet", "blur", "SF Symbols", "native tabs" name native iOS / Android features. Implement them with the native module from the matching skill, never with a CSS look-alike (semi-transparent backgrounds, borders, shadows, backdrop-filter, gradients). If a native effect doesn't show on the web preview, that is expected.
 - Follow Apple's Human Interface Guidelines and Material Design: safe areas, 44 pt touch targets, native navigation (stacks, tabs, sheets), system fonts, dynamic type, dark mode, haptics on meaningful actions.
 - Think like a mobile designer: thumb reach, one primary action per screen, content scrolling under translucent bars.`;
+
+/** Generated apps only: what the Sparkflow Dev client can run. */
+export const DEV_CLIENT_CONTEXT = `# Sparkflow Dev
+
+The app runs in the "Sparkflow Dev" development client (not Expo Go), which ships these native modules: ${DEV_CLIENT_NATIVE.join(", ")}.
+- A NEW package with native code can't load without rebuilding Sparkflow Dev (the app would crash): use the modules above or pure JS packages.
+- Native-only modules must keep the web preview working: kit Tabs and Glass already handle it; guard anything else with Platform.OS.
+- Keep tab screens in \`<Screen>\`: it keeps content clear of the native tab bar.`;
 
 /** Index for the system prompt: what exists and when to read it. */
 export function skillsIndex(native = false) {

@@ -2,12 +2,15 @@ import { describe, expect, it } from "vitest";
 import { expoGoPath } from "../lib/shared";
 import { SKILLS, skillsFor, skillsIndex } from "../lib/agent/skills";
 import { executeTool, type ToolContext } from "../lib/agent/tools";
-import { nativeBuilderSystem } from "../lib/agent/prompts";
+import { builderSystem, foundationTask, nativeBuilderSystem } from "../lib/agent/prompts";
 import type { AppPlan } from "../lib/shared";
 
 describe("mobile skills", () => {
   it("inlines the skills a request names", () => {
-    expect(skillsFor("met l'app en liquid glass")).toContain("expo-glass-effect");
+    const glass = skillsFor("met l'app en liquid glass");
+    expect(glass).toContain("@callstack/liquid-glass");
+    expect(glass).toContain("<Card glass>");
+    expect(glass).not.toMatch(/tabsScreenOptions|js-tabs|Expo Go/);
     expect(skillsFor("ajoute des vibrations quand je coche")).toContain("expo-haptics");
     expect(skillsFor("un bottom sheet pour créer une tâche")).toContain('presentation: "formSheet"');
     expect(skillsFor("change le titre en bleu")).toBe("");
@@ -21,6 +24,18 @@ describe("mobile skills", () => {
     const ctx = { nativeApp: true } as ToolContext;
     expect((await executeTool(ctx, "skill", JSON.stringify({ name: "liquid-glass" }))).text).toContain("LiquidGlassView");
     expect(nativeBuilderSystem("", { screens: [] } as unknown as AppPlan, ["@callstack/liquid-glass"])).toMatch(/native mobile app[\s\S]*- liquid-glass:[\s\S]*@callstack\/liquid-glass/);
+  });
+
+  it("teaches kit Tabs and the Sparkflow Dev client to the Builder", () => {
+    const plan = { name: "Habits", theme: { primary: "#000", background: "#fff" }, dataModel: [], screens: [{ title: "Today", file: "app/(tabs)/index.tsx" }] } as unknown as AppPlan;
+    const system = builderSystem("", plan);
+    expect(system).toContain("Sparkflow Dev");
+    expect(system).toContain("react-native-bottom-tabs");
+    expect(system).not.toContain("Expo Go or");
+    const task = foundationTask(plan, {});
+    expect(task).toContain('import { Tabs } from "@/components/kit"');
+    expect(task).not.toContain("tabsScreenOptions");
+    expect(skillsFor("make it feel native on android")).toContain("<Tabs.Screen");
   });
 
   it("lists every skill in the index, with unique names", () => {

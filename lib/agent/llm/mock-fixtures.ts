@@ -105,17 +105,14 @@ export const lastWeek = (h: Habit) =>
   [6, 5, 4, 3, 2, 1, 0].map((n) => ({ label: new Date(Date.now() - n * 864e5).toDateString().slice(0, 2), value: h.done.includes(daysAgo(n)) ? 1 : 0 }));
 `;
 
-const TABS_LAYOUT = `import { Tabs } from "expo-router/js-tabs";
-import { Icon, tabsScreenOptions } from "@/components/kit";
-import { useColors } from "@/constants/theme";
+const TABS_LAYOUT = `import { Tabs } from "@/components/kit";
 
 export default function TabsLayout() {
-  const c = useColors();
   return (
-    <Tabs screenOptions={tabsScreenOptions(c)}>
-      <Tabs.Screen name="index" options={{ title: "Today", tabBarIcon: ({ color }) => <Icon name="today-outline" color={color} /> }} />
-      <Tabs.Screen name="stats" options={{ title: "Stats", tabBarIcon: ({ color }) => <Icon name="stats-chart-outline" color={color} /> }} />
-      <Tabs.Screen name="settings" options={{ title: "Settings", tabBarIcon: ({ color }) => <Icon name="settings-outline" color={color} /> }} />
+    <Tabs>
+      <Tabs.Screen name="index" options={{ title: "Today", icon: { sf: "calendar", ion: "today-outline" } }} />
+      <Tabs.Screen name="stats" options={{ title: "Stats", icon: { sf: "chart.bar.fill", ion: "stats-chart-outline" } }} />
+      <Tabs.Screen name="settings" options={{ title: "Settings", icon: { sf: "gearshape.fill", ion: "settings-outline" } }} />
     </Tabs>
   );
 }

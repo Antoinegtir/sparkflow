@@ -42,6 +42,7 @@ import {
 } from "./prompts";
 import { runBuilderTask, runPlanner, runtimeProblems, runVerifier, type RoleDeps } from "./roles";
 import { ProjectRuntime } from "./runtime";
+import { applyDemoOverlay, DEMO_NAME, DEMO_PROMPT, demoAction, isDemoProject, isSeeded, loadDemoPlan, markSeeded } from "./seed";
 import { ProjectStore } from "./store";
 import { gitCommit, typecheck, type ToolContext, type ToolName } from "./tools";
 import { BudgetExceededError, UsageMeter } from "./usage";
@@ -89,6 +90,7 @@ export class Orchestrator {
   constructor() {
     this.provider = createProvider();
     this.driverP = createDriver();
+    this.seedDemo().catch((err) => this.seedFailed(err));
   }
 
   async info() {
@@ -394,6 +396,79 @@ export class Orchestrator {
     await this.emitTree(rt);
   }
 
+  // ---------- demo app ----------
+
+  /**
+   * First start: the Wander demo (templates/demo) joins My apps, planned and captured without a model call.
+   * Marked seeded only once built: a failed build is rebuilt from the overlay at the next start, or by Retry.
+   */
+  private async seedDemo() {
+    const action = await demoAction(await this.store.list());
+    if (action.kind !== "create" && action.kind !== "rebuild") return;
+    let id = action.kind === "rebuild" ? action.id : "";
+    if (!id) {
+      const meta: ProjectMeta = { id: `${Date.now().toString(36)}-demo`, name: DEMO_NAME, prompt: DEMO_PROMPT, createdAt: Date.now(), inputs: { image: false, audio: false } };
+      await this.store.create(meta);
+      id = meta.id;
+    }
+    const rt = await this.runtime(id);
+    if (!rt.running) this.runExclusive(rt, () => this.buildDemo(rt));
+  }
+
+  /** A seeding error outside the build (creating the project): logged on the demo project when there is one. */
+  private async seedFailed(err: unknown) {
+    console.error("[sparkflow] demo app seeding failed", err);
+    const demo = (await this.store.list().catch(() => [])).find(isDemoProject);
+    if (!demo) return;
+    const rt = await this.runtime(demo.id).catch(() => null);
+    rt?.log(`Setting up the ${DEMO_NAME} demo failed: ${String((err as Error)?.message ?? err)}`, undefined, "error");
+    await rt?.flush();
+  }
+
+  /** Builds the demo from its overlay (again after a failure); errors land in the project's log via runExclusive. */
+  private async buildDemo(rt: ProjectRuntime) {
+    let plan: AppPlan;
+    try {
+      plan = await loadDemoPlan();
+    } catch (err) {
+      throw new Error(`The demo app's plan is invalid: ${(err as Error).message}`);
+    }
+    rt.emit({ type: "phase", phase: "sandbox" });
+    const sb = await this.sandbox(rt);
+    rt.emit({ type: "plan", plan });
+    for (const s of plan.screens) rt.emit({ type: "screen_status", route: s.route, status: "building", version: 1, attempt: 1 });
+    await applyDemoOverlay(sb);
+    const sha = await gitCommit(sb, `${plan.name} demo app`);
+    if (sha) rt.emit({ type: "commit", sha, message: `${plan.name} demo app`, routes: plan.screens.map((s) => s.route) });
+    await this.emitTree(rt);
+    await this.updateNav(rt);
+    const p = await sb.startDevServer();
+    rt.emit({ type: "preview_ready", webUrl: p.webUrl, expoGoUrl: p.expoGoUrl });
+
+    // Same capture as a generated app; verdicts only when a model is configured.
+    rt.emit({ type: "phase", phase: "verifier", detail: "capturing pages" });
+    for (const s of plan.screens) rt.emit({ type: "screen_status", route: s.route, status: "verifying", version: 1, attempt: 1 });
+    const results = await sb.inspect({ targets: plan.screens.map((s) => ({ name: s.route, path: s.previewPath ?? previewPathFor(s.route) })) });
+    const judge = this.provider.name !== "mock";
+    for (const [i, s] of plan.screens.entries()) {
+      const r = results[i];
+      if (r?.screenshot) rt.emit({ type: "screenshot", route: s.route, url: await this.store.saveShot(rt.meta.id, await this.shotName(rt, s.route, 1), r.screenshot), version: 1 });
+      if (r?.audit) rt.emit({ type: "quality", route: s.route, version: 1, report: r.audit });
+      let ok = !!r?.screenshot && !(runtimeProblems(r).length && (r.errorOverlay || !r.ok));
+      if (ok && judge) {
+        const verdict = await runVerifier(this.deps(rt), s, r);
+        rt.emit({ type: "verdict", verdict, attempt: 1 });
+        ok = verdictPasses(verdict);
+      }
+      rt.emit({ type: "screen_status", route: s.route, status: ok ? "done" : "failed", version: 1, attempt: 1 });
+    }
+    await markSeeded();
+    rt.emit({
+      type: "agent_message",
+      text: `${plan.name} is a demo app built with Sparkflow. Open a page, then describe a change to see the agent at work. Opening it on a device builds Sparkflow Dev once, about 6 minutes for the iOS Simulator and 15 for the Android emulator; after that apps open in seconds.`,
+    });
+  }
+
   /** Up to two typecheck + fix rounds. Metro may still render if it keeps failing. */
   private async compileGate(rt: ProjectRuntime, system: string, route?: string) {
     const sb = await this.sandbox(rt);
@@ -518,6 +593,8 @@ export class Orchestrator {
       route: req.route,
       testId: req.picks?.[0]?.testId ?? req.testId,
     });
+    // The demo app whose build failed: any prompt (Retry included) rebuilds it from the overlay first.
+    if (isDemoProject(rt.meta) && !isSeeded()) return this.runExclusive(rt, () => this.buildDemo(rt));
     this.runExclusive(rt, () => (rt.meta.native ? this.iterateNative(rt, req) : this.iterate(rt, req)));
   }
 
@@ -1070,7 +1147,7 @@ export async function sameBelowStatusBar(a: Buffer, b: Buffer) {
 }
 
 // Bump when the orchestrator changes in a way a running dev server must pick up without a restart.
-const INSTANCE_KEY = "__sparkflowOrchestrator_v10";
+const INSTANCE_KEY = "__sparkflowOrchestrator_v11";
 const g = globalThis as unknown as Record<string, Orchestrator | undefined>;
 
 /**

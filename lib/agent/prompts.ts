@@ -1,5 +1,5 @@
 import type { AppPlan, ScreenPlan, Verdict } from "../shared";
-import { MOBILE_CONTEXT, skillsFor, skillsIndex } from "./skills";
+import { DEV_CLIENT_CONTEXT, MOBILE_CONTEXT, skillsFor, skillsIndex } from "./skills";
 
 export const KIT_COMPONENTS = [
   "Screen", "Header", "Text", "Card", "List", "ListItem", "Button", "IconButton", "Fab", "Input",
@@ -46,7 +46,7 @@ Do not invent requirements beyond the criteria. Return ONE JSON object matching 
  * original prompt, whose skills ("with liquid glass") apply to every screen of the first build.
  */
 export function builderSystem(rules: string, plan: AppPlan, request = "") {
-  return `${BUILDER_PREAMBLE}\n\n${MOBILE_CONTEXT}\n\n# AGENT_RULES.md (mandatory)\n\n${rules}\n\n${skillsIndex()}${skillsFor(request)}\n\n# App plan\n\n${JSON.stringify(plan, null, 2)}`;
+  return `${BUILDER_PREAMBLE}\n\n${MOBILE_CONTEXT}\n\n${DEV_CLIENT_CONTEXT}\n\n# AGENT_RULES.md (mandatory)\n\n${rules}\n\n${skillsIndex()}${skillsFor(request)}\n\n# App plan\n\n${JSON.stringify(plan, null, 2)}`;
 }
 
 const MAX_FILE = 12000;
@@ -65,7 +65,7 @@ export function foundationTask(plan: AppPlan, files: Record<string, string>) {
 1. Rewrite theme.json: primary ${plan.theme.primary}, background ${plan.theme.background}; derive surface, text, muted, border, danger and success with good contrast; add a "dark" object (dark background and surface tinted with the primary).
 2. Write lib/store.ts: a zustand store with persist and persistStorage for this data model, with at least 3 seed items (ids "1", "2", "3") per entity:
 ${JSON.stringify(plan.dataModel, null, 2)}
-3. Layouts: keep app/_layout.tsx a Stack (keep the global.css import).${tabs.length ? ` Write app/(tabs)/_layout.tsx with Tabs from "expo-router/js-tabs" and tabsScreenOptions, one tab per screen: ${tabs.map((t) => t.title).join(", ")} (tab labels in the language of the app's texts).` : ""}
+3. Layouts: keep app/_layout.tsx a Stack (keep the global.css import).${tabs.length ? ` Write app/(tabs)/_layout.tsx with the kit's native Tabs (import { Tabs } from "@/components/kit"; <Tabs.Screen name="…" options={{ title, icon: { sf, ion } }} />, see AGENT_RULES.md; not expo-router/js-tabs), one tab per screen: ${tabs.map((t) => t.title).join(", ")} (tab labels in the language of the app's texts, sf an SF Symbol name, ion an Ionicons name).` : ""}
 4. Write a placeholder for every screen (a Screen with a Header and the right testID) so every route exists:
 ${plan.screens.map((s) => `- ${s.file} (${s.title})`).join("\n")}
 5. typecheck must pass, then finish.
