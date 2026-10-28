@@ -6,7 +6,15 @@
  * Every recipe works in Expo Go (SDK 58) and keeps the web build rendering, since pages are
  * verified on web screenshots.
  */
-export type Skill = { name: string; title: string; when: string; triggers: RegExp; body: string };
+export type Skill = {
+  name: string;
+  title: string;
+  when: string;
+  triggers: RegExp;
+  body: string;
+  /** Recipe for the user's own app (no Expo Router, NativeWind or kit); without it `body` is adapted. */
+  native?: string;
+};
 
 const INSTALL = (pkg: string) =>
   `Installed in new apps. If \`${pkg}\` is missing from package.json (older app), run \`npx expo install ${pkg}\` first (allowed: it edits package.json for you).`;
@@ -37,6 +45,24 @@ export function Glass({ className, ...p }: ViewProps & { className?: string }) {
 - Glass shows what is behind it: give the screen a colored or image background (a LinearGradient in Screen's background, see "gradients"), or let content scroll under a floating glass bar. Over a flat color it is nearly invisible.
 - Glass tab bar: \`tabsScreenOptions(c, { glass: true })\`; it floats, so end each tab screen with \`<View className="h-24" />\`.
 - Keep text \`text-text\` / \`text-muted\` (4.5:1 contrast).`,
+    native: `Liquid Glass is a native iOS 26 material: it must come from a native view. Never fake it with rgba backgrounds, borders, shadows, backdrop-filter, BlurView or a gradient: that is NOT Liquid Glass.
+
+Use the glass package the project already has (see its dependencies):
+- @callstack/liquid-glass:
+\`\`\`tsx
+import { LiquidGlassView, LiquidGlassContainerView, isLiquidGlassSupported } from "@callstack/liquid-glass";
+<LiquidGlassView effect="regular" interactive tintColor={undefined} style={[{ borderRadius: 24, padding: 16 }, !isLiquidGlassSupported && { backgroundColor: "rgba(255,255,255,0.8)" }]}>…</LiquidGlassView>
+// Shapes that merge when close: wrap them in <LiquidGlassContainerView spacing={12}>.
+\`\`\`
+- expo-glass-effect:
+\`\`\`tsx
+import { GlassView, GlassContainer, isLiquidGlassAvailable } from "expo-glass-effect";
+<GlassView glassEffectStyle="regular" isInteractive style={[{ borderRadius: 24, padding: 16 }, !isLiquidGlassAvailable() && { backgroundColor: "rgba(255,255,255,0.8)" }]}>…</GlassView>
+\`\`\`
+- Style glass with \`style\` (radius, padding, overflow). The solid fallback is only for devices without iOS 26.
+- Native tab bars (@bottom-tabs/react-navigation, expo-router/unstable-native-tabs) and native headers / UIKit controls already become Liquid Glass on iOS 26: don't paint a background over them (remove opaque tabBarStyle / headerStyle backgrounds instead).
+- Glass shows what is behind it: put it over scrolling content, an image or a colored background, not over a flat color.
+- If neither package is installed: don't imitate it. Finish and tell the user to run \`npx expo install expo-glass-effect\` (Expo) or \`npm i @callstack/liquid-glass\` + pod install, then ask again.`,
   },
   {
     name: "haptics",
@@ -242,20 +268,36 @@ export async function scheduleDaily(hour: number, minute: number, title: string)
   },
 ];
 
+/** Reminds the model the result is a phone app: native features come from native modules. */
+export const MOBILE_CONTEXT = `# You are building a native mobile app
+
+This is a real iOS / Android app running on a phone (Expo Go or the simulator), not a website. A web preview is only used for screenshots.
+- Words like "liquid glass", "haptics", "sheet", "blur", "SF Symbols", "native tabs" name native iOS / Android features. Implement them with the native module from the matching skill, never with a CSS look-alike (semi-transparent backgrounds, borders, shadows, backdrop-filter, gradients). If a native effect doesn't show on the web preview, that is expected.
+- Follow Apple's Human Interface Guidelines and Material Design: safe areas, 44 pt touch targets, native navigation (stacks, tabs, sheets), system fonts, dynamic type, dark mode, haptics on meaningful actions.
+- Think like a mobile designer: thumb reach, one primary action per screen, content scrolling under translucent bars.`;
+
 /** Index for the system prompt: what exists and when to read it. */
-export function skillsIndex() {
+export function skillsIndex(native = false) {
   return `# Mobile skills
 
-Exact recipes for iOS / Android features. When a request touches one of these, read it with the \`skill\` tool before writing code and follow it (it may add packages and components beyond the kit). Look at what the user really wants: "make it feel native", "more alive", "like iOS 26" map to these.
+Exact recipes for iOS / Android features. When a request touches one of these, read it with the \`skill\` tool before writing code and follow it${native ? ", adapted to this project (its own styling and navigation, only packages it already has)" : " (it may add packages and components beyond the kit)"}. Look at what the user really wants: "make it feel native", "more alive", "like iOS 26" map to these.
 
 ${SKILLS.map((s) => `- ${s.name}: ${s.title}. Use for: ${s.when}.`).join("\n")}`;
 }
 
 export const skillByName = (name: string) => SKILLS.find((s) => s.name === name.trim().toLowerCase());
 
+const NATIVE_NOTE = "Written for Expo Router + NativeWind + the Sparkflow kit: keep the native modules and APIs, but use this project's own styling and navigation, and only packages it already has (otherwise tell the user what to install).";
+
+/** A skill's text; `native`: for the user's own app. */
+export function skillBody(s: Skill, native = false) {
+  if (!native) return s.body;
+  return s.native ?? `${NATIVE_NOTE}\n\n${s.body}`;
+}
+
 /** Skills a request names outright, inlined in its task so the Builder starts with them. */
-export function skillsFor(text: string, max = 3) {
+export function skillsFor(text: string, max = 3, native = false) {
   const hits = SKILLS.filter((s) => s.triggers.test(text)).slice(0, max);
   if (!hits.length) return "";
-  return `\nSkills for this request (follow them):\n\n${hits.map((s) => `## ${s.title} (${s.name})\n\n${s.body}`).join("\n\n")}\n`;
+  return `\nSkills for this request (follow them):\n\n${hits.map((s) => `## ${s.title} (${s.name})\n\n${skillBody(s, native)}`).join("\n\n")}\n`;
 }
