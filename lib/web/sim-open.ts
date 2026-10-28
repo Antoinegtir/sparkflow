@@ -48,11 +48,12 @@ async function post(url: string, body: unknown) {
  * Opens a generated app in the iOS Simulator or Android emulator at `path`, natively in Sparkflow Dev (built
  * and installed the first time). Progress and failures go to useSimOpen(); the promise rejects on failure.
  */
-export async function openInSimulator(udid: string, preview: NonNullable<ProjectState["preview"]>, path: string, route?: string) {
+export async function openInSimulator(udid: string, preview: NonNullable<ProjectState["preview"]>, path: string, route?: string, opts: { quiet?: boolean } = {}) {
   const platform = platformOf(udid);
   const id = ++seq;
   const attempt = async () => {
-    set({ phase: "opening", platform, started: Date.now() });
+    // Quiet: the app is already up, only its page changes; no "Opening…" overlay (failures still show).
+    if (!opts.quiet) set({ phase: "opening", platform, started: Date.now() });
     try {
       if (preview.expoGoUrl) await post(`/api/sim/${udid}/open`, { url: preview.expoGoUrl, path: expoGoPath(path, route) });
       else await post(`/api/sim/${udid}/launch`, { url: preview.webUrl + path });
@@ -60,6 +61,7 @@ export async function openInSimulator(udid: string, preview: NonNullable<Project
       if (id === seq) set({ phase: "error", platform, started: state.started, error: String((e as Error)?.message ?? e) });
       throw e;
     }
+    if (opts.quiet) return;
     // The Simulator takes a moment to bring the app up after the call returns.
     await new Promise((r) => setTimeout(r, 1800));
     if (id === seq) set({ phase: "idle", platform, started: 0 });

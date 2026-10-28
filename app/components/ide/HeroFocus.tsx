@@ -53,6 +53,9 @@ type Props = {
   onSimButton: (b: "VOLUME_UP" | "VOLUME_DOWN" | "SIDE_BUTTON", hold: number) => void;
 };
 
+/** Apps already opened in Sparkflow Dev this session ("udid:project"): later page changes don't reopen them. */
+const openedInDev = new Set<string>();
+
 /** The focused page: flies in from its canvas node, shows the live app (iframe or simulator) and the page's report. */
 export function HeroFocus(p: Props) {
   const s = p.screen;
@@ -80,11 +83,19 @@ export function HeroFocus(p: Props) {
     fromSim.current = true;
     p.onSimPage(pg);
   };
+  // The app is opened in Sparkflow Dev once (with the progress overlay); after that a tab page is
+  // reached by tapping its tab (SimulatorView's page sync, like a native project) and any other page
+  // by its link, without reloading the app.
+  const tabPage = s.route.includes("/(tabs)/");
   useEffect(() => {
     if (fromSim.current) return void (fromSim.current = false);
     if (!webSim || !simUdid || !p.state.preview) return;
-    // Progress and failures show in DevClientOverlay.
-    void openInSimulator(simUdid, p.state.preview, s.previewPath ?? "/", s.route).catch(() => {});
+    const key = `${simUdid}:${p.state.id}`;
+    if (!openedInDev.has(key)) {
+      openedInDev.add(key);
+      // Progress and failures show in DevClientOverlay.
+      void openInSimulator(simUdid, p.state.preview, s.previewPath ?? "/", s.route).catch(() => openedInDev.delete(key));
+    } else if (!tabPage) void openInSimulator(simUdid, p.state.preview, s.previewPath ?? "/", s.route, { quiet: true }).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [webSim, simUdid, s.route]);
 
@@ -240,10 +251,12 @@ export function HeroFocus(p: Props) {
 
   const older = p.compare != null ? s.history.find((v) => v.version === p.compare) : undefined;
   const nativePage = useMemo(() => {
+    // A generated app's tab pages are reached by their tab (its title is the tab's label).
+    if (webSim) return tabPage ? { title: s.title } : null;
     if (!p.state.native) return null;
     const parentRoute = p.state.edges.find((e) => e.to === s.route)?.from;
     return { title: s.title, ...(parentRoute ? { parent: p.state.screens[parentRoute]?.title } : {}) };
-  }, [native, s.route, s.title, p.state.edges, p.state.screens]);
+  }, [native, webSim, tabPage, s.route, s.title, p.state.edges, p.state.screens]);
 
   const screenContent = (
     <>
