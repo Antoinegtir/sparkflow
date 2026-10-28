@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { errorResponse, type RouteCtx } from "@/lib/web/server";
+import { noteTap } from "@/lib/web/native-tabs";
 import { assertUdid, sendInput } from "@/lib/web/simulator";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +13,10 @@ const Input = z.union([
 
 export async function POST(req: Request, { params }: RouteCtx<{ udid: string }>) {
   try {
-    await sendInput(assertUdid((await params).udid), Input.parse(await req.json()));
+    const udid = assertUdid((await params).udid);
+    const input = Input.parse(await req.json());
+    await sendInput(udid, input);
+    if ("tap" in input) noteTap(udid, input.tap.x, input.tap.y);
     return Response.json({ ok: true });
   } catch (err) {
     if ((err as { status?: number }).status === 501) return Response.json({ error: (err as Error).message }, { status: 501 });

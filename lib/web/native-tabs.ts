@@ -9,8 +9,38 @@ const traits = (e: AxElement) => (e.traits ?? []).concat(e.role_description ? [e
 const isSelected = (e: AxElement) => traits(e).some((t) => /selected/i.test(t)) || e.AXValue === 1 || e.AXValue === "1";
 const center = (e: AxElement) => ({ x: (e.frame?.x ?? 0) + (e.frame?.width ?? 0) / 2, y: (e.frame?.y ?? 0) + (e.frame?.height ?? 0) / 2 });
 
+/**
+ * The tab last tapped on each device (by Sparkflow or by the user through the live view). iOS 26's tab bar
+ * reports every tab visited so far as "Selected", so the accessibility tree alone can't say which one shows.
+ */
+const g = globalThis as unknown as { __sparkflowLastTab?: Map<string, string>; __sparkflowTabs?: Map<string, Tab[]> };
+const lastTab = (g.__sparkflowLastTab ??= new Map());
+const knownTabs = (g.__sparkflowTabs ??= new Map());
+
+/** A tap at (x, y) in points: if it lands on a tab of the last read bar, that tab now shows. */
+export function noteTap(udid: string, x: number, y: number) {
+  const tabs = knownTabs.get(udid);
+  if (!tabs?.length || Math.abs(y - tabs[0].y) > 30) return;
+  const near = [...tabs].sort((a, b) => Math.abs(a.x - x) - Math.abs(b.x - x))[0];
+  lastTab.set(udid, near.label);
+}
+
+/** The tab that shows: the only one marked selected, else the last one tapped among those marked. */
+function shownTab(udid: string, tabs: Tab[]) {
+  const sel = tabs.filter((t) => t.selected);
+  if (sel.length === 1) return sel[0];
+  const last = lastTab.get(udid);
+  return sel.find((t) => t.label === last) ?? tabs.find((t) => t.label === last) ?? sel[0];
+}
+
 /** Tabs of the app on screen. UITabBar items are not in the full tree on iPhone, so probe points along the bar. */
 export async function readTabs(udid: string): Promise<Tab[]> {
+  const tabs = await readTabsRaw(udid);
+  if (tabs.length) knownTabs.set(udid, tabs);
+  return tabs;
+}
+
+async function readTabsRaw(udid: string): Promise<Tab[]> {
   if (android.isAndroidId(udid)) return android.bottomTabs(await accessibilityInfo(udid), (await screenPoints(udid))?.height ?? 800);
   const all = flatten(await accessibilityInfo(udid));
   // iPad: the top tab bar exposes TabButton elements directly.
@@ -56,7 +86,7 @@ export async function pushedTitle(udid: string) {
 export async function currentPage(udid: string): Promise<{ title: string; parent?: string; tab?: number } | null> {
   const pushed = await pushedTitle(udid);
   const tabs = await readTabs(udid);
-  const sel = tabs.find((t) => t.selected);
+  const sel = shownTab(udid, tabs);
   const tab = sel?.label;
   if (pushed && pushed !== tab) return { title: pushed, ...(tab ? { parent: tab } : {}) };
   // The tab's position too: its label can differ from the page name ("Profil" for Profile).
@@ -75,7 +105,10 @@ export async function goToTab(udid: string, title: string) {
     const tabs = await readTabs(udid);
     const t = tabs.find((x) => x.label.toLowerCase() === title.toLowerCase()) ?? tabs.find((x) => wordMatch(x.label, title));
     if (t) {
-      if (!t.selected || (await pushedTitle(udid))) await tapAt(udid, t.x, t.y);
+      // Tap unless it surely shows already (several tabs marked selected means it can't be told).
+      const sure = shownTab(udid, tabs) === t && tabs.filter((x) => x.selected).length === 1;
+      if (!sure || (await pushedTitle(udid))) await tapAt(udid, t.x, t.y);
+      lastTab.set(udid, t.label);
       return true;
     }
     if (tabs.length === 1 && attempt === 0) {
