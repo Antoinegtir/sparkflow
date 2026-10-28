@@ -1,3 +1,4 @@
+import * as android from "./android";
 import { openHidStream, touch } from "./idb";
 
 type Gesture = { stream: Awaited<ReturnType<typeof openHidStream>>; last: { x: number; y: number }; watchdog: ReturnType<typeof setTimeout> };
@@ -25,6 +26,7 @@ function arm(key: string, ges: Gesture) {
  * sees a real velocity and scrolls with momentum.
  */
 export async function gesture(udid: string, phase: "down" | "move" | "up", x: number, y: number, id = udid) {
+  if (android.isAndroidId(udid)) return android.gesture(udid, phase, x, y, id);
   const key = `${udid}:${id}`;
   // A lift that arrives while its touch-down is still opening the stream is applied right after.
   if (phase !== "down" && opening.has(key)) {

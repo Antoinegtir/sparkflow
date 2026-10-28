@@ -101,7 +101,7 @@ export function TopBar(p: Props) {
         {!p.connected && <span className="animate-pulse-soft text-[11px] text-amber-400">reconnecting…</span>}
       </div>
       <div className="flex items-center gap-1.5">
-        {native && <DevicePicker bundleId={s.native?.bundleId} onSwitching={p.onDeviceSwitching} />}
+        {(native || s.previewDevice === "simulator") && <DevicePicker bundleId={s.native?.bundleId} onSwitching={p.onDeviceSwitching} />}
         <button
           onClick={p.onPlay}
           disabled={!s.preview && !native}

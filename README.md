@@ -39,7 +39,7 @@ From a checkout, `npm run remote` does the same as `sparkflow`. `npm run deploy`
 - **Builder** writes Expo Router code with tools (files, patches, typecheck, screenshots) in a sandbox copied from `templates/expo-base`.
 - **Verifier** opens each screen at 390×844 with Playwright, checks the criteria on the screenshot and audits accessibility; failing screens go back to the Builder.
 - **IDE** (`/p/<id>`) shows every page on a canvas, live previews, versions, diffs, and lets you point at elements and ask for changes.
-- **Native projects**: import an Expo project and drive it in the iOS Simulator (idb or AXe), capture its pages and edit it in place.
+- **Native projects**: import an Expo project and drive it in the iOS Simulator (idb or AXe) or an Android emulator (adb, from the Android SDK: `ANDROID_HOME`, `~/Library/Android/sdk` or the PATH), capture its pages and edit it in place.
 
 ## Scripts
 

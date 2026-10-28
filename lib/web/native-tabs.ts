@@ -1,5 +1,6 @@
 import { accessibilityInfo, sendHid, touch, delay, type AxElement } from "./idb";
 import { screenPoints } from "./idb";
+import * as android from "./android";
 
 export type Tab = { label: string; x: number; y: number; selected: boolean; index?: number };
 
@@ -10,6 +11,7 @@ const center = (e: AxElement) => ({ x: (e.frame?.x ?? 0) + (e.frame?.width ?? 0)
 
 /** Tabs of the app on screen. UITabBar items are not in the full tree on iPhone, so probe points along the bar. */
 export async function readTabs(udid: string): Promise<Tab[]> {
+  if (android.isAndroidId(udid)) return android.bottomTabs(await accessibilityInfo(udid), (await screenPoints(udid))?.height ?? 800);
   const all = flatten(await accessibilityInfo(udid));
   // iPad: the top tab bar exposes TabButton elements directly.
   const buttons = all.filter((e) => traits(e).some((t) => /TabButton/i.test(t)) && e.AXLabel);
@@ -39,6 +41,7 @@ export async function readTabs(udid: string): Promise<Tab[]> {
 }
 
 export async function tapAt(udid: string, x: number, y: number) {
+  if (android.isAndroidId(udid)) return android.tap(udid, x, y);
   await sendHid(udid, [touch(x, y, "DOWN"), delay(0.08), touch(x, y, "UP")]);
 }
 

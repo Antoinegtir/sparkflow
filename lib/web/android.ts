@@ -1,0 +1,315 @@
+import { execFile, spawn } from "node:child_process";
+import { existsSync } from "node:fs";
+import { mkdir, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { promisify } from "node:util";
+import type { AxElement } from "./idb";
+
+/**
+ * Android emulator through adb: the same operations as the iOS Simulator (simctl + idb), in points (dp).
+ * Emulators are addressed by their adb serial ("emulator-5554").
+ */
+const run = promisify(execFile);
+const home = os.homedir();
+
+export const isAndroidId = (id: string) => /^emulator-\d{2,5}$/.test(id);
+
+const sdkRoots = () =>
+  [process.env.ANDROID_HOME, process.env.ANDROID_SDK_ROOT, path.join(home, "Library/Android/sdk"), path.join(home, "Android/Sdk")].filter((p): p is string => !!p);
+
+function tool(dir: string, bin: string) {
+  for (const root of sdkRoots()) {
+    const p = path.join(root, dir, bin);
+    if (existsSync(p)) return p;
+  }
+  return bin;
+}
+
+let adbBin: string | null | undefined;
+/** adb from the Android SDK, else the PATH; null when there is none. */
+export async function adbPath() {
+  if (adbBin !== undefined && adbBin !== null) return adbBin;
+  const p = tool("platform-tools", "adb");
+  adbBin = p !== "adb" ? p : await run("which", ["adb"]).then((r) => r.stdout.trim() || null, () => null);
+  return adbBin;
+}
+
+export async function adb(serial: string | null, ...args: string[]) {
+  const bin = await adbPath();
+  if (!bin) throw new Error("adb not found: install the Android SDK platform-tools");
+  const { stdout } = await run(bin, [...(serial ? ["-s", serial] : []), ...args], { maxBuffer: 64 * 1024 * 1024, encoding: "buffer" });
+  return stdout;
+}
+const shell = async (serial: string, ...args: string[]) => (await adb(serial, "shell", ...args)).toString("utf8");
+
+export type BootedAndroid = { udid: string; name: string; runtime: string };
+
+export async function bootedEmulators(): Promise<BootedAndroid[]> {
+  if (!(await adbPath())) return [];
+  const out = (await adb(null, "devices").catch(() => Buffer.from(""))).toString("utf8");
+  const serials = out.split("\n").flatMap((l) => {
+    const m = /^(emulator-\d+)\s+device\b/.exec(l.trim());
+    return m ? [m[1]] : [];
+  });
+  return Promise.all(
+    serials.map(async (udid) => {
+      const [avd, release] = await Promise.all([
+        shell(udid, "getprop", "ro.boot.qemu.avd_name").catch(() => ""),
+        shell(udid, "getprop", "ro.build.version.release").catch(() => ""),
+      ]);
+      return { udid, name: avd.trim().replace(/_/g, " ") || udid, runtime: `Android ${release.trim()}`.trim() };
+    }),
+  );
+}
+
+const densities = new Map<string, number>();
+/** Pixels per dp. */
+async function scale(serial: string) {
+  let d = densities.get(serial);
+  if (!d) {
+    const out = await shell(serial, "wm", "density");
+    const m = /Override density:\s*(\d+)/.exec(out) ?? /Physical density:\s*(\d+)/.exec(out);
+    d = m ? Number(m[1]) / 160 : 1;
+    densities.set(serial, d);
+  }
+  return d;
+}
+
+export async function screenPoints(serial: string) {
+  const out = await shell(serial, "wm", "size");
+  const m = /Override size:\s*(\d+)x(\d+)/.exec(out) ?? /Physical size:\s*(\d+)x(\d+)/.exec(out);
+  if (!m) return null;
+  const s = await scale(serial);
+  return { width: Math.round(Number(m[1]) / s), height: Math.round(Number(m[2]) / s) };
+}
+
+export async function frame(serial: string, type: "jpeg" | "png" = "jpeg"): Promise<Buffer> {
+  const png = await adb(serial, "exec-out", "screencap", "-p");
+  if (type === "png") return png;
+  const sharp = (await import("sharp")).default;
+  return sharp(png).jpeg({ quality: 70 }).toBuffer();
+}
+
+const px = async (serial: string, ...v: number[]) => {
+  const s = await scale(serial);
+  return v.map((n) => String(Math.round(n * s)));
+};
+
+/** `input text` takes no spaces and the device shell parses the rest: spaces as %s, the rest escaped. */
+const inputText = (t: string) => t.replace(/[\\'"`$&|;<>()*?~!#[\]{}%]/g, (c) => `\\${c}`).replace(/ /g, "%s");
+
+export async function tap(serial: string, x: number, y: number, duration = 0) {
+  const [a, b] = await px(serial, x, y);
+  // A long press is a swipe that does not move.
+  if (duration >= 0.4) await shell(serial, "input", "swipe", a, b, a, b, String(Math.round(duration * 1000)));
+  else await shell(serial, "input", "tap", a, b);
+}
+
+export async function swipe(serial: string, x: number, y: number, x2: number, y2: number, duration = 0.3) {
+  const [a, b, c, d] = await px(serial, x, y, x2, y2);
+  await shell(serial, "input", "swipe", a, b, c, d, String(Math.round(duration * 1000)));
+}
+
+export async function type(serial: string, text: string) {
+  await shell(serial, "input", "text", inputText(text));
+}
+
+const KEYS = { VOLUME_UP: "24", VOLUME_DOWN: "25", SIDE_BUTTON: "26" } as const;
+export async function button(serial: string, b: keyof typeof KEYS, hold = 0.1) {
+  await shell(serial, "input", "keyevent", ...(hold >= 0.5 ? ["--longpress"] : []), KEYS[b]);
+}
+
+/** Ports of localhost URLs reach the host's (adb reverse): the emulator's own localhost is itself. */
+async function reverse(serial: string, url: string) {
+  const u = new URL(url);
+  if (!/^(localhost|127\.0\.0\.1)$/.test(u.hostname)) return;
+  const port = u.port || (u.protocol === "https:" ? "443" : "80");
+  await adb(serial, "reverse", `tcp:${port}`, `tcp:${port}`).catch(() => {});
+}
+
+export async function openUrl(serial: string, url: string, pkg?: string) {
+  await reverse(serial, url);
+  await shell(serial, "am", "start", "-a", "android.intent.action.VIEW", "-d", `'${url.replace(/'/g, "")}'`, ...(pkg ? [pkg] : []));
+}
+
+export async function launch(serial: string, opts: { bundleId?: string; url?: string }) {
+  if (opts.url) return openUrl(serial, opts.url);
+  if (!opts.bundleId || !/^[A-Za-z0-9._]+$/.test(opts.bundleId)) throw new Error("Invalid package name");
+  await shell(serial, "am", "force-stop", opts.bundleId);
+  await shell(serial, "monkey", "-p", opts.bundleId, "-c", "android.intent.category.LAUNCHER", "1");
+}
+
+export async function appearance(serial: string): Promise<"light" | "dark" | "unknown"> {
+  const out = await shell(serial, "cmd", "uimode", "night").catch(() => "");
+  return /: yes/i.test(out) ? "dark" : /: no/i.test(out) ? "light" : "unknown";
+}
+
+export async function setAppearance(serial: string, look: "light" | "dark") {
+  await shell(serial, "cmd", "uimode", "night", look === "dark" ? "yes" : "no");
+}
+
+/** UI hierarchy (uiautomator) as idb-shaped elements, in dp. */
+export function parseHierarchy(xml: string, s: number): AxElement[] {
+  const root: AxElement[] = [];
+  const stack: AxElement[][] = [root];
+  const attr = (tag: string, name: string) => {
+    const m = new RegExp(`\\s${name}="([^"]*)"`).exec(tag);
+    return m ? m[1].replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&") : "";
+  };
+  for (const m of xml.matchAll(/<node\b[^>]*?(\/?)>|<\/node>/g)) {
+    if (m[0] === "</node>") {
+      if (stack.length > 1) stack.pop();
+      continue;
+    }
+    const tag = m[0];
+    const b = /\[(-?\d+),(-?\d+)\]\[(-?\d+),(-?\d+)\]/.exec(attr(tag, "bounds"));
+    const cls = attr(tag, "class");
+    const label = attr(tag, "content-desc") || attr(tag, "text");
+    const short = cls.split(".").pop() ?? "";
+    const el: AxElement = {
+      type: /Button/.test(short) || attr(tag, "clickable") === "true" ? "Button" : /Text/.test(short) ? "StaticText" : short || "Element",
+      ...(label ? { AXLabel: label } : {}),
+      ...(attr(tag, "resource-id") ? { AXUniqueId: attr(tag, "resource-id").replace(/^.*:id\//, "") } : {}),
+      ...(attr(tag, "text") && attr(tag, "content-desc") ? { AXValue: attr(tag, "text") } : {}),
+      traits: [...(attr(tag, "selected") === "true" ? ["selected"] : []), ...(attr(tag, "checked") === "true" ? ["selected"] : []), ...(attr(tag, "heading") === "true" ? ["Header"] : [])],
+      ...(b ? { frame: { x: Number(b[1]) / s, y: Number(b[2]) / s, width: (Number(b[3]) - Number(b[1])) / s, height: (Number(b[4]) - Number(b[2])) / s } } : {}),
+      children: [],
+    } as AxElement;
+    stack[stack.length - 1].push(el);
+    if (!m[1]) stack.push(el.children!);
+  }
+  // A pressable row or tab is a View around its text: give it its text as label, as iOS does.
+  const name = (e: AxElement): string | undefined => e.AXLabel ?? (e.children ?? []).map(name).find(Boolean);
+  for (const e of flatten(root)) if (e.type === "Button" && !e.AXLabel) e.AXLabel = name(e) ?? undefined;
+  return root;
+}
+
+/**
+ * Tabs of a bottom bar: two or more labelled buttons on one row in the bottom 20 % of the screen
+ * (Android exposes no tab bar role for JS tab bars).
+ */
+export function bottomTabs(els: AxElement[], screenHeight: number) {
+  const low = flatten(els).filter((e) => e.type === "Button" && e.AXLabel && e.frame && e.frame.y > screenHeight * 0.8 && e.frame.width < 300);
+  const rows = new Map<number, AxElement[]>();
+  for (const e of low) {
+    const k = Math.round(e.frame!.y / 8);
+    rows.set(k, [...(rows.get(k) ?? []), e]);
+  }
+  const row = [...rows.values()].filter((r) => r.length >= 2).sort((a, b) => b.length - a.length)[0] ?? [];
+  return row
+    .sort((a, b) => a.frame!.x - b.frame!.x)
+    .map((e, i) => ({
+      label: e.AXLabel!.replace(/, tab, \d+ of \d+$/, ""),
+      x: e.frame!.x + e.frame!.width / 2,
+      y: e.frame!.y + e.frame!.height / 2,
+      selected: (e.traits ?? []).includes("selected") || flatten(e.children ?? []).some((c) => (c.traits ?? []).includes("selected")),
+      index: i + 1,
+    }));
+}
+
+const flatten = (els: AxElement[]): AxElement[] => els.flatMap((e) => [e, ...flatten(e.children ?? [])]);
+
+/** The tree, or the smallest labelled element under a point (like idb's describe-point). */
+export async function accessibilityInfo(serial: string, point?: { x: number; y: number }): Promise<AxElement[]> {
+  const xml = (await adb(serial, "exec-out", "uiautomator", "dump", "/dev/tty")).toString("utf8");
+  const end = xml.lastIndexOf("</hierarchy>");
+  const tree = parseHierarchy(end >= 0 ? xml.slice(0, end) : xml, await scale(serial));
+  if (!point) return tree;
+  const hits = flatten(tree).filter((e) => {
+    const f = e.frame;
+    return f && point.x >= f.x && point.x <= f.x + f.width && point.y >= f.y && point.y <= f.y + f.height;
+  });
+  const area = (e: AxElement) => (e.frame!.width || 1) * (e.frame!.height || 1);
+  const best = hits.filter((e) => e.AXLabel).sort((a, b) => area(a) - area(b))[0] ?? hits.sort((a, b) => area(a) - area(b))[0];
+  return best ? [best] : [];
+}
+
+/** Live finger without a HID stream: the gesture is replayed on lift, as a tap or a swipe at its real speed. */
+const fingers = new Map<string, { x: number; y: number; t: number; last: { x: number; y: number } }>();
+export async function gesture(serial: string, phase: "down" | "move" | "up", x: number, y: number, id = serial) {
+  const key = `${serial}:${id}`;
+  if (phase === "down") return void fingers.set(key, { x, y, t: performance.now(), last: { x, y } });
+  const f = fingers.get(key);
+  if (!f) return;
+  f.last = { x, y };
+  if (phase === "move") return;
+  fingers.delete(key);
+  const secs = (performance.now() - f.t) / 1000;
+  if (Math.hypot(x - f.x, y - f.y) < 8) return tap(serial, x, y, secs);
+  await swipe(serial, f.x, f.y, x, y, Math.min(2, Math.max(0.08, secs)));
+}
+
+// ---- Emulators (AVDs) ----
+
+export async function listAvds(): Promise<string[]> {
+  const bin = tool("emulator", "emulator");
+  const out = await run(bin, ["-list-avds"]).then((r) => r.stdout, () => "");
+  return out.split("\n").map((l) => l.trim()).filter((l) => l && !/^(INFO|WARNING|ERROR)\b/.test(l));
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Starts an AVD (detached) and waits for Android to finish booting. Returns its serial. */
+export async function bootAvd(avd: string) {
+  if (!/^[\w.-]+$/.test(avd)) throw new Error("Invalid emulator name");
+  const before = new Set((await bootedEmulators()).map((d) => d.udid));
+  spawn(tool("emulator", "emulator"), ["-avd", avd, "-no-snapshot-save", "-no-boot-anim"], { detached: true, stdio: "ignore" }).unref();
+  for (let i = 0; i < 180; i++) {
+    await sleep(1000);
+    const fresh = (await bootedEmulators()).find((d) => !before.has(d.udid));
+    if (fresh && (await shell(fresh.udid, "getprop", "sys.boot_completed").catch(() => "")).trim() === "1") return fresh.udid;
+  }
+  throw new Error(`${avd} did not boot in 3 minutes`);
+}
+
+export async function shutdown(serial: string) {
+  await adb(serial, "emu", "kill").catch(() => {});
+  densities.delete(serial);
+}
+
+/** The AVD a running emulator was started from. */
+export async function avdOf(serial: string) {
+  return (await shell(serial, "getprop", "ro.boot.qemu.avd_name").catch(() => "")).trim();
+}
+
+// ---- Expo Go ----
+
+const EXPO_GO = "host.exp.exponent";
+const CACHE = path.join(home, ".sparkflow", "cache", "expo-go");
+
+async function installedExpoGo(serial: string) {
+  const out = await shell(serial, "dumpsys", "package", EXPO_GO).catch(() => "");
+  return /versionName=(\S+)/.exec(out)?.[1] ?? null;
+}
+
+/** Makes sure the emulator has the Expo Go build for this SDK (the official APK, cached once). */
+export async function ensureExpoGo(serial: string, sdk: string) {
+  const major = sdk.split(".")[0];
+  const current = await installedExpoGo(serial);
+  if (current?.startsWith(`${major}.`)) return current;
+  const res = await fetch("https://api.expo.dev/v2/versions/latest");
+  if (!res.ok) throw new Error(`Expo versions: HTTP ${res.status}`);
+  const info = (await res.json()).data?.sdkVersions?.[sdk];
+  const url: string | undefined = info?.androidClientUrl;
+  const version: string = info?.androidClientVersion ?? major;
+  if (!url) throw new Error(`No Expo Go for SDK ${sdk}`);
+  await mkdir(CACHE, { recursive: true });
+  const apk = path.join(CACHE, `Exponent-${version}.apk`);
+  if (!existsSync(apk)) {
+    const part = `${apk}.part`;
+    await run("curl", ["-fsSL", "--retry", "2", "-o", part, url], { timeout: 10 * 60_000 }).catch(async (e) => {
+      await rm(part, { force: true });
+      throw e;
+    });
+    await run("mv", [part, apk]);
+  }
+  // A different SDK's Expo Go can't be upgraded in place when it is newer: replace it.
+  if (current) await adb(serial, "uninstall", EXPO_GO).catch(() => {});
+  await adb(serial, "install", "-r", apk);
+  return version;
+}
+
+export async function openInExpoGo(serial: string, url: string) {
+  await openUrl(serial, url, EXPO_GO);
+}

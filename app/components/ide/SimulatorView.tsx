@@ -3,6 +3,7 @@
 import clsx from "clsx";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSimDevice } from "@/lib/web/sim-device";
+import { DevicePicker } from "./DevicePicker";
 import { CupertinoSpinner as Spinner } from "./ui";
 
 type Area = { x: number; y: number; width: number; height: number };
@@ -314,8 +315,16 @@ export function SimulatorView({
       .catch(() => setBoxes([]));
   }, [udid, highlights]);
 
-  if (loaded && !supported) return <Message text="The iOS Simulator needs macOS with Xcode." />;
-  if (loaded && !device) return <Message text="No simulator is booted. Run `npx expo run:ios` in your project, then come back." />;
+  if (loaded && !supported) return <Message text="The iOS Simulator needs macOS with Xcode; the Android emulator needs the Android SDK (adb)." />;
+  if (loaded && !device)
+    return (
+      <div className="grid h-full place-items-center overflow-auto p-6 text-center">
+        <div className="flex flex-col items-center gap-3">
+          <p className="text-[12.5px] text-ink-400">No simulator or emulator is running. Pick one to boot it:</p>
+          <DevicePicker inline />
+        </div>
+      </div>
+    );
   if (!loaded) return <Message text="Connecting to the simulator…" />;
 
   const pct = (b: Area) => ({ left: `${(b.x / (points?.width ?? 1)) * 100}%`, top: `${(b.y / (points?.height ?? 1)) * 100}%`, width: `${(b.width / (points?.width ?? 1)) * 100}%`, height: `${(b.height / (points?.height ?? 1)) * 100}%` });

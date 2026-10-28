@@ -1,14 +1,14 @@
 import { z } from "zod";
 import { gesture } from "@/lib/web/gestures";
-import { idbAvailable } from "@/lib/web/idb";
-import { assertUdid } from "@/lib/web/simulator";
+import { assertUdid, liveCapable } from "@/lib/web/simulator";
 import { handle, type RouteCtx } from "@/lib/web/server";
 
 export const dynamic = "force-dynamic";
 
 export const POST = handle(async (req: Request, { params }: RouteCtx<{ udid: string }>) => {
-  if (!idbAvailable()) return Response.json({ error: "Live gestures need idb" }, { status: 501 });
+  const udid = assertUdid((await params).udid);
+  if (!liveCapable(udid)) return Response.json({ error: "Live gestures need idb" }, { status: 501 });
   const b = z.object({ id: z.string().max(64), phase: z.enum(["down", "move", "up"]), x: z.number(), y: z.number() }).parse(await req.json());
-  await gesture(assertUdid((await params).udid), b.phase, b.x, b.y, b.id);
+  await gesture(udid, b.phase, b.x, b.y, b.id);
   return Response.json({ ok: true });
 });

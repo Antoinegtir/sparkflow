@@ -5,13 +5,15 @@ import os from "node:os";
 import { isMac } from "@/lib/web/platform";
 import path from "node:path";
 import { promisify } from "node:util";
+import * as android from "./android";
 import { companionPath, idbAvailable, screenPoints, sendHid, swipe as hidSwipe, touch, delay } from "./idb";
 
 const run = promisify(execFile);
 const home = os.homedir();
 
+/** An iOS Simulator UDID or an Android emulator serial. */
 export const assertUdid = (udid: string) => {
-  if (!/^[0-9A-F-]{36}$/i.test(udid)) throw new Error("Invalid simulator id");
+  if (!/^[0-9A-F-]{36}$/i.test(udid) && !android.isAndroidId(udid)) throw new Error("Invalid simulator id");
   return udid;
 };
 
@@ -20,15 +22,25 @@ export async function simctl(...args: string[]) {
   return stdout;
 }
 
-export type Booted = { udid: string; name: string; runtime: string };
+export type Booted = { udid: string; name: string; runtime: string; platform: "ios" | "android" };
 
+/** Booted iOS Simulators, then running Android emulators. */
 export async function bootedDevices(): Promise<Booted[]> {
+  return [...(await bootedSimulators()), ...(await android.bootedEmulators()).map((d) => ({ ...d, platform: "android" as const }))];
+}
+
+async function bootedSimulators(): Promise<Booted[]> {
   if (!isMac()) return [];
   const json = JSON.parse(await simctl("list", "devices", "booted", "-j").catch(() => '{"devices":{}}'));
   return Object.entries(json.devices as Record<string, { udid: string; name: string; state: string }[]>).flatMap(([runtime, list]) =>
-    list.filter((d) => d.state === "Booted").map((d) => ({ udid: d.udid, name: d.name, runtime: runtime.replace(/^.*SimRuntime\.iOS-/, "iOS ").replace(/-/g, ".") })),
+    list
+      .filter((d) => d.state === "Booted")
+      .map((d) => ({ udid: d.udid, name: d.name, runtime: runtime.replace(/^.*SimRuntime\.iOS-/, "iOS ").replace(/-/g, "."), platform: "ios" as const })),
   );
 }
+
+/** Whether a device viewer can work here: macOS (Simulator) or adb (Android emulator). */
+export const devicesSupported = async () => isMac() || !!(await android.adbPath());
 
 type Driver = { kind: "idb"; bin: string } | { kind: "axe"; bin: string } | null;
 let cached: Driver | undefined;
@@ -56,6 +68,11 @@ const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 export type Input = { tap: { x: number; y: number; duration?: number } } | { swipe: { x: number; y: number; x2: number; y2: number; duration?: number } } | { text: string };
 
 export async function sendInput(udid: string, input: Input) {
+  if (android.isAndroidId(udid)) {
+    if ("tap" in input) return android.tap(udid, input.tap.x, input.tap.y, input.tap.duration);
+    if ("swipe" in input) return android.swipe(udid, input.swipe.x, input.swipe.y, input.swipe.x2, input.swipe.y2, input.swipe.duration);
+    return android.type(udid, input.text);
+  }
   // Fast path: gRPC straight to idb_companion.
   if (idbAvailable() && !("text" in input)) {
     if ("tap" in input) {
@@ -84,6 +101,7 @@ export async function sendInput(udid: string, input: Input) {
 }
 
 export async function frame(udid: string, type: "jpeg" | "png" = "jpeg"): Promise<Buffer> {
+  if (android.isAndroidId(udid)) return android.frame(udid, type);
   // simctl does not write images to stdout: go through a temp file.
   const file = path.join(os.tmpdir(), `sparkflow-frame-${udid}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}.${type === "png" ? "png" : "jpg"}`);
   try {
@@ -95,14 +113,24 @@ export async function frame(udid: string, type: "jpeg" | "png" = "jpeg"): Promis
 }
 
 export async function launch(udid: string, opts: { bundleId?: string; url?: string }) {
+  if (android.isAndroidId(udid)) return android.launch(udid, opts);
   if (opts.url) return simctl("openurl", udid, opts.url);
   if (!opts.bundleId || !/^[A-Za-z0-9.-]+$/.test(opts.bundleId)) throw new Error("Invalid bundle id");
   return simctl("launch", "--terminate-running-process", udid, opts.bundleId);
 }
 
 export async function appearance(udid: string): Promise<"light" | "dark" | "unknown"> {
+  if (android.isAndroidId(udid)) return android.appearance(udid);
   const out = (await simctl("ui", udid, "appearance").catch(() => "")).trim();
   return out === "dark" || out === "light" ? out : "unknown";
 }
+
+export async function setAppearance(udid: string, look: "light" | "dark") {
+  if (android.isAndroidId(udid)) return android.setAppearance(udid, look);
+  await simctl("ui", udid, "appearance", look);
+}
+
+/** Live streaming of the screen and live touches: idb on iOS; adb (polled frames, replayed touches) on Android. */
+export const liveCapable = (udid: string) => android.isAndroidId(udid) || idbAvailable();
 
 export { screenPoints };

@@ -32,8 +32,8 @@ const STEPS = [
     icon: Eye,
     kicker: "04 · Look",
     title: "Then it opens the app and looks at it",
-    body: "Sparkflow runs what it just built, on the web and in the iOS Simulator. It takes a screenshot, reads the accessibility tree and the console, and Muse Spark checks each criterion with its own eyes, plus contrast, touch targets and overflow.",
-    tags: ["iOS Simulator", "Vision", "Accessibility"],
+    body: "Sparkflow runs what it just built, on the web, in the iOS Simulator and in the Android emulator. It takes a screenshot, reads the accessibility tree and the console, and Muse Spark checks each criterion with its own eyes, plus contrast, touch targets and overflow.",
+    tags: ["iOS Simulator", "Android emulator", "Vision", "Accessibility"],
   },
   {
     icon: RefreshCcw,

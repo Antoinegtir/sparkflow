@@ -5,10 +5,13 @@ import { Check, ChevronDown, Loader2, Smartphone, Tablet } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { SIM_CHANGED } from "@/lib/web/sim-device";
 
-type Device = { udid: string; name: string; runtime: string; booted: boolean; kind: "iphone" | "ipad" };
+type Device = { udid: string; name: string; runtime: string; booted: boolean; kind: "iphone" | "ipad" | "android" };
 
-/** Simulator picker grouped iPhone / iPad. Switching boots the device and reinstalls the app there. */
-export function DevicePicker({ bundleId, onSwitching }: { bundleId?: string; onSwitching: (name: string | null) => void }) {
+/**
+ * Device picker grouped iPhone / iPad / Android. Picking boots the device (shutting the current one down) and
+ * reinstalls the app there. `inline`: the list itself, for when nothing is running yet.
+ */
+export function DevicePicker({ bundleId, onSwitching, inline }: { bundleId?: string; onSwitching?: (name: string | null) => void; inline?: boolean }) {
   const [devices, setDevices] = useState<Device[]>([]);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -31,7 +34,7 @@ export function DevicePicker({ bundleId, onSwitching }: { bundleId?: string; onS
     setOpen(false);
     if (d.booted) return;
     setBusy(true);
-    onSwitching(d.name);
+    onSwitching?.(d.name);
     try {
       const res = await fetch("/api/sim/devices", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ udid: d.udid, bundleId }) });
       const json = await res.json();
@@ -40,7 +43,7 @@ export function DevicePicker({ bundleId, onSwitching }: { bundleId?: string; onS
       await load();
     } finally {
       setBusy(false);
-      onSwitching(null);
+      onSwitching?.(null);
     }
   }
 
@@ -61,18 +64,38 @@ export function DevicePicker({ bundleId, onSwitching }: { bundleId?: string; onS
     );
   };
 
+  const empty = <p className="p-3 text-[12px] text-ink-500">No simulators or emulators found. Install an iOS Simulator in Xcode or an Android emulator in Android Studio.</p>;
+  if (inline)
+    return (
+      <div className="w-72 max-w-full rounded-xl border border-[var(--line)] bg-[var(--panel)] p-1 text-left">
+        {busy ? (
+          <p className="flex items-center gap-2 p-3 text-[12px] text-ink-400">
+            <Loader2 size={13} className="animate-spin" /> Booting…
+          </p>
+        ) : (
+          <>
+            {group("iphone", "iPhone")}
+            {group("ipad", "iPad")}
+            {group("android", "Android")}
+            {!devices.length && empty}
+          </>
+        )}
+      </div>
+    );
+
   return (
     <div ref={ref} className="relative">
       <button onClick={() => setOpen((o) => !o)} className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--line)] px-2 py-1 text-[12px] text-ink-300 hover:text-ink-100">
         {busy ? <Loader2 size={13} className="animate-spin" /> : current?.kind === "ipad" ? <Tablet size={13} /> : <Smartphone size={13} />}
-        <span className="max-w-[140px] truncate">{current?.name ?? "No simulator"}</span>
+        <span className="max-w-[140px] truncate">{current?.name ?? "No device"}</span>
         <ChevronDown size={12} />
       </button>
       {open && (
         <div className={clsx("absolute right-0 z-50 mt-1 max-h-96 w-72 overflow-auto rounded-xl border border-[var(--line)] bg-[var(--panel)] p-1 shadow-2xl")}>
           {group("iphone", "iPhone")}
           {group("ipad", "iPad")}
-          {!devices.length && <p className="p-3 text-[12px] text-ink-500">No iOS simulators found. Install one in Xcode.</p>}
+          {group("android", "Android")}
+          {!devices.length && empty}
         </div>
       )}
     </div>
