@@ -152,6 +152,12 @@ export function ConnectOnboarding() {
       />
       <DotLens />
       <div className="pointer-events-none absolute left-1/2 top-1/3 size-[520px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-spark-500/15 blur-[120px]" />
+      {/* The landing's Android and Apple glass logos, on each side of the steps (wide screens only). */}
+      <div aria-hidden className="pointer-events-none absolute inset-x-0 top-1/2 mx-auto hidden max-w-6xl -translate-y-1/2 justify-between px-6 lg:flex">
+        <video className="hero-logo h-56 w-56 -rotate-6" src="/videos/android.webm" autoPlay muted loop playsInline />
+        {/* Starts half a turn later (#t=): both loops last 15 s, so they never spin in sync. */}
+        <video className="hero-logo h-56 w-56 rotate-6" src="/videos/apple.webm#t=7.5" autoPlay muted loop playsInline />
+      </div>
 
       <div className="relative w-full max-w-[520px]">
         <div className="mb-8 flex flex-col items-center text-center">
