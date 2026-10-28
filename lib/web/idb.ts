@@ -6,6 +6,7 @@ import { promisify } from "node:util";
 import * as grpc from "@grpc/grpc-js";
 import * as protoLoader from "@grpc/proto-loader";
 import { findFreePort } from "../sandbox/util";
+import * as android from "./android";
 
 const run = promisify(execFile);
 const home = os.homedir();
@@ -71,6 +72,7 @@ export function companion(udid: string): Promise<Companion> {
 }
 
 export async function screenPoints(udid: string) {
+  if (android.isAndroidId(udid)) return android.screenPoints(udid);
   return (await companion(udid)).points;
 }
 
@@ -90,6 +92,7 @@ export type AxElement = {
  * makes the tree come back as one empty "Application": turn them on once per boot and retry.
  */
 export async function accessibilityInfo(udid: string, point?: { x: number; y: number }): Promise<AxElement[]> {
+  if (android.isAndroidId(udid)) return android.accessibilityInfo(udid, point);
   const c = await companion(udid);
   const read = async () => {
     const res = await unary<{ json: string }>(c.client, "accessibility_info", { ...(point ? { point } : {}), format: "LEGACY" });

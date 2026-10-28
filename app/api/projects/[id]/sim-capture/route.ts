@@ -1,7 +1,7 @@
 import { expoGoPath, previewPathFor } from "@/lib/shared";
 import { ensureExpoGo, openInExpoGo } from "@/lib/web/expo-go";
 import { handle, orchestrator, type RouteCtx } from "@/lib/web/server";
-import { bootedDevices, frame, simctl } from "@/lib/web/simulator";
+import { bootedDevices, frame, setAppearance } from "@/lib/web/simulator";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +28,7 @@ export const POST = handle(async (req: Request, { params }: RouteCtx) => {
     if (state.native) throw new Error("Native projects use the simulator capture");
     const preview = state.preview ?? (await o.ensurePreview(id));
     if (!preview?.expoGoUrl) throw new Error("No Expo Go link for this app");
-    await simctl("ui", device.udid, "appearance", dark ? "dark" : "light").catch(() => {});
+    await setAppearance(device.udid, dark ? "dark" : "light").catch(() => {});
     const scheme = dark ? "dark" : "light";
     const stale = state.order.filter((r) => {
       const s = state.screens[r];

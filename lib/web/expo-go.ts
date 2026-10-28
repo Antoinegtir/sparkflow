@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { accessibilityInfo, type AxElement } from "./idb";
+import * as android from "./android";
 import { sendInput, simctl } from "./simulator";
 
 const run = promisify(execFile);
@@ -31,6 +32,7 @@ async function installedVersion(udid: string) {
  * Simulator build once (cached in ~/.sparkflow/cache) and installs it. Returns its version.
  */
 export async function ensureExpoGo(udid: string) {
+  if (android.isAndroidId(udid)) return android.ensureExpoGo(udid, await templateSdk());
   // The app opens straight away: no developer menu at launch, no one-time menu walkthrough.
   for (const [key, value] of [["EXDevMenuShowsAtLaunch", "NO"], ["EXDevMenuIsOnboardingFinished", "YES"]]) {
     await simctl("spawn", udid, "defaults", "write", BUNDLE, key, "-bool", value).catch(() => {});
@@ -69,6 +71,11 @@ const flatten = (els: AxElement[]): AxElement[] => els.flatMap((e) => [e, ...fla
  * dialog's Open button is tapped for the user.
  */
 export async function openInExpoGo(udid: string, url: string, opts: { watch?: number } = {}) {
+  // Android opens exp:// links in Expo Go without asking.
+  if (android.isAndroidId(udid)) {
+    await android.openInExpoGo(udid, url);
+    return 0;
+  }
   await simctl("openurl", udid, url);
   // iOS can ask twice (once to leave the current app, once more as Expo Go starts): keep watching
   // for a few seconds after each tap (less when Expo Go is already in front).

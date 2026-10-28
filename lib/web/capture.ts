@@ -1,14 +1,14 @@
-import { idbAvailable, accessibilityInfo } from "./idb";
+import { accessibilityInfo } from "./idb";
 import { flatten, center, readTabs, tapAt, pushedTitle, wordMatch } from "./native-tabs";
 import type { SubPage } from "./native-nav";
-import { frame } from "./simulator";
+import { frame, liveCapable } from "./simulator";
 
 export type CapturedPage = { title: string; parent?: string; file?: string; png: Buffer };
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Taps through every tab (and the sub-pages found in the code) and screenshots each page. */
 export async function captureTabPages(udid: string, subPages: SubPage[]): Promise<CapturedPage[]> {
-  if (!idbAvailable()) throw new Error("Capturing pages needs idb (idb_companion).");
+  if (!liveCapable(udid)) throw new Error("Capturing pages needs idb (idb_companion).");
   const tabs = await readTabs(udid);
   if (!tabs.length) return [{ title: "Home", png: await frame(udid, "png") }];
   const pages: CapturedPage[] = [];

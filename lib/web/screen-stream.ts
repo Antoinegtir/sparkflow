@@ -1,3 +1,4 @@
+import * as android from "./android";
 import { videoStream } from "./idb";
 
 type Listener = (jpeg: Buffer) => void;
@@ -38,7 +39,25 @@ export function subscribeScreen(udid: string, listener: Listener) {
   };
 }
 
+/** Android: screenshots back to back, sent only when the screen changed. */
+function poll(udid: string, b: Broadcast) {
+  let ended = false;
+  b.stop = () => void (ended = true);
+  void (async () => {
+    while (!ended) {
+      const jpeg = await android.frame(udid, "jpeg").catch(() => null);
+      if (ended) break;
+      if (jpeg && !b.last?.equals(jpeg)) {
+        b.last = jpeg;
+        for (const l of b.listeners) l(jpeg);
+      }
+      await new Promise((r) => setTimeout(r, jpeg ? 120 : 1000));
+    }
+  })();
+}
+
 function start(udid: string, b: Broadcast) {
+  if (android.isAndroidId(udid)) return poll(udid, b);
   b.starting = true;
   void videoStream(udid)
     .then((call) => {

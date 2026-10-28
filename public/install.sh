@@ -47,6 +47,13 @@ if [ "$OS" = "Darwin" ]; then
   fi
 fi
 
+# Android emulator view: adb from the Android SDK (Android Studio), optional.
+if has adb || [ -x "${ANDROID_HOME:-$HOME/Library/Android/sdk}/platform-tools/adb" ] || [ -x "$HOME/Android/Sdk/platform-tools/adb" ]; then
+  ok "Android SDK (adb)"
+else
+  warn "Android SDK not found (optional): install Android Studio for the Android emulator view"
+fi
+
 # Missing tools are installed for you, without sudo: with Homebrew when it's there, otherwise the
 # official builds go to ~/.sparkflow/tools (the sparkflow command puts it on its PATH).
 TOOLS="$HOME_DIR/tools"

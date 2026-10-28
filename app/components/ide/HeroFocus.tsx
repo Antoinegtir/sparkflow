@@ -417,7 +417,7 @@ function ToolRail(p: Omit<Props, "onDevice"> & { style: React.CSSProperties; onR
           key={m}
           disabled={p.capturingDark}
           onClick={() => p.onScheme(m)}
-          title={native ? `Switch the iOS Simulator to ${m} mode` : `Show the app in ${m} mode`}
+          title={native ? `Switch the ${sim.device?.platform === "android" ? "Android emulator" : "iOS Simulator"} to ${m} mode` : `Show the app in ${m} mode`}
           aria-label={`${m} mode`}
           className={clsx(btn, p.scheme === m && "bg-ink-800 text-ink-100")}>
           {m === "dark" && p.capturingDark ? <Loader2 size={15} className="animate-spin" /> : m === "light" ? <Sun size={15} /> : <Moon size={15} />}
@@ -435,8 +435,8 @@ function ToolRail(p: Omit<Props, "onDevice"> & { style: React.CSSProperties; onR
               {(["ios", "android"] as const).map((pf) => (
                 <div key={pf}>
                   <p className="px-2.5 pt-1.5 pb-1 text-[10px] font-semibold uppercase tracking-wide text-ink-500">{pf === "ios" ? "iOS" : "Android"}</p>
-                  {/* The live iOS Simulator (Mac with Xcode): the app opens in it, natively in Expo Go. */}
-                  {pf === "ios" && sim.supported && p.state.preview && (
+                  {/* The live iOS Simulator or Android emulator: the app opens in it, natively in Expo Go. */}
+                  {pf === (sim.device?.platform ?? "ios") && sim.supported && p.state.preview && (
                     <button
                       onClick={() => {
                         p.onDevice("simulator");
@@ -444,7 +444,7 @@ function ToolRail(p: Omit<Props, "onDevice"> & { style: React.CSSProperties; onR
                         if (sim.device && p.state.preview) void openInSimulator(sim.device.udid, p.state.preview, p.screen.previewPath ?? "/", p.screen.route).catch(() => {});
                       }}
                       className={clsx("flex w-full cursor-pointer items-center justify-between rounded-md px-2.5 py-1.5 text-left text-[12.5px] hover:bg-ink-800", p.device === "simulator" ? "text-ink-100" : "text-ink-300")}>
-                      Simulator
+                      {pf === "ios" ? "Simulator" : "Emulator"}
                       {p.device === "simulator" && <Check size={13} className="text-spark-400" />}
                     </button>
                   )}
