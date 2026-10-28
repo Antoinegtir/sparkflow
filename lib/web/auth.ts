@@ -13,7 +13,10 @@ const config = {
   appId: "1:705836289781:web:9e23085fab59e047b7bfbc",
 };
 
-const auth = () => getAuth(getApps().length ? getApp() : initializeApp(config));
+/** The site's Firebase app (Auth, and Firestore for the apps saved to each account). */
+export const firebaseApp = () => (getApps().length ? getApp() : initializeApp(config));
+
+const auth = () => getAuth(firebaseApp());
 
 export type Provider = "google" | "github";
 

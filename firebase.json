@@ -38,5 +38,8 @@
         "destination": "/ide-shell.html"
       }
     ]
+  },
+  "firestore": {
+    "rules": "firestore.rules"
   }
 }

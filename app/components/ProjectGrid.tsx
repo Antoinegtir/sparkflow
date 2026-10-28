@@ -9,7 +9,9 @@ import { timeAgo } from "@/lib/web/media";
 import { InstallIcon } from "./InstallIcon";
 import { ProjectCardMenu } from "./ProjectCardMenu";
 import { deviceById, DeviceMockup } from "./ide/ui";
+import { watchUser } from "@/lib/web/auth";
 import { apiFetch, appHref, BACKEND_EVENT, backendUrl } from "@/lib/web/backend";
+import { loadSavedApps, saveApps, type SavedApp } from "@/lib/web/cloud-apps";
 
 const COVER_W = 132;
 
@@ -21,17 +23,40 @@ const STATUS: Record<string, { label: string; className: string }> = {
   idle: { label: "idle", className: "text-ink-500" },
 };
 
-/** "Your apps": the projects on this machine. Polls only while one is building and the tab is visible. */
+/** At most one save of the apps to the account per this many ms (loads repeat every 5 s while building). */
+const SAVE_EVERY = 15000;
+
+/**
+ * "Your apps": the projects on this machine. Polls only while one is building and the tab is visible.
+ * Signed in, they are also saved to the account, and listed from there while `sparkflow` isn't running.
+ */
 export function ProjectGrid() {
   const [projects, setProjects] = useState<ProjectSummary[] | null>(null);
+  const [saved, setSaved] = useState<SavedApp[] | null>(null);
+  const [uid, setUid] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const draft = useRef("");
   const [installs, setInstalls] = useState(0);
+  const lastSave = useRef(0);
+
+  useEffect(() => watchUser((u) => setUid(u?.uid ?? null)), []);
 
   const load = useCallback(async () => {
     const res = await apiFetch("/api/projects", { cache: "no-store" }).catch(() => null);
-    if (res?.ok) setProjects(await res.json());
-  }, []);
+    if (res?.ok) {
+      const list: ProjectSummary[] = await res.json();
+      setProjects(list);
+      setSaved(null);
+      if (uid && Date.now() - lastSave.current > SAVE_EVERY) {
+        lastSave.current = Date.now();
+        void saveApps(uid, list).catch(() => {});
+      }
+      return;
+    }
+    // The computer isn't reachable: the apps saved to the account, if signed in.
+    setProjects(null);
+    if (uid) setSaved(await loadSavedApps(uid).catch(() => null));
+  }, [uid]);
 
   useEffect(() => {
     void load();
@@ -65,7 +90,13 @@ export function ProjectGrid() {
       <div className="mb-6 flex items-end justify-between gap-4">
         <div>
           <h2 className="landing-head text-2xl font-semibold text-ink-100">Your apps</h2>
-          <p className="mt-1 text-sm text-ink-500">{projects?.length ? `${projects.length} app${projects.length > 1 ? "s" : ""} on this machine` : "Built and verified on this machine"}</p>
+          <p className="mt-1 text-sm text-ink-500">
+            {saved?.length
+              ? `${saved.length} app${saved.length > 1 ? "s" : ""} saved to your account · start sparkflow to open them`
+              : projects?.length
+                ? `${projects.length} app${projects.length > 1 ? "s" : ""} on this machine`
+                : "Built and verified on this machine"}
+          </p>
         </div>
       </div>
       <div data-no-lens className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -159,6 +190,35 @@ export function ProjectGrid() {
             </Link>
           );
         })}
+        {saved?.map((p) => (
+          // Saved to the account: opening it shows how to start sparkflow, then the app.
+          <Link key={p.id} href={appHref(`/${p.slug}`)} className="group relative flex aspect-[4/5] flex-col overflow-hidden rounded-2xl border border-ink-700 bg-ink-900 shadow-[0_20px_50px_-30px_rgba(0,0,0,.8)] transition hover:-translate-y-1 hover:border-ink-600 hover:shadow-[0_30px_60px_-30px_var(--landing-glow)]">
+            <div className="relative grid flex-1 place-items-center overflow-hidden bg-[radial-gradient(circle_at_50%_30%,color-mix(in_oklab,var(--color-spark-500)_22%,transparent),transparent_70%)] pt-4">
+              {p.cover ? (
+                <div className="relative translate-y-10 opacity-80 transition group-hover:translate-y-7 group-hover:opacity-100">
+                  <DeviceMockup device={deviceById(p.previewDevice)} width={deviceById(p.previewDevice).ipad ? COVER_W * 1.5 : COVER_W} dark={false} bare={p.native}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={p.cover} alt="" className="absolute inset-0 h-full w-full object-cover object-top" />
+                  </DeviceMockup>
+                </div>
+              ) : (
+                <Smartphone size={44} strokeWidth={1.2} className="text-ink-300 transition group-hover:scale-105" />
+              )}
+            </div>
+            <div className="relative border-t border-ink-800 bg-ink-900 px-3.5 py-3">
+              <p className="truncate text-sm font-medium text-ink-100">{p.name}</p>
+              <div className="mt-1.5 flex items-center gap-2 text-xs text-ink-500">
+                <span className="flex items-center gap-1.5 rounded-full bg-ink-800 px-2 py-0.5 text-ink-400">
+                  <span className="size-1.5 rounded-full bg-current" />
+                  saved
+                </span>
+                <span className="truncate">
+                  {p.screenCount} screens · {timeAgo(p.createdAt)}
+                </span>
+              </div>
+            </div>
+          </Link>
+        ))}
       </div>
       {projects && !projects.length && <p className="mt-4 text-sm text-ink-500">Your apps will show up here once you build one.</p>}
     </section>
