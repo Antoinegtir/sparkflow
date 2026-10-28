@@ -53,8 +53,31 @@ type Props = {
   onSimButton: (b: "VOLUME_UP" | "VOLUME_DOWN" | "SIDE_BUTTON", hold: number) => void;
 };
 
-/** Apps already opened in Sparkflow Dev this session ("udid:project"): later page changes don't reopen them. */
-const openedInDev = new Set<string>();
+/**
+ * Apps already opened in Sparkflow Dev this session ("udid:project"): later page changes don't reopen them.
+ * In sessionStorage: on the hosted site, going to another page can reload the IDE.
+ */
+const OPENED_KEY = "sparkflow.openedInDev";
+const openedInDev = {
+  read: (): string[] => {
+    try {
+      return JSON.parse(sessionStorage.getItem(OPENED_KEY) ?? "[]");
+    } catch {
+      return [];
+    }
+  },
+  has: (k: string) => openedInDev.read().includes(k),
+  add: (k: string) => {
+    try {
+      sessionStorage.setItem(OPENED_KEY, JSON.stringify([...new Set([...openedInDev.read(), k])]));
+    } catch {}
+  },
+  delete: (k: string) => {
+    try {
+      sessionStorage.setItem(OPENED_KEY, JSON.stringify(openedInDev.read().filter((x) => x !== k)));
+    } catch {}
+  },
+};
 
 /** The focused page: flies in from its canvas node, shows the live app (iframe or simulator) and the page's report. */
 export function HeroFocus(p: Props) {
