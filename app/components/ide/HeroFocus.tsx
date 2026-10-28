@@ -613,7 +613,8 @@ function SidePanel(p: Props & { srcReady: boolean }) {
         <p className="mt-0.5 font-mono text-[10.5px] text-ink-500">{s.file}</p>
         <div className="mt-2 flex items-center gap-2">
           <StatusPill screen={s} />
-          {!native && !p.srcReady && p.state.preview && (
+          {/* The web preview only: in the live Simulator it never loads. */}
+          {!native && p.state.previewDevice !== "simulator" && !p.srcReady && p.state.preview && (
             <span className="flex items-center gap-1 text-[11px] text-ink-500">
               <Loader2 size={11} className="animate-spin" /> Live preview starting…
             </span>
