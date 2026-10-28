@@ -90,7 +90,7 @@ function draw() {
   ];
   if (ready) {
     lines.push(
-      `  ${green("●")} ${bold("Connected")} ${dim(ready.picked ? "— your open Sparkflow tab picked it up" : "— your browser opened Sparkflow")}`,
+      `  ${green("●")} ${bold("Connected")} ${dim(ready.picked ? "— your open Sparkflow tab picked it up" : ready.opened ? "— your browser opened Sparkflow" : "— open or reload Sparkflow, it connects by itself")}`,
       "",
       `    ${blue(linkTo(ready.link, "Open sparkflow-ai.web.app ↗"))}`,
       `    ${dim(new URL(ready.url).host)}`,
@@ -232,16 +232,23 @@ const watch = async (chunk) => {
   const link = `${SITE}/?backend=${encodeURIComponent(url)}&token=${token}`;
   rmSync(`${connection}.claimed`, { force: true });
   writeFileSync(connection, JSON.stringify({ url, token }), { mode: 0o600 });
-  ready = { url, link, picked: false };
+  ready = { url, link, picked: false, opened: false };
   if (!tty) console.log(`Sparkflow is connected: ${link}`);
   // A Sparkflow tab already waiting on the onboarding asks /api/connect within 2 s: give it the
   // chance before opening a new tab, so the browser doesn't end up with two.
   await new Promise((r) => setTimeout(r, 3000));
+  // The browser opens by itself only the very first time: later, a Sparkflow tab finds this server on
+  // its own (it asks localhost when it loads), so a restart doesn't pile up tabs.
+  const openedOnce = join(sparkHome, ".opened-site");
   if (existsSync(`${connection}.claimed`)) {
     ready.picked = true;
-  } else if (process.platform === "darwin" && !process.env.SPARKFLOW_NO_OPEN) {
+  } else if (process.platform === "darwin" && !process.env.SPARKFLOW_NO_OPEN && !existsSync(openedOnce)) {
     spawn("open", [link]);
+    ready.opened = true;
   }
+  try {
+    writeFileSync(openedOnce, "");
+  } catch {}
 };
 tunnel.stdout.on("data", watch);
 tunnel.stderr.on("data", watch);
