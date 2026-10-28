@@ -110,15 +110,27 @@ export function HeroFocus(p: Props) {
   // reached by tapping its tab (SimulatorView's page sync, like a native project) and any other page
   // by its link, without reloading the app.
   const tabPage = s.route.includes("/(tabs)/");
+  // The page shown before: leaving a sub-page (pushed page, sheet) for a tab can't be done by tapping
+  // the tab bar, which the sub-page covers.
+  const prevRoute = useRef<string | null>(null);
   useEffect(() => {
+    const prev = prevRoute.current;
+    prevRoute.current = s.route;
     if (fromSim.current) return void (fromSim.current = false);
     if (!webSim || !simUdid || !p.state.preview) return;
     const key = `${simUdid}:${p.state.id}`;
+    const quiet = () => openInSimulator(simUdid, p.state.preview!, s.previewPath ?? "/", s.route, { quiet: true });
     if (!openedInDev.has(key)) {
       openedInDev.add(key);
       // Progress and failures show in DevClientOverlay.
       void openInSimulator(simUdid, p.state.preview, s.previewPath ?? "/", s.route).catch(() => openedInDev.delete(key));
-    } else if (!tabPage) void openInSimulator(simUdid, p.state.preview, s.previewPath ?? "/", s.route, { quiet: true }).catch(() => {});
+    } else if (!tabPage) void quiet().catch(() => {});
+    else if (prev && !prev.includes("/(tabs)/")) {
+      // Its link closes what covers the tabs and shows the tab; tapping it then records it as the one shown.
+      void quiet()
+        .then(() => fetch(`/api/sim/${simUdid}/tab`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ title: s.title }) }))
+        .catch(() => {});
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [webSim, simUdid, s.route]);
 
