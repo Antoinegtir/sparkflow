@@ -37,8 +37,6 @@ export function SimulatorView({
   const painted = useRef(0);
   const pending = useRef<Blob | null>(null);
   const frozenRef = useRef(frozen);
-  const [navigating, setNavigating] = useState(false);
-  const navRef = useRef(false);
   const shown = useRef<string | null>(null);
   const [ripples, setRipples] = useState<{ id: number; x: number; y: number }[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -50,7 +48,7 @@ export function SimulatorView({
   frozenRef.current = frozen;
 
   const paint = useCallback(async (blob: Blob) => {
-    if (frozenRef.current || navRef.current) {
+    if (frozenRef.current) {
       pending.current = blob;
       return;
     }
@@ -163,27 +161,14 @@ export function SimulatorView({
     return { x: ((clientX - r.left) / r.width) * w, y: ((clientY - r.top) / r.height) * h, w, h, r };
   };
 
-  // IDE → simulator page sync, hidden behind a spinner so scripted taps are never shown.
+  // IDE → simulator page sync: the tab is tapped in plain view, the stream keeps showing the app.
   useEffect(() => {
     if (!udid || !page) return;
     const key = `${page.parent ?? ""}/${page.title}`;
     if (shown.current === key) return;
     shown.current = key;
-    navRef.current = true;
-    setNavigating(true);
-    void fetch(`/api/sim/${udid}/tab`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(page) })
-      .catch(() => {})
-      .finally(() =>
-        setTimeout(() => {
-          navRef.current = false;
-          setNavigating(false);
-          if (pending.current) {
-            void paint(pending.current);
-            pending.current = null;
-          }
-        }, 350),
-      );
-  }, [udid, page, paint]);
+    void fetch(`/api/sim/${udid}/tab`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(page) }).catch(() => {});
+  }, [udid, page]);
 
   // Simulator → IDE: after each lift, ask which page is showing.
   const afterLift = useCallback(() => {
@@ -358,11 +343,11 @@ export function SimulatorView({
       )}
       {points &&
         boxes.map((b, i) => <div key={i} className="pointer-events-none absolute rounded-md border-2 border-violet-500 bg-violet-500/10" style={pct(b)} />)}
-      {(frozen || navigating) && (
+      {frozen && (
         <div className="absolute inset-0 grid place-items-center bg-black/30 backdrop-blur-md">
           <div className="flex flex-col items-center gap-3">
             <Spinner />
-            {frozen && <span className="text-[12px] font-medium text-white">{frozenLabel ?? "Capturing pages…"}</span>}
+            <span className="text-[12px] font-medium text-white">{frozenLabel ?? "Capturing pages…"}</span>
           </div>
         </div>
       )}
