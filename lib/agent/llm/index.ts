@@ -1,6 +1,6 @@
 import { loadEnv } from "../env";
 import { MockProvider } from "./mock";
-import { chatCompletions } from "./openai-compatible";
+import { chatCompletions } from "./chat-completions";
 import type { AgentRole, ChatRequest, LLMProvider, Pricing } from "./types";
 import { hasAudio } from "./types";
 
@@ -37,37 +37,13 @@ class MuseProvider implements LLMProvider {
   }
 }
 
-class OpenAIProvider implements LLMProvider {
-  name = "openai" as const;
-  constructor(private apiKey: string) {}
-  modelFor(role: AgentRole) {
-    return env(`LLM_MODEL_${roleKey(role)}`) ?? env("LLM_MODEL") ?? "gpt-5-mini";
-  }
-  pricing(): Pricing {
-    return {
-      input: Number(env("LLM_PRICE_INPUT") ?? 0),
-      cached: Number(env("LLM_PRICE_CACHED") ?? 0),
-      output: Number(env("LLM_PRICE_OUTPUT") ?? 0),
-    };
-  }
-  chat(req: ChatRequest) {
-    return chatCompletions(
-      { baseUrl: env("LLM_BASE_URL") ?? "https://api.openai.com/v1", apiKey: this.apiKey, reasoningEffort: env("LLM_REASONING_EFFORT") },
-      req.model ?? this.modelFor(req.role),
-      req,
-    );
-  }
-}
-
 export const museKey = () => env("MODEL_API_KEY") ?? env("META_API_KEY");
 
 export function createProvider(): LLMProvider {
   loadEnv();
   const forced = env("SPARKFLOW_LLM");
   const muse = museKey();
-  const openai = env("LLM_API_KEY") ?? env("OPENAI_API_KEY");
-  const kind = forced ?? (muse ? "muse" : openai ? "openai" : "mock");
+  const kind = forced ?? (muse ? "muse" : "mock");
   if (kind === "muse" && muse) return new MuseProvider(muse);
-  if (kind === "openai" && openai) return new OpenAIProvider(openai);
   return new MockProvider();
 }

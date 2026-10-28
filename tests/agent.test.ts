@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { chatCompletions } from "../lib/agent/llm/openai-compatible";
+import { chatCompletions } from "../lib/agent/llm/chat-completions";
 import { edgesFromSources } from "../lib/agent/nav";
 import { normalizePlan } from "../lib/agent/roles";
 import { parseJsonLoose, toJsonSchema } from "../lib/agent/schema";

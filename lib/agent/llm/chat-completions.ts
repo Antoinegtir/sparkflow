@@ -42,7 +42,7 @@ function wire(m: ChatMessage) {
   }
 }
 
-/** Streaming chat completions client (Meta's Model API and OpenAI speak the same dialect). */
+/** Streaming chat completions client for Meta's Model API. */
 export async function chatCompletions(opts: Opts, model: string, req: ChatRequest): Promise<ChatResponse> {
   // Long non-streaming calls time out (504) on Meta's gateway, so always stream.
   const body: Record<string, unknown> = {

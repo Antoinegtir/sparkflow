@@ -30,7 +30,7 @@ export type ChatResponse = { content: string | null; toolCalls: ToolCall[]; usag
 export type Pricing = { input: number; cached: number; output: number };
 
 export interface LLMProvider {
-  name: "muse" | "openai" | "mock";
+  name: "muse" | "mock";
   chat(req: ChatRequest): Promise<ChatResponse>;
   pricing(model: string): Pricing;
   modelFor(role: AgentRole, opts?: { hasAudio?: boolean }): string;

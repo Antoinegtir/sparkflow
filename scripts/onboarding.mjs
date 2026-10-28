@@ -79,7 +79,7 @@ async function check(key) {
 export async function onboarding({ force = false } = {}) {
   if (!existsSync(ENV) && existsSync(".env.example")) writeFileSync(ENV, readFileSync(".env.example", "utf8"));
   const text = readEnv();
-  if (!force && (get(text, "MODEL_API_KEY") || get(text, "LLM_API_KEY") || get(text, "SPARKFLOW_DEMO") === "1")) return;
+  if (!force && (get(text, "MODEL_API_KEY") || get(text, "SPARKFLOW_DEMO") === "1")) return;
   if (!tty) return;
 
   console.log(`\n  ${blue("✦")} ${bold("Sparkflow")} ${dim("— first setup")}\n`);
