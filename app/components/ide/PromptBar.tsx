@@ -26,7 +26,7 @@ const PHASES: { id: Phase; label: string }[] = [
   { id: "verifier", label: "Verifier" },
 ];
 
-function PhasePipeline({ state }: { state: ProjectState }) {
+function PhasePipeline({ state, onRetry }: { state: ProjectState; onRetry: () => void }) {
   const running = state.status === "running";
   const idx = PHASES.findIndex((p) => p.id === state.phase);
   const screen = state.phaseRoute ? state.screens[state.phaseRoute]?.title : undefined;
@@ -35,7 +35,13 @@ function PhasePipeline({ state }: { state: ProjectState }) {
     return (
       <div className={clsx("flex items-center gap-1.5 text-[11.5px]", tone)}>
         <span className={clsx("size-1.5 rounded-full", state.status === "failed" ? "bg-red-400" : state.status === "stopped" ? "bg-amber-400" : "bg-emerald-400")} />
-        {state.status === "done" || state.status === "idle" ? "Ready" : (state.statusMessage ?? state.status)}
+        <span className="truncate">{state.status === "done" || state.status === "idle" ? "Ready" : (state.statusMessage ?? state.status)}</span>
+        {/* A failed run (a generation, or the demo app's build) starts again from where it stopped. */}
+        {state.status === "failed" && (
+          <button onClick={onRetry} className="shrink-0 cursor-pointer rounded-md px-1.5 py-0.5 text-ink-300 hover:bg-ink-800 hover:text-ink-100">
+            Retry
+          </button>
+        )}
       </div>
     );
   }
@@ -126,7 +132,7 @@ export function PromptBar(p: Props) {
     <div data-prompt-bar className="pointer-events-auto absolute bottom-4 left-1/2 z-40 w-[min(760px,calc(100%-32px))] -translate-x-1/2">
       <div className={clsx("rounded-2xl border bg-[var(--panel)]/95 p-2.5 shadow-[0_20px_60px_-20px_rgba(0,0,0,.6)] backdrop-blur-xl transition-colors", running ? "agent-glow border-transparent" : "border-[var(--line)]")}>
         <div className="mb-2 flex items-center justify-between gap-3 px-1">
-          <PhasePipeline state={p.state} />
+          <PhasePipeline state={p.state} onRetry={() => void p.onSend("Retry")} />
           {p.focusedTitle && (
             <button onClick={p.onAllPages} className="flex shrink-0 cursor-pointer items-center gap-1 rounded-md px-1.5 py-0.5 text-[11.5px] text-ink-400 hover:bg-ink-800 hover:text-ink-100">
               <LayoutGrid size={12} /> All pages

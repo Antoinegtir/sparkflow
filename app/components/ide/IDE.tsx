@@ -274,7 +274,7 @@ export function IDE({ id, slug: initialSlug, initialPage }: { id: string; slug: 
     void api.captureDevice(device, scheme).finally(() => setCapturingDevice(false));
   }, [state, scheme, capturingDevice, capturingDark, api]);
 
-  // Web app shown in the live Simulator: capture its pages there (in Expo Go) when they aren't yet,
+  // Web app shown in the live Simulator: capture its pages there (in Sparkflow Dev) when they aren't yet,
   // or are older than the page. The Simulator is driven meanwhile, so it shows a spinner.
   const triedSim = useRef(new Set<string>());
   useEffect(() => {

@@ -143,7 +143,9 @@ class LocalSandbox implements Sandbox {
       await this.killStale();
       const port = await findFreePort(8100);
       const logs = new LineBuffer();
-      const proc = spawn("bash", ["-c", `npx expo start --port ${port}`], {
+      // --dev-client: native devices load the app in Sparkflow Dev (projects made before it was in the
+      // template have no expo-dev-client dependency to tell Expo); the web preview is unaffected.
+      const proc = spawn("bash", ["-c", `npx expo start --dev-client --port ${port}`], {
         cwd: this.dir,
         detached: true,
         env: childEnv({

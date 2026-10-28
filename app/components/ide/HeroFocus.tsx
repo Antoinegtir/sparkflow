@@ -10,6 +10,7 @@ import { outerSize, PREVIEW_DEVICES } from "@/lib/web/devices";
 import { useSimDevice } from "@/lib/web/sim-device";
 import { openInSimulator } from "@/lib/web/sim-open";
 import { DotLens } from "../DotLens";
+import { DevClientOverlay } from "./DevClientOverlay";
 import type { LayoutPick } from "./LayoutTree";
 import type { Selection } from "./PromptBar";
 import { SimulatorView, type SimPick } from "./SimulatorView";
@@ -82,6 +83,7 @@ export function HeroFocus(p: Props) {
   useEffect(() => {
     if (fromSim.current) return void (fromSim.current = false);
     if (!webSim || !simUdid || !p.state.preview) return;
+    // Progress and failures show in DevClientOverlay.
     void openInSimulator(simUdid, p.state.preview, s.previewPath ?? "/", s.route).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [webSim, simUdid, s.route]);
@@ -251,7 +253,7 @@ export function HeroFocus(p: Props) {
               <CompareSlider before={shotOf(older, p.scheme)} after={shotOf(s.history.find((h) => h.version === s.screenshotVersion) ?? { url: s.screenshotUrl! }, p.scheme)} beforeLabel={`v${older.version}`} afterLabel={`v${s.version} · now`} />
             </SafeAreaScreen>
           ) : native ? (
-            <div className="h-full" onPointerDown={() => setInteracted(true)}>
+            <div className="relative h-full" onPointerDown={() => setInteracted(true)}>
               <SimulatorView
                 page={nativePage}
                 onPageChange={onSimPage}
@@ -261,6 +263,8 @@ export function HeroFocus(p: Props) {
                 onPick={(pk: SimPick) => p.onSelect({ testId: pk.testId, text: pk.text, area: pk.area })}
                 highlights={p.layoutHover ? { texts: p.layoutHover.texts, each: p.layoutHover.each } : null}
               />
+              {/* A generated app opening in Sparkflow Dev: build / open progress, or the error. */}
+              {webSim && <DevClientOverlay name={p.state.name} />}
             </div>
           ) : (
             <div className="relative h-full bg-white" onPointerDown={() => setInteracted(true)}>
@@ -435,13 +439,13 @@ function ToolRail(p: Omit<Props, "onDevice"> & { style: React.CSSProperties; onR
               {(["ios", "android"] as const).map((pf) => (
                 <div key={pf}>
                   <p className="px-2.5 pt-1.5 pb-1 text-[10px] font-semibold uppercase tracking-wide text-ink-500">{pf === "ios" ? "iOS" : "Android"}</p>
-                  {/* The live iOS Simulator or Android emulator: the app opens in it, natively in Expo Go. */}
+                  {/* The live iOS Simulator or Android emulator: the app opens in it, natively in Sparkflow Dev. */}
                   {pf === (sim.device?.platform ?? "ios") && sim.supported && p.state.preview && (
                     <button
                       onClick={() => {
                         p.onDevice("simulator");
                         setPicker(false);
-                        if (sim.device && p.state.preview) void openInSimulator(sim.device.udid, p.state.preview, p.screen.previewPath ?? "/", p.screen.route).catch(() => {});
+                        // The focus view then opens the app in it (HeroFocus' effect on the device), progress over it.
                       }}
                       className={clsx("flex w-full cursor-pointer items-center justify-between rounded-md px-2.5 py-1.5 text-left text-[12.5px] hover:bg-ink-800", p.device === "simulator" ? "text-ink-100" : "text-ink-300")}>
                       {pf === "ios" ? "Simulator" : "Emulator"}

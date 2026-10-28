@@ -7,6 +7,7 @@ import { isAppMessage, matchRoute, type ProjectState } from "@/lib/shared";
 import { withScheme, type AppScheme } from "@/lib/web/app-scheme";
 import { useSimDevice } from "@/lib/web/sim-device";
 import { openInSimulator } from "@/lib/web/sim-open";
+import { DevClientOverlay } from "./DevClientOverlay";
 import { SimulatorView } from "./SimulatorView";
 import { PREVIEW_DEVICES, SE_CHIN } from "@/lib/web/devices";
 import { CupertinoSpinner, PhoneFrame, SafeAreaScreen, SeFrame, type SafeAreas } from "./ui";
@@ -88,21 +89,12 @@ export function PlayMode({ state, scheme, startPath, onClose, onSimButton, onDev
   const device = platform === "web" ? null : (devices.find((d) => d.id === deviceId[platform]) ?? devices[0]);
   const live = !!device?.simulator;
   // The Simulator shows whatever app it has open: for a generated app, open it there first, natively
-  // in Expo Go (installed on the Simulator the first time), Safari only if that fails; the old app
-  // stays covered meanwhile.
+  // in Sparkflow Dev (built once, then installed on the device); DevClientOverlay covers the old app
+  // meanwhile and shows any failure.
   const udid = sim.device?.udid;
-  const [opening, setOpening] = useState(false);
   useEffect(() => {
     if (!live || native || !state.preview || !udid) return;
-    let cancelled = false;
-    setOpening(true);
-    openInSimulator(udid, state.preview, startPath, matchRoute(startPath, state.order) ?? undefined)
-      .catch(() => {})
-      // The Simulator takes a moment to bring the app up after the call returns.
-      .finally(() => setTimeout(() => !cancelled && setOpening(false), 1800));
-    return () => {
-      cancelled = true;
-    };
+    openInSimulator(udid, state.preview, startPath, matchRoute(startPath, state.order) ?? undefined).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [live, udid, run]);
   // A device picked here becomes the project's preview device: the focus view (and the canvas) follow.
@@ -225,15 +217,7 @@ export function PlayMode({ state, scheme, startPath, onClose, onSimButton, onDev
     body = (
       <PhoneFrame width={outerW} height={outerH} radius={dims!.r + dims!.bezel} bezel={dims!.bezel} hardware ipad={sim.device?.ipad} onButton={onSimButton}>
         <SimulatorView />
-        <div className={clsx("pointer-events-none absolute inset-0 grid place-items-center bg-black transition-opacity duration-300", opening ? "opacity-100" : "opacity-0")}>
-          <div className="flex flex-col items-center gap-3 text-[13px] text-white/70">
-            <span className="scale-[1.4]">
-              <CupertinoSpinner />
-            </span>
-            Opening {state.name} in Expo Go…
-            <span className="text-[11.5px] text-white/40">The first time, Expo Go is installed on the Simulator.</span>
-          </div>
-        </div>
+        {!native && <DevClientOverlay name={state.name} />}
       </PhoneFrame>
     );
   } else {

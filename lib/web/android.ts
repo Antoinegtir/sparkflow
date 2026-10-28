@@ -1,6 +1,5 @@
 import { execFile, spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -271,45 +270,4 @@ export async function shutdown(serial: string) {
 /** The AVD a running emulator was started from. */
 export async function avdOf(serial: string) {
   return (await shell(serial, "getprop", "ro.boot.qemu.avd_name").catch(() => "")).trim();
-}
-
-// ---- Expo Go ----
-
-const EXPO_GO = "host.exp.exponent";
-const CACHE = path.join(home, ".sparkflow", "cache", "expo-go");
-
-async function installedExpoGo(serial: string) {
-  const out = await shell(serial, "dumpsys", "package", EXPO_GO).catch(() => "");
-  return /versionName=(\S+)/.exec(out)?.[1] ?? null;
-}
-
-/** Makes sure the emulator has the Expo Go build for this SDK (the official APK, cached once). */
-export async function ensureExpoGo(serial: string, sdk: string) {
-  const major = sdk.split(".")[0];
-  const current = await installedExpoGo(serial);
-  if (current?.startsWith(`${major}.`)) return current;
-  const res = await fetch("https://api.expo.dev/v2/versions/latest");
-  if (!res.ok) throw new Error(`Expo versions: HTTP ${res.status}`);
-  const info = (await res.json()).data?.sdkVersions?.[sdk];
-  const url: string | undefined = info?.androidClientUrl;
-  const version: string = info?.androidClientVersion ?? major;
-  if (!url) throw new Error(`No Expo Go for SDK ${sdk}`);
-  await mkdir(CACHE, { recursive: true });
-  const apk = path.join(CACHE, `Exponent-${version}.apk`);
-  if (!existsSync(apk)) {
-    const part = `${apk}.part`;
-    await run("curl", ["-fsSL", "--retry", "2", "-o", part, url], { timeout: 10 * 60_000 }).catch(async (e) => {
-      await rm(part, { force: true });
-      throw e;
-    });
-    await run("mv", [part, apk]);
-  }
-  // A different SDK's Expo Go can't be upgraded in place when it is newer: replace it.
-  if (current) await adb(serial, "uninstall", EXPO_GO).catch(() => {});
-  await adb(serial, "install", "-r", apk);
-  return version;
-}
-
-export async function openInExpoGo(serial: string, url: string) {
-  await openUrl(serial, url, EXPO_GO);
 }

@@ -1,5 +1,5 @@
 import { expoGoPath, previewPathFor } from "@/lib/shared";
-import { ensureExpoGo, openInExpoGo } from "@/lib/web/expo-go";
+import { installDevClient, openInDevClient } from "@/lib/web/dev-client";
 import { handle, orchestrator, type RouteCtx } from "@/lib/web/server";
 import { bootedDevices, frame, setAppearance } from "@/lib/web/simulator";
 
@@ -9,7 +9,7 @@ const g = globalThis as unknown as { __sparkflowSimCapture?: Promise<number> | n
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
- * Captures every page of a generated app on the live Simulator (in Expo Go): each page is opened by
+ * Captures every page of a generated app on the live Simulator (in Sparkflow Dev): each page is opened by
  * its deep link, then screenshotted. Stored as the "simulator" device's shots, in the appearance
  * asked for (?scheme=dark, the Simulator is switched to it). One capture at a time; pages already
  * captured at their current version are skipped unless ?refresh.
@@ -27,7 +27,7 @@ export const POST = handle(async (req: Request, { params }: RouteCtx) => {
     const state = await o.getState(id);
     if (state.native) throw new Error("Native projects use the simulator capture");
     const preview = state.preview ?? (await o.ensurePreview(id));
-    if (!preview?.expoGoUrl) throw new Error("No Expo Go link for this app");
+    if (!preview?.expoGoUrl) throw new Error("No Metro link for this app");
     await setAppearance(device.udid, dark ? "dark" : "light").catch(() => {});
     const scheme = dark ? "dark" : "light";
     const stale = state.order.filter((r) => {
@@ -35,13 +35,13 @@ export const POST = handle(async (req: Request, { params }: RouteCtx) => {
       return s && (refresh || s.devices?.simulator?.[scheme]?.version !== s.version);
     });
     if (!stale.length) return 0;
-    await ensureExpoGo(device.udid);
+    await installDevClient(device.udid);
     const shots: { route: string; png: Buffer }[] = [];
     for (const [i, route] of stale.entries()) {
       const s = state.screens[route]!;
       const path = s.previewPath ?? previewPathFor(route);
-      // The first link may bring Expo Go up (and its dialogs); later ones only change the page.
-      await openInExpoGo(device.udid, `${preview.expoGoUrl}/--${expoGoPath(path, route)}`, { watch: i === 0 ? 10 : 3 });
+      // The first link may load the app in Sparkflow Dev (and its dialogs); later ones only change the page.
+      await openInDevClient(device.udid, preview.expoGoUrl, expoGoPath(path, route), { watch: i === 0 ? 10 : 3 });
       await sleep(i === 0 ? 2500 : 1200);
       shots.push({ route, png: await frame(device.udid, "png") });
     }
