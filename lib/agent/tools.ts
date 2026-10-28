@@ -4,7 +4,7 @@ import type { InspectStep, Sandbox } from "../sandbox/types";
 import type { ContentPart, ToolSpec } from "./llm/types";
 import { generateImage, IMAGE_SIZES, segmentUI, describeSegments } from "./meta";
 import { toJsonSchema } from "./schema";
-import { skillByName, SKILLS } from "./skills";
+import { skillBody, skillByName, SKILLS } from "./skills";
 
 export const PROTECTED = [
   /^app\/\+html\.tsx$/,
@@ -34,6 +34,8 @@ export type ToolContext = {
   finished?: string;
   /** Protected paths may be written (native projects own their whole folder). */
   unrestricted?: boolean;
+  /** The user's own app: skills come adapted to it. */
+  nativeApp?: boolean;
   commit?: (message: string) => Promise<string | null>;
 };
 
@@ -255,10 +257,10 @@ export const TOOLS = {
   skill: def({
     description: "Read a mobile skill (an exact recipe for an iOS / Android feature: liquid-glass, haptics, animations, sheets…). See the index in the system prompt.",
     schema: z.object({ name: z.string() }),
-    run: async (_ctx, a) => {
+    run: async (ctx, a) => {
       const s = skillByName(a.name);
       if (!s) return `Error: no skill "${a.name}". Skills: ${SKILLS.map((x) => x.name).join(", ")}.`;
-      return `# ${s.title}\n\n${s.body}`;
+      return `# ${s.title}\n\n${skillBody(s, !!ctx.nativeApp)}`;
     },
   }),
   finish: def({

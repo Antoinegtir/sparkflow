@@ -985,10 +985,11 @@ export class Orchestrator {
     const files = await this.readFiles(sb, chosen);
     if (focused) rt.emit({ type: "screen_status", route: focused.route, status: "building", version: screen?.version ?? 1 });
     rt.emit({ type: "phase", phase: "builder", route: focused?.route, detail: focused?.title });
-    const ctx = await this.toolCtx(rt, { unrestricted: true, local: true });
-    const tools: ToolName[] = ["list_files", "read_file", "write_file", "apply_patch", "delete_file", "typecheck", "finish"];
+    const ctx = await this.toolCtx(rt, { unrestricted: true, local: true, nativeApp: true });
+    const tools: ToolName[] = ["list_files", "read_file", "write_file", "apply_patch", "delete_file", "typecheck", "skill", "finish"];
+    const pkg = await sb.readFile("package.json").catch(() => "");
     const summary = await runBuilderTask(this.deps(rt), ctx, {
-      system: nativeBuilderSystem(notes, plan),
+      system: nativeBuilderSystem(notes, plan, dependencies(pkg)),
       task: nativePromptTask({ text: req.text, voice: !!req.audio, page: focused?.title, picks, crops: crops.length, files }),
       images,
       audio: req.audio,
@@ -999,6 +1000,16 @@ export class Orchestrator {
     // The IDE re-captures the simulator afterwards.
     if (focused) rt.emit({ type: "screen_status", route: focused.route, status: "done", version: screen?.version ?? 1 });
     rt.emit({ type: "agent_message", text: summary || "Done.", route: focused?.route });
+  }
+}
+
+/** The package names a package.json depends on. */
+export function dependencies(pkg: string): string[] {
+  try {
+    const j = JSON.parse(pkg);
+    return Object.keys({ ...j.dependencies, ...j.devDependencies });
+  } catch {
+    return [];
   }
 }
 

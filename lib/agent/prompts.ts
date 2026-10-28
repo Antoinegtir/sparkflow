@@ -1,5 +1,5 @@
 import type { AppPlan, ScreenPlan, Verdict } from "../shared";
-import { skillsFor, skillsIndex } from "./skills";
+import { MOBILE_CONTEXT, skillsFor, skillsIndex } from "./skills";
 
 export const KIT_COMPONENTS = [
   "Screen", "Header", "Text", "Card", "List", "ListItem", "Button", "IconButton", "Fab", "Input",
@@ -46,7 +46,7 @@ Do not invent requirements beyond the criteria. Return ONE JSON object matching 
  * original prompt, whose skills ("with liquid glass") apply to every screen of the first build.
  */
 export function builderSystem(rules: string, plan: AppPlan, request = "") {
-  return `${BUILDER_PREAMBLE}\n\n# AGENT_RULES.md (mandatory)\n\n${rules}\n\n${skillsIndex()}${skillsFor(request)}\n\n# App plan\n\n${JSON.stringify(plan, null, 2)}`;
+  return `${BUILDER_PREAMBLE}\n\n${MOBILE_CONTEXT}\n\n# AGENT_RULES.md (mandatory)\n\n${rules}\n\n${skillsIndex()}${skillsFor(request)}\n\n# App plan\n\n${JSON.stringify(plan, null, 2)}`;
 }
 
 const MAX_FILE = 12000;
@@ -147,21 +147,26 @@ Current files:
 ${fileBlock(o.files)}`;
 }
 
-export function nativeBuilderSystem(notes: string, plan: AppPlan) {
+export function nativeBuilderSystem(notes: string, plan: AppPlan, deps: string[] = []) {
   return `You edit the user's own React Native app in place, through tools. Fast Refresh reloads it on the simulator.
 
 Rules:
 - Make the smallest change that does what the user asks, in the project's existing style (for example @callstack/liquid-glass, @bottom-tabs/react-navigation).
 - No Expo Router, no NativeWind, no Sparkflow kit, no new packages.
+- A native feature (Liquid Glass, haptics, blur, native tabs…) needs its native package: use it when the project has it; otherwise don't imitate it, tell the user what to install.
 - Typecheck, then finish with a 1–2 sentence summary in the user's language.
 
-${notes ? `# AGENTS.md\n\n${notes}\n\n` : ""}# Pages captured from the simulator\n\n${JSON.stringify(plan.screens.map((s) => ({ title: s.title, route: s.route })), null, 2)}`;
+${MOBILE_CONTEXT}
+
+${skillsIndex(true)}
+
+${deps.length ? `# Installed packages\n\n${deps.join(", ")}\n\n` : ""}${notes ? `# AGENTS.md\n\n${notes}\n\n` : ""}# Pages captured from the simulator\n\n${JSON.stringify(plan.screens.map((s) => ({ title: s.title, route: s.route })), null, 2)}`;
 }
 
 export function nativePromptTask(o: { text: string; voice: boolean; page?: string; picks: PickInfo[]; crops: number; files: Record<string, string> }) {
   return `TASK: The user asks for a change in their native app.
 ${o.voice && !o.text.trim() ? "The user's request is in the attached voice memo." : `Request: ${o.text.trim()}`}
-${o.page ? `Page on screen: ${o.page}\n` : ""}${picksBlock(o.picks)}${o.crops ? `Crops of the ${o.crops} pointed elements are attached, in order: find the code that renders each.\n` : ""}
+${o.page ? `Page on screen: ${o.page}\n` : ""}${picksBlock(o.picks)}${skillsFor(o.text, 3, true)}${o.crops ? `Crops of the ${o.crops} pointed elements are attached, in order: find the code that renders each.\n` : ""}
 Source files:
 ${fileBlock(o.files)}`;
 }

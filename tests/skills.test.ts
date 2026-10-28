@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { expoGoPath } from "../lib/shared";
 import { SKILLS, skillsFor, skillsIndex } from "../lib/agent/skills";
 import { executeTool, type ToolContext } from "../lib/agent/tools";
+import { nativeBuilderSystem } from "../lib/agent/prompts";
+import type { AppPlan } from "../lib/shared";
 
 describe("mobile skills", () => {
   it("inlines the skills a request names", () => {
@@ -9,6 +11,16 @@ describe("mobile skills", () => {
     expect(skillsFor("ajoute des vibrations quand je coche")).toContain("expo-haptics");
     expect(skillsFor("un bottom sheet pour créer une tâche")).toContain('presentation: "formSheet"');
     expect(skillsFor("change le titre en bleu")).toBe("");
+  });
+
+  it("gives the user's own app a native recipe, never a look-alike", async () => {
+    const glass = skillsFor("ajoute du liquid glass", 3, true);
+    expect(glass).toContain("@callstack/liquid-glass");
+    expect(glass).not.toContain("components/kit");
+    expect(skillsFor("ajoute des vibrations", 3, true)).toMatch(/^[\s\S]*this project's own styling[\s\S]*expo-haptics/);
+    const ctx = { nativeApp: true } as ToolContext;
+    expect((await executeTool(ctx, "skill", JSON.stringify({ name: "liquid-glass" }))).text).toContain("LiquidGlassView");
+    expect(nativeBuilderSystem("", { screens: [] } as unknown as AppPlan, ["@callstack/liquid-glass"])).toMatch(/native mobile app[\s\S]*- liquid-glass:[\s\S]*@callstack\/liquid-glass/);
   });
 
   it("lists every skill in the index, with unique names", () => {
