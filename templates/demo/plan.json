@@ -1,0 +1,92 @@
+{
+  "name": "Wander",
+  "theme": { "primary": "#0E7C7B", "background": "#F5F2EC" },
+  "dataModel": [
+    { "entity": "Place", "fields": { "id": "string", "name": "string", "country": "string", "category": "beach | mountain | city | nature", "rating": "number", "price": "number", "photo": "asset" } },
+    { "entity": "Trip", "fields": { "id": "string", "title": "string", "placeIds": "string[]", "start": "ISO date", "nights": "number", "budget": "number" } }
+  ],
+  "screens": [
+    {
+      "route": "/(tabs)/index",
+      "file": "app/(tabs)/index.tsx",
+      "title": "Explore",
+      "purpose": "Discover destinations: a full-bleed featured photo, a floating glass search bar, category chips, a carousel of popular places and a list of deals.",
+      "components": ["Glass", "GlassGroup", "PlaceCard", "Tabs"],
+      "navigatesTo": ["/place/[id]", "/trip/new"],
+      "acceptance": [
+        "A full-width travel photo fills the top of the screen with the featured destination name in large white text over it",
+        "A rounded translucent search bar with the placeholder \"Où partir ?\" floats over the photo near the top",
+        "A row of category chips (Tout, Plages, Montagnes…) is visible with the first one highlighted",
+        "Photo cards of popular destinations with their names and a rating pill appear below the chips",
+        "A bottom tab bar shows Explorer, Voyages, Favoris and Profil"
+      ]
+    },
+    {
+      "route": "/(tabs)/trips",
+      "file": "app/(tabs)/trips.tsx",
+      "title": "Trips",
+      "purpose": "The user's planned trips as photo cards with dates and a countdown, with totals and a way to plan a new trip.",
+      "components": ["Header", "Stat", "Glass", "Card"],
+      "navigatesTo": ["/trip/new", "/place/[id]"],
+      "acceptance": [
+        "The title \"Mes voyages\" is shown with a round add button on the right",
+        "Three stat tiles show the number of trips, nights and countries",
+        "At least three trip cards show a photo, a trip title in white and a dates pill"
+      ]
+    },
+    {
+      "route": "/(tabs)/saved",
+      "file": "app/(tabs)/saved.tsx",
+      "title": "Saved",
+      "purpose": "Destinations the user saved, as a two-column grid of photo cards.",
+      "components": ["Header", "PlaceCard", "EmptyState"],
+      "navigatesTo": ["/place/[id]"],
+      "acceptance": [
+        "The title \"Favoris\" is shown with the number of saved destinations",
+        "Saved destinations appear as photo cards in two columns, each with a name and a country"
+      ]
+    },
+    {
+      "route": "/(tabs)/profile",
+      "file": "app/(tabs)/profile.tsx",
+      "title": "Profile",
+      "purpose": "The traveller's profile: avatar, yearly goal progress, stats, appearance switch and preferences.",
+      "components": ["Avatar", "ProgressBar", "Stat", "Segmented", "Toggle", "List"],
+      "navigatesTo": [],
+      "acceptance": [
+        "A card shows an avatar with initials, the name \"Camille Martin\" and a progress bar",
+        "A segmented control with Auto, Clair and Sombre is visible",
+        "A preferences list includes a toggle and rows for currency and departure airport"
+      ]
+    },
+    {
+      "route": "/place/[id]",
+      "file": "app/place/[id].tsx",
+      "title": "Place",
+      "purpose": "One destination: a hero photo, a glass info panel with country, name, rating and key facts, a description, highlights and a floating price bar to plan a trip.",
+      "components": ["Glass", "GlassGroup", "Card", "Button"],
+      "navigatesTo": ["/trip/new"],
+      "acceptance": [
+        "A large photo fills the top of the screen with round back and heart buttons over it",
+        "A translucent panel overlapping the photo shows the country, the destination name in large text and a star rating",
+        "A description paragraph and a numbered list of highlights appear below the panel",
+        "A bar at the bottom shows a price in euros and a \"Planifier\" button"
+      ],
+      "previewPath": "/place/santorini"
+    },
+    {
+      "route": "/trip/new",
+      "file": "app/trip/new.tsx",
+      "title": "New trip",
+      "purpose": "A form sheet to create a trip: name, destinations, departure month, number of nights and an estimated budget.",
+      "components": ["Input", "Segmented", "IconButton", "Button"],
+      "navigatesTo": ["/(tabs)/trips"],
+      "acceptance": [
+        "The title \"Nouveau voyage\" is shown with a close button",
+        "Destination chips with small round photos are shown and at least one is selected",
+        "A duration row has minus and plus buttons around a number of nights",
+        "An estimated budget in euros and a \"Créer le voyage\" button are visible"
+      ]
+    }
+  ]
+}

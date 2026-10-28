@@ -1,19 +1,19 @@
-import { GlassView, isLiquidGlassAvailable } from "expo-glass-effect";
+import { LiquidGlassView, isLiquidGlassSupported } from "@callstack/liquid-glass";
 import { cssInterop } from "nativewind";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Platform, StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
 import { useIsDark } from "@/constants/theme";
 import { cn } from "@/lib/cn";
 import { SurfaceContext } from "./surface";
 
-// GlassView is a native view NativeWind doesn't know: without this its className (padding, radius) is dropped.
-cssInterop(GlassView, { className: "style" });
+// Native views NativeWind doesn't know: without this their className (padding, radius) is dropped.
+cssInterop(LiquidGlassView, { className: "style" });
 
 /** True on iOS 26+, where Glass is Apple's real Liquid Glass. */
-export const liquidGlass = Platform.OS === "ios" && isLiquidGlassAvailable();
+export const liquidGlass = Platform.OS === "ios" && isLiquidGlassSupported;
 
 /**
- * Apple's Liquid Glass (iOS 26, expo-glass-effect): a refracting, light-catching surface over the
+ * Apple's Liquid Glass (iOS 26, @callstack/liquid-glass): a refracting, light-catching surface over the
  * content behind it. Elsewhere (web, Android, older iOS) a translucent blurred surface stands in.
  * Put it over something (a scroll, an image, a colored background): over a flat color glass shows little.
  */
@@ -39,18 +39,25 @@ export function Glass({
 }) {
   const dark = useIsDark();
   const inner = <SurfaceContext.Provider value="card">{children}</SurfaceContext.Provider>;
+  // UIGlassEffect draws nothing when the corner radius exceeds half the height (rounded-full is 9999):
+  // pills get a measured capsule radius instead.
+  const pill = !!className && /(^|\s)rounded-full(\s|$)/.test(className);
+  const [height, setHeight] = useState(0);
   if (liquidGlass) {
     return (
-      <GlassView
+      <LiquidGlassView
         testID={testID}
-        glassEffectStyle={variant}
-        tintColor={tint}
-        isInteractive={interactive}
+        effect={variant}
+        // A light default tint keeps small glass legible over bright photos.
+        tintColor={tint ?? (dark ? "rgba(20,22,28,0.35)" : "rgba(255,255,255,0.25)")}
+        interactive={interactive}
         colorScheme={dark ? "dark" : "light"}
-        className={cn("rounded-theme overflow-hidden", className)}
-        style={style}>
+        // No overflow-hidden: clipping the effect view cuts its edge highlights and leaves it patchy.
+        className={cn("rounded-theme", className)}
+        onLayout={pill ? (e) => setHeight(e.nativeEvent.layout.height) : undefined}
+        style={[style, pill ? { borderRadius: height / 2 } : null]}>
         {inner}
-      </GlassView>
+      </LiquidGlassView>
     );
   }
   return (
@@ -66,8 +73,20 @@ export function Glass({
 /** Glass filling its parent, for backgrounds (tab bar, headers). */
 export function GlassFill({ variant = "regular" }: { variant?: "regular" | "clear" }) {
   const dark = useIsDark();
-  if (liquidGlass) return <GlassView glassEffectStyle={variant} colorScheme={dark ? "dark" : "light"} style={StyleSheet.absoluteFill} />;
+  if (liquidGlass) return <LiquidGlassView effect={variant} colorScheme={dark ? "dark" : "light"} style={StyleSheet.absoluteFill} />;
   return <View className={variant === "clear" ? "bg-surface/40" : "bg-surface/80"} style={[StyleSheet.absoluteFill, fallback.glass]} />;
+}
+
+/**
+ * Lays out a row of Glass controls. A plain View on purpose: liquid-glass 0.7's
+ * LiquidGlassContainerView shifts its children (they render about one padding to the right).
+ */
+export function GlassGroup({ children, className, style }: { children?: ReactNode; spacing?: number; className?: string; style?: StyleProp<ViewStyle> }) {
+  return (
+    <View className={className} style={style}>
+      {children}
+    </View>
+  );
 }
 
 const fallback = StyleSheet.create({

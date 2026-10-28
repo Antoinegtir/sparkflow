@@ -3,9 +3,18 @@ import { Platform } from "react-native";
 import { GlassFill } from "./Glass";
 import { palettes } from "@/constants/theme";
 import { colors } from "@/constants/theme";
+import type { IconName } from "./Icon";
+
+/** Options of a kit Tabs.Screen. */
+export type TabOptions = {
+  title?: string;
+  /** `sf`: SF Symbol (iOS). `ion`: Ionicons name (Android, web). */
+  icon?: { sf: string; ion: IconName };
+  badge?: string;
+};
 
 /**
- * Screen options for expo-router/js-tabs. Pass the scheme's palette from useColors().
+ * Screen options for expo-router/js-tabs (what kit Tabs uses on web). Pass the scheme's palette from useColors().
  * `{ glass: true }`: a Liquid Glass tab bar floating over the content (the screens scroll under it).
  */
 export function tabsScreenOptions(c = colors, opts: { glass?: boolean } = {}) {

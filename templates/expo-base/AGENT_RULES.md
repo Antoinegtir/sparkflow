@@ -11,16 +11,13 @@ You are editing an Expo Router app (Expo SDK 58, React Native 0.88, NativeWind 4
 
 ```tsx
 // app/(tabs)/_layout.tsx
-import { Tabs } from "expo-router/js-tabs";
-import { Icon, tabsScreenOptions } from "@/components/kit";
-import { useColors } from "@/constants/theme";
+import { Tabs } from "@/components/kit";
 
 export default function TabsLayout() {
-  const c = useColors();
   return (
-    <Tabs screenOptions={tabsScreenOptions(c)}>
-      <Tabs.Screen name="index" options={{ title: "Today", tabBarIcon: ({ color }) => <Icon name="today-outline" color={color} /> }} />
-      <Tabs.Screen name="stats" options={{ title: "Stats", tabBarIcon: ({ color }) => <Icon name="stats-chart-outline" color={color} /> }} />
+    <Tabs>
+      <Tabs.Screen name="index" options={{ title: "Today", icon: { sf: "calendar", ion: "today-outline" } }} />
+      <Tabs.Screen name="stats" options={{ title: "Stats", icon: { sf: "chart.bar.fill", ion: "stats-chart-outline" } }} />
     </Tabs>
   );
 }
@@ -105,7 +102,7 @@ export const useStore = create<State>()(
 - `Screen({ testID, scroll? })`: page container with safe area, scroll, 20 px gutters and 16 px gap. A `Fab` child floats above the content.
 - `Header({ title, subtitle?, back?, right?, testID })`
 - `Text({ variant?: "title" | "heading" | "subheading" | "body" | "caption" | "label", className? })`
-- `Card({ onPress?, testID, accessibilityLabel?, className? })`
+- `Card({ onPress?, testID, accessibilityLabel?, className?, glass? })`
 - `List({ testID })` wraps `ListItem({ title, subtitle?, icon?, left?, right?, chevron?, onPress?, testID })`
 - `Section({ title, right?, testID })`
 - `Button({ title, onPress, variant?: "primary" | "secondary" | "ghost" | "danger", icon?, loading?, disabled?, testID })`
@@ -118,7 +115,8 @@ export const useStore = create<State>()(
 - `BarChart({ data: { label, value }[], height?, testID })`, `ProgressBar({ value: 0..1, testID })`
 - `Stat({ label, value, hint?, testID })`, `Badge({ label, tone?: "primary" | "success" | "danger" | "neutral" })`
 - `Avatar({ name, uri?, size?: "sm" | "md" | "lg" })`, `Icon({ name, size?, color? })`, `Divider({ inset? })`
-- `tabsScreenOptions(colors)` for `expo-router/js-tabs`.
+- `Tabs({ glass? })` + `Tabs.Screen({ name, options?: { title?, icon?: { sf: SF Symbol, ion: Ionicons name }, badge? } })`: native tab bar on iOS/Android, js-tabs on web.
+- `Glass({ variant?: "regular" | "clear", tint?, interactive?, className?, testID })`, `GlassGroup({ className? })` (a row of Glass controls), `GlassFill({ variant? })`.
 
 ## Packages
 

@@ -7,7 +7,8 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "supportsTablet": false
+      "supportsTablet": false,
+      "bundleIdentifier": "dev.sparkflow.app"
     },
     "android": {
       "adaptiveIcon": {
@@ -16,7 +17,8 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "dev.sparkflow.app"
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -30,7 +32,15 @@
           "asyncRoutes": false
         }
       ],
-      "expo-image"
+      "expo-image",
+      "expo-dev-client",
+      [
+        "react-native-bottom-tabs",
+        {
+          "theme": "material3"
+        }
+      ],
+      "./plugins/with-prebuilt-react-headers"
     ],
     "scheme": "sparkflow",
     "experiments": {

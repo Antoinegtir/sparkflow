@@ -7,7 +7,7 @@ const VARIANTS = {
   subheading: "text-base font-semibold text-text",
   body: "text-base text-text",
   caption: "text-[13px] text-muted",
-  label: "text-[13px] font-semibold uppercase tracking-wide text-muted",
+  label: "text-[13px] font-semibold uppercase leading-[18px] tracking-wide text-muted",
 };
 
 export type TextVariant = keyof typeof VARIANTS;
