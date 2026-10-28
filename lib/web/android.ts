@@ -114,7 +114,7 @@ export async function type(serial: string, text: string) {
   await shell(serial, "input", "text", inputText(text));
 }
 
-const KEYS = { VOLUME_UP: "24", VOLUME_DOWN: "25", SIDE_BUTTON: "26" } as const;
+const KEYS = { VOLUME_UP: "24", VOLUME_DOWN: "25", SIDE_BUTTON: "26", HOME: "3" } as const;
 export async function button(serial: string, b: keyof typeof KEYS, hold = 0.1) {
   await shell(serial, "input", "keyevent", ...(hold >= 0.5 ? ["--longpress"] : []), KEYS[b]);
 }

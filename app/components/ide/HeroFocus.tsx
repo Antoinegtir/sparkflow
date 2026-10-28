@@ -1,7 +1,7 @@
 "use client";
 
 import clsx from "clsx";
-import { Camera, Check, Crosshair, ExternalLink, FileDiff, Loader2, Moon, Play, RotateCcw, RotateCw, Smartphone, Sun, Tablet, X } from "lucide-react";
+import { Camera, Check, Crosshair, ExternalLink, FileDiff, House, Loader2, Moon, Play, RotateCcw, RotateCw, Smartphone, Sun, Tablet, X } from "lucide-react";
 import { animate, motion, useMotionValue } from "motion/react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { isAppMessage, matchRoute, qualityFixPrompt, type ProjectState, type ScreenState } from "@/lib/shared";
@@ -50,7 +50,7 @@ type Props = {
   onRestore: (v: number) => void;
   onUndo: () => void;
   onDiff: (sha: string) => void;
-  onSimButton: (b: "VOLUME_UP" | "VOLUME_DOWN" | "SIDE_BUTTON", hold: number) => void;
+  onSimButton: (b: "VOLUME_UP" | "VOLUME_DOWN" | "SIDE_BUTTON" | "HOME", hold: number) => void;
 };
 
 /**
@@ -524,6 +524,12 @@ function ToolRail(p: Omit<Props, "onDevice"> & { style: React.CSSProperties; onR
       <button onClick={() => p.onInspect(!p.inspect)} disabled={p.state.status === "running"} title="Point at elements" aria-label="Point at elements" className={clsx(btn, p.inspect && "bg-spark-500/15 text-spark-400")}>
         <Crosshair size={15} />
       </button>
+      {(native || p.state.previewDevice === "simulator") && sim.device && (
+        // The real Simulator / emulator: Home leaves the app for the home screen.
+        <button onClick={() => p.onSimButton("HOME", 100)} title="Home: leave the app" aria-label="Home" className={btn}>
+          <House size={15} />
+        </button>
+      )}
       {!native && (
         <>
           <button onClick={p.onReload} title="Reload the preview" aria-label="Reload the preview" className={btn}>
