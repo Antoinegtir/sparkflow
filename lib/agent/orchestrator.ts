@@ -439,7 +439,7 @@ export class Orchestrator {
     for (const s of plan.screens) rt.emit({ type: "screen_status", route: s.route, status: "building", version: 1, attempt: 1 });
     await applyDemoOverlay(sb);
     const sha = await gitCommit(sb, `${plan.name} demo app`);
-    if (sha) rt.emit({ type: "commit", sha, message: `${plan.name} demo app`, routes: plan.screens.map((s) => s.route) });
+    if (sha) rt.emit({ type: "commit", sha, message: `${plan.name}, app de démo`, routes: plan.screens.map((s) => s.route) });
     await this.emitTree(rt);
     await this.updateNav(rt);
     const p = await sb.startDevServer();
@@ -465,7 +465,7 @@ export class Orchestrator {
     await markSeeded();
     rt.emit({
       type: "agent_message",
-      text: `${plan.name} is a demo app built with Sparkflow. Open a page, then describe a change to see the agent at work. Opening it on a device builds Sparkflow Dev once, about 6 minutes for the iOS Simulator and 15 for the Android emulator; after that apps open in seconds.`,
+      text: `${plan.name} est une app de démo faite avec Sparkflow. Ouvrez une page, puis décrivez un changement pour voir l'agent à l'œuvre. La première ouverture sur un appareil compile Sparkflow Dev une fois (environ 6 minutes pour le simulateur iOS, 15 pour l'émulateur Android) ; ensuite les apps s'ouvrent en quelques secondes.`,
     });
   }
 
