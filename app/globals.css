@@ -31,6 +31,11 @@
   mix-blend-mode: screen;
   mask-image: radial-gradient(circle, black 55%, transparent 72%);
 }
+/* Safari's play button over a muted loop it hasn't started yet (LoopVideo starts it on the first gesture). */
+.hero-logo::-webkit-media-controls-start-playback-button,
+.hero-logo::-webkit-media-controls {
+  display: none !important;
+}
 
 /* Content beside the pinned phone (ScrollVideo): phone + gap + content, centered as one group. */
 @media (min-width: 1024px) {

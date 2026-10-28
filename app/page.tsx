@@ -3,6 +3,7 @@ import { DotLens } from "./components/DotLens";
 import { MetaLogo } from "./components/MetaLogo";
 import { ScrollVideo } from "./components/ScrollVideo";
 import { HowItWorks } from "./components/HowItWorks";
+import { LoopVideo } from "./components/LoopVideo";
 import { ReactLogo } from "./components/ReactLogo";
 import { ImportNative } from "./components/ImportNative";
 import { ProjectGrid } from "./components/ProjectGrid";
@@ -54,9 +55,9 @@ export default function Home() {
 
       {/* Android and Apple glass logos on each side of the headline (wide screens only). */}
       <div aria-hidden className="pointer-events-none absolute inset-x-0 top-24 mx-auto hidden max-w-6xl justify-between px-2 lg:flex">
-        <video className="hero-logo h-56 w-56 -rotate-6" src="/videos/android.webm" autoPlay muted loop playsInline />
+        <LoopVideo className="hero-logo h-56 w-56 -rotate-6" src="/videos/android.mp4" />
         {/* Starts half a turn later (#t=): both loops last 15 s, so they never spin in sync. */}
-        <video className="hero-logo h-56 w-56 rotate-6" src="/videos/apple.webm#t=7.5" autoPlay muted loop playsInline />
+        <LoopVideo className="hero-logo h-56 w-56 rotate-6" src="/videos/apple.mp4#t=7.5" />
       </div>
 
       <section className="relative mx-auto flex max-w-3xl flex-col items-center px-6 pb-4 pt-16 text-center sm:pt-24">
@@ -86,7 +87,7 @@ export default function Home() {
       </section>
 
       {/* Scroll-scrubbed glass phone, right under the import link. */}
-      <ScrollVideo src="/videos/phone.webm">
+      <ScrollVideo src="/videos/phone.mp4">
         <HowItWorks />
       </ScrollVideo>
       <div id="apps" className="scroll-mt-20">

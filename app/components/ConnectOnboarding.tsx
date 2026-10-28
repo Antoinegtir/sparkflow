@@ -5,6 +5,7 @@ import { Check, Copy, Lock, Terminal } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { getBackend, setBackend } from "@/lib/web/backend";
 import { DotLens } from "./DotLens";
+import { LoopVideo } from "./LoopVideo";
 
 const INSTALL = "curl -fsSL https://sparkflow-ai.web.app/install.sh | bash";
 const POLL_MS = 2000;
@@ -155,9 +156,9 @@ export function ConnectOnboarding() {
       {/* The landing's Android and Apple glass logos, on each side of the steps (wide screens only). */}
       {/* Centred with flex, not a transform: a transform isolates the videos, so their screen blend would show black. */}
       <div aria-hidden className="pointer-events-none absolute inset-0 mx-auto hidden max-w-6xl items-center justify-between px-6 lg:flex">
-        <video className="hero-logo h-56 w-56 -rotate-6" src="/videos/android.webm" autoPlay muted loop playsInline />
+        <LoopVideo className="hero-logo h-56 w-56 -rotate-6" src="/videos/android.mp4" />
         {/* Starts half a turn later (#t=): both loops last 15 s, so they never spin in sync. */}
-        <video className="hero-logo h-56 w-56 rotate-6" src="/videos/apple.webm#t=7.5" autoPlay muted loop playsInline />
+        <LoopVideo className="hero-logo h-56 w-56 rotate-6" src="/videos/apple.mp4#t=7.5" />
       </div>
 
       <div className="relative w-full max-w-[520px]">
