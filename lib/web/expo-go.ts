@@ -33,8 +33,9 @@ async function installedVersion(udid: string) {
  */
 export async function ensureExpoGo(udid: string) {
   if (android.isAndroidId(udid)) return android.ensureExpoGo(udid, await templateSdk());
-  // The app opens straight away: no developer menu at launch, no one-time menu walkthrough.
-  for (const [key, value] of [["EXDevMenuShowsAtLaunch", "NO"], ["EXDevMenuIsOnboardingFinished", "YES"]]) {
+  // The app opens straight away and alone on screen: no developer menu at launch, no one-time menu
+  // walkthrough, no floating dev tools button over it (Expo Go reads these when it starts).
+  for (const [key, value] of [["EXDevMenuShowsAtLaunch", "NO"], ["EXDevMenuIsOnboardingFinished", "YES"], ["EXDevMenuShowFloatingActionButton", "NO"]]) {
     await simctl("spawn", udid, "defaults", "write", BUNDLE, key, "-bool", value).catch(() => {});
   }
   const sdk = await templateSdk();
