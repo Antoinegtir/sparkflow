@@ -10,12 +10,11 @@ import { StatusDot } from "./ui";
 const ASSET_MIME = "application/x-sparkflow-asset";
 const IMAGE = /\.(png|jpe?g|gif|webp|svg)$/i;
 
+/** The landing's folder emoji (as on "Import from a React Native project"); it tilts open when dragged onto. */
 function FolderIcon({ open, size = 44 }: { open?: boolean; size?: number }) {
   return (
-    <svg width={size} height={size * 0.8} viewBox="0 0 50 40" aria-hidden>
-      <path d="M3 6a3 3 0 0 1 3-3h12l4 4h22a3 3 0 0 1 3 3v3H3z" fill="#5aa9f0" />
-      <path d={open ? "M1 15a3 3 0 0 1 3-3h42a3 3 0 0 1 3 3l-3 20a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3z" : "M3 12a3 3 0 0 1 3-3h38a3 3 0 0 1 3 3v23a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3z"} fill="#7cc0ff" />
-    </svg>
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src="/folder.png" alt="" width={size} height={size} draggable={false} className={clsx("transition", open && "-rotate-6 scale-110")} style={{ width: size, height: size }} />
   );
 }
 

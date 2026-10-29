@@ -8,6 +8,7 @@ import { ReactLogo } from "./components/ReactLogo";
 import { ImportNative } from "./components/ImportNative";
 import { ProjectGrid } from "./components/ProjectGrid";
 import { DemoNotice } from "./components/DemoNotice";
+import { LandingPresence } from "./components/LandingPresence";
 import { Logo } from "./components/Logo";
 import { SignIn } from "./components/SignIn";
 import { StartBuilding } from "./components/StartBuilding";
@@ -94,6 +95,7 @@ export default function Home() {
         <ProjectGrid />
       </div>
       <DemoNotice />
+      <LandingPresence />
       <footer className="relative mx-auto max-w-5xl border-t border-ink-800 px-6 pb-10 pt-6">
         <div className="flex flex-col items-center justify-between gap-3 text-[12.5px] text-ink-400 sm:flex-row">
           <span className="flex items-center gap-2">

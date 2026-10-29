@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MediaInput, ScreenState } from "@/lib/shared";
 import { APP_SCHEME_KEY, darkStale, inScheme, type AppScheme } from "@/lib/web/app-scheme";
+import { usePresence } from "@/lib/web/presence";
 import { SIM_CHANGED, useSimDevice } from "@/lib/web/sim-device";
 import { useProject } from "@/lib/web/useProject";
 import { ActivityPanel, type FlowAction, type PanelTab } from "./ActivityPanel";
@@ -53,6 +54,13 @@ export function IDE({ id, slug: initialSlug, initialPage }: { id: string; slug: 
   const [capturingDark, setCapturingDark] = useState(false);
   const [simFrozen, setSimFrozen] = useState<string | null>(null);
   const triedDark = useRef(new Set<string>());
+
+  // The `sparkflow` terminal follows along: this app, the page in focus, Play.
+  usePresence(
+    state
+      ? { view: "app", projectId: id, page: focused ? state.screens[focused]?.title : undefined, mode: play ? "play" : focused ? "page" : "canvas", device: state.native ? "simulator" : state.previewDevice }
+      : null,
+  );
 
   // ---- persisted UI prefs ----
   useEffect(() => {

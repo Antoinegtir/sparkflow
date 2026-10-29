@@ -31,10 +31,16 @@ const logPath = join(logDir, "server.log");
 const log = createWriteStream(logPath, { flags: "w" });
 
 // First run (or `--key`): the Muse Spark API key, before the status screen takes the terminal.
-await onboarding({ force: process.argv.includes("--key") });
-if (process.argv.includes("--key")) process.exit(0);
+const setup = { key: process.argv.includes("--key"), folder: process.argv.includes("--folder") };
+await onboarding(setup);
+if (setup.key || setup.folder) process.exit(0);
+// The apps folder the onboarding may just have picked.
+if (process.env.SPARKFLOW_DATA_DIR) env.SPARKFLOW_DATA_DIR = process.env.SPARKFLOW_DATA_DIR;
 
 // ---------- Terminal screen ----------
+// The Sparkflow spark on the left, the run's state on the right. The screen follows the open
+// Sparkflow tab (GET /api/presence): its colors, the spark's shimmer, the window title and, in
+// terminals that allow it, a tint of the background change with the page you are on.
 const tty = process.stdout.isTTY;
 const c = (code) => (s) => (tty ? `\x1b[${code}m${s}\x1b[0m` : s);
 const dim = c("2"), bold = c("1"), green = c("32"), red = c("31"), yellow = c("33"), blue = c("38;5;75");
@@ -44,15 +50,80 @@ const FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏";
 const home = homedir();
 const short = (p) => (p.startsWith(home) ? "~" + p.slice(home.length) : p);
 
+const LOGO = (() => {
+  const raw = `
+              -%-.
+             :=%@:.
+            .:*@@+.
+           :..=+%#-
+          :. ..:-+**:.
+       ::.    ...:*#%@#-.
+   -=-:..  ::....-++##+=---:
+.-+##*+-::      .:=:.....
+     :=-.       ......
+        :-.    :.:::
+          :. .====.
+          ...+%*+.
+           :-#+=
+           .++-
+            *=
+            :`.split("\n").slice(1);
+  const width = Math.max(...raw.map((l) => l.length));
+  return raw.map((l) => l.padEnd(width));
+})();
+const LOGO_W = LOGO[0].length;
+// How bright each character of the spark is drawn.
+const WEIGHT = { ".": 0.2, ":": 0.32, "-": 0.42, "=": 0.55, "+": 0.66, "*": 0.76, "#": 0.86, "%": 0.94, "@": 1 };
+
+const truecolor = /truecolor|24bit/i.test(process.env.COLORTERM ?? "");
+function fg([r, g, b]) {
+  if (truecolor) return `\x1b[38;2;${r};${g};${b}m`;
+  const q = (v) => Math.round((v / 255) * 5);
+  return `\x1b[38;5;${16 + 36 * q(r) + 6 * q(g) + q(b)}m`;
+}
+const mix = (a, b, t) => a.map((v, i) => Math.round(v + (b[i] - v) * t));
+const hex = (rgb) => "#" + rgb.map((v) => v.toString(16).padStart(2, "0")).join("");
+
+/** One look per place: the spark's dark and bright colors, its glint, its speed, the background tint. */
+const THEMES = {
+  idle: { dim: [38, 46, 64], hi: [110, 130, 175], glow: [200, 215, 255], speed: 0.35, bg: [11, 13, 18] },
+  hero: { dim: [18, 48, 110], hi: [55, 140, 255], glow: [195, 228, 255], speed: 0.6, bg: [10, 16, 32] },
+  how: { dim: [52, 30, 110], hi: [150, 105, 255], glow: [228, 210, 255], speed: 0.6, bg: [17, 12, 30] },
+  apps: { dim: [12, 66, 78], hi: [40, 200, 200], glow: [205, 255, 250], speed: 0.6, bg: [8, 22, 26] },
+  write: { dim: [26, 58, 120], hi: [90, 175, 255], glow: [255, 255, 255], speed: 1.5, bg: [10, 18, 36] },
+  record: { dim: [110, 24, 40], hi: [255, 82, 104], glow: [255, 214, 220], speed: 1.2, bg: [26, 10, 14] },
+  build: { dim: [110, 68, 10], hi: [255, 182, 40], glow: [255, 242, 205], speed: 1.7, bg: [23, 18, 10] },
+  done: { dim: [14, 78, 40], hi: [60, 212, 122], glow: [212, 255, 226], speed: 0.5, bg: [10, 22, 14] },
+  failed: { dim: [110, 24, 30], hi: [240, 82, 82], glow: [255, 204, 204], speed: 0.4, bg: [26, 10, 12] },
+  play: { dim: [98, 20, 90], hi: [240, 92, 212], glow: [255, 216, 246], speed: 1.1, bg: [24, 10, 23] },
+  away: { dim: [34, 37, 45], hi: [84, 92, 110], glow: [140, 150, 170], speed: 0.2, bg: [12, 13, 16] },
+};
+// The colors on screen glide toward the current theme instead of jumping.
+let look = { ...THEMES.idle };
+function glide(target) {
+  for (const k of ["dim", "hi", "glow", "bg"]) look[k] = mix(look[k], target[k], 0.18);
+  look.speed += (target.speed - look.speed) * 0.18;
+}
+
+// Background tint and title: only where the terminal supports setting them (and SPARKFLOW_TINT=0 turns the tint off).
+const tintable =
+  tty && process.env.SPARKFLOW_TINT !== "0" && (/^(iTerm\.app|ghostty|WezTerm)$/.test(process.env.TERM_PROGRAM ?? "") || /kitty|ghostty/.test(process.env.TERM ?? ""));
+let tinted = "";
+let titled = "";
+
 const steps = [
   { label: "Server", state: "wait", detail: "" },
   { label: "Tunnel", state: "wait", detail: "" },
   { label: "Reachable", state: "wait", detail: "" },
 ];
 let frame = 0;
+let shimmer = 0;
 let ready = null; // { url, link } once everything is up
 let warning = "";
 let drawn = 0;
+/** The open tab's whereabouts, polled from the server. */
+let report = null;
+let presenceTimer;
 
 /** Cuts a line to `width` visible characters, keeping its color and link escape codes whole. */
 function fit(line, width) {
@@ -76,34 +147,126 @@ function fit(line, width) {
   }
   return out + (tty ? "\x1b[0m" : "");
 }
+const visible = (s) => s.replace(/\x1b(\[[0-9;?]*[A-Za-z]|\]8;;[^\x07]*\x07)/g, "").length;
+
+/** A row of the spark: dark to bright by character, with a glint sweeping across it diagonally. */
+function logoRow(y) {
+  const sweep = LOGO_W + LOGO.length * 2 + 16;
+  const pos = (shimmer % sweep) - 8;
+  let out = "";
+  for (let x = 0; x < LOGO_W; x++) {
+    const ch = LOGO[y][x];
+    const w = WEIGHT[ch];
+    if (!w) {
+      out += " ";
+      continue;
+    }
+    const glint = Math.max(0, 1 - Math.abs(x + y * 2 - pos) / 5);
+    out += fg(mix(mix(look.dim, look.hi, w), look.glow, glint * 0.8)) + ch;
+  }
+  return out + "\x1b[0m";
+}
+
+const deviceName = (d) =>
+  !d ? "" : d === "simulator" ? "live Simulator" : d.replace(/iphone/i, "iPhone").replace(/ipad/i, "iPad").replace(/android/i, "Android").replace(/-/g, " ");
+
+function bar(done, total, moving) {
+  const width = 20;
+  const full = total ? Math.round((done / total) * width) : 0;
+  const head = moving ? full + (Math.floor(frame / 2) % Math.max(1, width - full)) : -1;
+  let s = "";
+  for (let i = 0; i < width; i++) s += i < full ? fg(look.hi) + "█" : i === head ? fg(look.glow) + "▓" : fg(look.dim) + "░";
+  return `${s}\x1b[0m ${dim(`${done}/${total}`)}`;
+}
+
+/** Where the open tab is, as a theme, a title and a few lines. */
+function scene() {
+  if (!ready) return { theme: "idle", title: "Sparkflow", lines: [] };
+  const p = report?.presence;
+  if (!p || report.age == null || report.age > 25000) {
+    return { theme: "idle", title: "Sparkflow", head: `${dim("○")} Waiting for the site`, lines: [dim("Open it below: it finds this computer by itself.")] };
+  }
+  if (p.hidden) return { theme: "away", title: "Sparkflow", head: `${dim("◌")} Sparkflow is in a background tab`, lines: [dim("Come back to it and this screen follows.")] };
+  if (p.view === "home") {
+    if (p.composer === "recording") return { theme: "record", title: "Sparkflow — recording", head: `${red("●")} Recording a voice memo`, lines: [dim("Describe the app out loud, Muse Spark listens.")] };
+    if (p.composer === "sketch") return { theme: "write", title: "Sparkflow — new app", head: `${blue("◆")} A sketch is attached`, lines: [dim(p.draft ? `“${p.draft}”` : "SAM 3.1 will read its layout.")] };
+    if (p.composer === "writing") return { theme: "write", title: "Sparkflow — new app", head: `${blue("✎")} Describing an app`, lines: [`“${p.draft ?? ""}${frame % 12 < 6 ? "▍" : " "}”`] };
+    if (p.section === "how") return { theme: "how", title: "Sparkflow — How it works", head: "How it works", lines: [dim("Plan → build → screenshot → fix, until every page matches.")] };
+    if (p.section === "apps") {
+      const n = report.apps;
+      return { theme: "apps", title: "Sparkflow — My apps", head: "My apps", lines: [dim(`${n} app${n === 1 ? "" : "s"} on this computer`)] };
+    }
+    return { theme: "hero", title: "Sparkflow", head: "On the landing", lines: [dim("Describe an app, drop a sketch or record a voice memo.")] };
+  }
+  const pj = report.project;
+  const name = pj?.name ?? "App";
+  const where = p.page ? `${name} › ${p.page}` : name;
+  const device = deviceName(p.device);
+  if (p.mode === "play") return { theme: "play", title: `▶ ${name}`, head: `▶ Playing ${bold(name)}`, lines: [dim(device ? `on the ${device}` : "end to end")] };
+  if (pj?.status === "running") {
+    return { theme: "build", title: `Building ${name}`, head: `${yellow(FRAMES[frame % FRAMES.length])} Building ${bold(name)}`, lines: [dim(pj.step ?? "Working…"), bar(pj.done, pj.total, true)] };
+  }
+  if (pj?.status === "failed") return { theme: "failed", title: `${name} — stopped`, head: `${red("✗")} ${bold(where)}`, lines: [dim("The last run stopped: see the Activity tab."), bar(pj.done, pj.total, false)] };
+  const all = pj && pj.total > 0 && pj.done === pj.total;
+  return {
+    theme: all ? "done" : "hero",
+    title: where,
+    head: `${all ? green("✓") : blue("◆")} ${bold(where)}`,
+    lines: [pj ? bar(pj.done, pj.total, false) + dim(" pages verified") : "", dim([p.mode === "page" ? "page in focus" : "all pages", device].filter(Boolean).join(" · "))],
+  };
+}
 
 function draw() {
   if (!tty) return;
-  const spin = FRAMES[frame++ % FRAMES.length];
+  frame++;
+  const sc = scene();
+  glide(THEMES[sc.theme]);
+  shimmer += look.speed;
+
+  const width = (process.stdout.columns || 80) - 1;
+  if (titled !== sc.title) {
+    titled = sc.title;
+    process.stdout.write(`\x1b]0;${sc.title}\x07`);
+  }
+  if (tintable && tinted !== hex(look.bg)) {
+    tinted = hex(look.bg);
+    process.stdout.write(`\x1b]11;${tinted}\x07`);
+  }
+
+  const spin = FRAMES[frame % FRAMES.length];
   const icon = (s) => ({ wait: dim("·"), run: blue(spin), ok: green("✓"), fail: red("✗") })[s.state];
-  const lines = [
+  const panel = [
+    `${fg(look.hi)}✦\x1b[0m ${bold("Sparkflow")} ${dim("v" + version)}`,
     "",
-    `  ${blue("✦")} ${bold("Sparkflow")} ${dim("v" + version)}`,
-    "",
-    ...steps.map((s) => `  ${icon(s)} ${s.state === "wait" ? dim(s.label.padEnd(10)) : s.label.padEnd(10)} ${dim(s.detail)}`),
+    ...steps.map((s) => `${icon(s)} ${s.state === "wait" ? dim(s.label.padEnd(10)) : s.label.padEnd(10)} ${dim(s.detail)}`),
     "",
   ];
   if (ready) {
-    lines.push(
-      `  ${green("●")} ${bold("Connected")} ${dim(ready.picked ? "— your open Sparkflow tab picked it up" : ready.opened ? "— your browser opened Sparkflow" : "— open or reload Sparkflow, it connects by itself")}`,
-      "",
-      `    ${blue(linkTo(ready.link, "Open sparkflow-ai.web.app ↗"))}`,
-      `    ${dim(new URL(ready.url).host)}`,
-      "",
-    );
+    if (sc.head) panel.push(sc.head, ...sc.lines.filter(Boolean), "");
+    panel.push(`${blue(linkTo(ready.link, "Open sparkflow-ai.web.app ↗"))}  ${dim(new URL(ready.url).host)}`, "");
   }
   // One entry per screen line, so the redraw knows how far to go back up.
-  if (warning) lines.push(...`  ${yellow("!")} ${warning}`.split("\n"), "");
-  lines.push(`  ${dim(`Logs  ${short(logPath)}`)}`, `  ${dim("Stop  Ctrl+C")}`, "");
+  if (warning) panel.push(...`${yellow("!")} ${warning}`.split("\n"), "");
+  panel.push(dim(`Logs  ${short(logPath)}`), dim("Stop  Ctrl+C"));
+
+  // The spark sits on the left when there is room for it, the panel centred beside it.
+  let lines;
+  if (width >= LOGO_W + 52) {
+    const rows = Math.max(LOGO.length, panel.length);
+    const top = Math.floor((rows - panel.length) / 2);
+    const logoTop = Math.floor((rows - LOGO.length) / 2);
+    lines = [""];
+    for (let i = 0; i < rows; i++) {
+      const l = i - logoTop >= 0 && i - logoTop < LOGO.length ? logoRow(i - logoTop) : " ".repeat(LOGO_W);
+      lines.push(`  ${l}    ${panel[i - top] ?? ""}`);
+    }
+    lines.push("");
+  } else {
+    lines = ["", ...panel.map((l) => (l ? `  ${l}` : l)), ""];
+  }
   // Redraw in place: back up over the previous frame, then clear to the end of the screen. Every
   // line is cut to the terminal's width: a line that wraps takes two rows, and the redraw would
   // then back up too little and push the screen down a row each frame.
-  const width = (process.stdout.columns || 80) - 1;
   process.stdout.write((drawn ? `\x1b[${drawn}F` : "") + "\x1b[0J" + lines.map((l) => fit(l, width)).join("\n") + "\n");
   drawn = lines.length;
 }
@@ -113,11 +276,13 @@ if (tty) process.stdout.write("\x1b[?25l"); // hide the cursor while the spinner
 const children = [];
 function stop(code = 0) {
   clearInterval(timer);
+  clearInterval(presenceTimer);
   rmSync(connection, { force: true });
   rmSync(`${connection}.claimed`, { force: true });
   for (const ch of children) ch.kill("SIGTERM");
   draw();
-  if (tty) process.stdout.write("\x1b[?25h");
+  // Give the terminal back as it was: cursor, background, title.
+  if (tty) process.stdout.write("\x1b[?25h" + (tintable ? "\x1b]111\x07" : "") + "\x1b]0;\x07");
   process.exit(code);
 }
 function fail(step, detail) {
@@ -159,6 +324,11 @@ server.stdout.on("data", onServerOutput);
 server.stderr.on("data", onServerOutput);
 server.on("exit", (code) => serverStep.state !== "fail" && fail(serverStep, `stopped (exit ${code})`));
 
+// Where the open Sparkflow tab is (straight from this machine, so no token needed).
+async function pollPresence() {
+  report = await fetch(`http://localhost:${PORT}/api/presence`).then((r) => (r.ok ? r.json() : null), () => null);
+}
+
 // Ready once it answers HTTP locally.
 (async function waitServer() {
   for (let i = 0; i < 120; i++) {
@@ -166,6 +336,7 @@ server.on("exit", (code) => serverStep.state !== "fail" && fail(serverStep, `sto
     if (up) {
       serverStep.state = "ok";
       serverStep.detail = `localhost:${PORT}`;
+      presenceTimer = setInterval(pollPresence, 600);
       return;
     }
     await new Promise((r) => setTimeout(r, 500));

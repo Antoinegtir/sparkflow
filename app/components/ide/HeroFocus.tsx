@@ -310,6 +310,7 @@ export function HeroFocus(p: Props) {
                 inspect={p.inspect}
                 onPick={(pk: SimPick) => p.onSelect({ testId: pk.testId, text: pk.text, area: pk.area })}
                 highlights={p.layoutHover ? { texts: p.layoutHover.texts, each: p.layoutHover.each } : null}
+                selected={p.selections.map((x) => ({ area: x.area, texts: x.anchors?.texts.length ? x.anchors.texts : x.text ? [x.text] : undefined }))}
               />
               {/* A generated app opening in Sparkflow Dev: build / open progress, or the error. */}
               {webSim && <DevClientOverlay name={p.state.name} />}
@@ -610,7 +611,6 @@ function SidePanel(p: Props & { srcReady: boolean }) {
             </a>
           )}
         </div>
-        <p className="mt-0.5 font-mono text-[10.5px] text-ink-500">{s.file}</p>
         <div className="mt-2 flex items-center gap-2">
           <StatusPill screen={s} />
           {/* The web preview only: in the live Simulator it never loads. */}

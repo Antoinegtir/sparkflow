@@ -47,12 +47,36 @@ if [ "$OS" = "Darwin" ]; then
   fi
 fi
 
-# Android emulator view: adb from the Android SDK (Android Studio), optional.
-if has adb || [ -x "${ANDROID_HOME:-$HOME/Library/Android/sdk}/platform-tools/adb" ] || [ -x "$HOME/Android/Sdk/platform-tools/adb" ]; then
-  ok "Android SDK (adb)"
-else
-  warn "Android SDK not found (optional): install Android Studio for the Android emulator view"
-fi
+# Android apps (optional): the SDK, a Java for Gradle (Android Studio ships one) and an emulator.
+android_checks() {
+  local sdk="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$HOME/Library/Android/sdk}}" java="" j avds
+  [ -d "$sdk" ] || sdk="$HOME/Android/Sdk"
+  if [ -x "$sdk/platform-tools/adb" ] || command -v adb >/dev/null 2>&1; then
+    ok "Android SDK (adb)"
+  else
+    warn "Android SDK not found (optional): install Android Studio to build Android apps"
+    return 0
+  fi
+  for j in "${JAVA_HOME:-}" "/Applications/Android Studio.app/Contents/jbr/Contents/Home" "$HOME/Applications/Android Studio.app/Contents/jbr/Contents/Home"; do
+    if [ -n "$j" ] && [ -x "$j/bin/java" ]; then java="$j"; break; fi
+  done
+  if [ -n "$java" ] || /usr/libexec/java_home >/dev/null 2>&1; then
+    ok "Java for Android builds"
+  else
+    warn "No Java for Android builds: install Android Studio (it ships one) or a JDK 17+"
+  fi
+  if [ -x "$sdk/emulator/emulator" ]; then
+    avds=$("$sdk/emulator/emulator" -list-avds 2>/dev/null | grep -v '^INFO' | grep -c . || true)
+    if [ "${avds:-0}" -gt 0 ]; then
+      ok "Android emulator ($avds virtual device$([ "$avds" = 1 ] || echo s))"
+    else
+      warn "No Android virtual device: create one in Android Studio › Device Manager"
+    fi
+  else
+    warn "Android emulator not installed: Android Studio › SDK Manager › Android Emulator"
+  fi
+}
+android_checks
 
 # Missing tools are installed for you, without sudo: with Homebrew when it's there, otherwise the
 # official builds go to ~/.sparkflow/tools (the sparkflow command puts it on its PATH).

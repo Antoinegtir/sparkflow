@@ -1,13 +1,19 @@
 "use client";
 
 import clsx from "clsx";
-import { Check, Copy, Lock, Terminal } from "lucide-react";
+import { ArrowUpRight, Check, Copy, Lock, Terminal } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { getBackend, setBackend } from "@/lib/web/backend";
 import { DotLens } from "./DotLens";
 import { LoopVideo } from "./LoopVideo";
 
 const INSTALL = "curl -fsSL https://sparkflow-ai.web.app/install.sh | bash";
+
+/** What runs the apps: each opens its official download page. */
+const TOOLS = [
+  { name: "Xcode", note: "iOS Simulator", href: "https://apps.apple.com/app/xcode/id497799835", icon: "/tools/xcode.png" },
+  { name: "Android Studio", note: "Android · optional", href: "https://developer.android.com/studio", icon: "/tools/android-studio.png" },
+];
 const POLL_MS = 2000;
 /** Where `sparkflow` serves on this computer; /api/connect hands out its tunnel link (see remote.mjs). */
 const LOCAL = "http://localhost:3002";
@@ -177,12 +183,37 @@ export function ConnectOnboarding() {
           <ol className="space-y-7">
             <li className={step}>
               <span className={clsx(num, "border-[var(--line)] text-ink-300")}>1</span>
+              <p className="mb-1 text-[14px] font-medium">Get the simulators</p>
+              <p className="mb-3 text-[12.5px] text-ink-500">Your apps run in them. Skip what you already have.</p>
+              <div className="grid grid-cols-2 gap-2">
+                {TOOLS.map((t) => (
+                  <a
+                    key={t.name}
+                    href={t.href}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="group flex items-center gap-3 rounded-xl border border-[var(--line)] bg-white/[0.02] px-3 py-2.5 transition hover:border-spark-500/50 hover:bg-spark-500/[0.06]">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={t.icon} alt="" className="size-9 shrink-0 object-contain transition group-hover:scale-105" />
+                    <span className="min-w-0">
+                      <span className="flex items-center gap-1 text-[13px] font-medium text-ink-100">
+                        {t.name}
+                        <ArrowUpRight size={12} className="text-ink-500 transition group-hover:text-spark-400" />
+                      </span>
+                      <span className="block truncate text-[11.5px] text-ink-500">{t.note}</span>
+                    </span>
+                  </a>
+                ))}
+              </div>
+            </li>
+            <li className={step}>
+              <span className={clsx(num, "border-[var(--line)] text-ink-300")}>2</span>
               <p className="mb-1 text-[14px] font-medium">Install it once</p>
               <p className="mb-3 text-[12.5px] text-ink-500">Checks Xcode, Node and the rest, and installs what's missing.</p>
               <CopyLine text={INSTALL} />
             </li>
             <li className={step}>
-              <span className={clsx(num, "border-[var(--line)] text-ink-300")}>2</span>
+              <span className={clsx(num, "border-[var(--line)] text-ink-300")}>3</span>
               <p className="mb-1 text-[14px] font-medium">Start it</p>
               <p className="mb-3 text-[12.5px] text-ink-500">Keep the terminal open while you build.</p>
               <CopyLine text="sparkflow" />

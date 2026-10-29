@@ -8,6 +8,7 @@ import type { MediaInput } from "@/lib/shared";
 import { blobToWav, imageToInput, startRecording } from "@/lib/web/media";
 import { requireSignIn } from "@/lib/web/auth";
 import { apiFetch, getBackend, openOnBackend, STATIC_SITE } from "@/lib/web/backend";
+import { patchPresence } from "@/lib/web/presence";
 
 const PENDING = "sparkflow.pendingPrompt";
 
@@ -42,6 +43,15 @@ export function Composer() {
       }
     } catch {}
   }, []);
+
+  // The terminal shows what the prompt box is doing.
+  useEffect(() => {
+    const draft = value.trim();
+    patchPresence({
+      composer: recording ? "recording" : image ? "sketch" : draft ? "writing" : undefined,
+      draft: draft ? draft.replace(/\s+/g, " ").slice(0, 80) : undefined,
+    });
+  }, [value, image, recording]);
 
   useEffect(() => {
     if (!recording) return;

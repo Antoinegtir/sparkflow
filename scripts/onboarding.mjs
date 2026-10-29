@@ -1,7 +1,11 @@
 // First-run onboarding of `sparkflow`: asks for the Muse Spark API key and keeps it in the local
 // .env (the installed version links it to ~/.sparkflow/.env), readable by this user only. The key
 // never goes to the hosted site: the server on this computer calls the Meta Model API itself.
-import { chmodSync, existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+// Then asks where the apps live (SPARKFLOW_DATA_DIR in the same .env).
+import { accessSync, chmodSync, constants, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
+import path from "node:path";
+import { createInterface } from "node:readline";
 
 const ENV = ".env";
 const tty = process.stdin.isTTY && process.stdout.isTTY;
@@ -73,16 +77,22 @@ async function check(key) {
 }
 
 /**
- * Runs before the status screen. Asks only when there is no key yet and the user hasn't chosen
- * demo mode, or always with `force` (`sparkflow key`).
+ * Runs before the status screen. Asks for the key only when there is none yet and the user hasn't
+ * chosen demo mode, or always with `key` (`sparkflow key`); for the apps folder the first time, or
+ * always with `folder` (`sparkflow folder`).
  */
-export async function onboarding({ force = false } = {}) {
+export async function onboarding({ key = false, folder = false } = {}) {
   if (!existsSync(ENV) && existsSync(".env.example")) writeFileSync(ENV, readFileSync(".env.example", "utf8"));
   const text = readEnv();
-  if (!force && (get(text, "MODEL_API_KEY") || get(text, "SPARKFLOW_DEMO") === "1")) return;
-  if (!tty) return;
+  const needKey = key || (!folder && !get(text, "MODEL_API_KEY") && get(text, "SPARKFLOW_DEMO") !== "1");
+  const needFolder = folder || (!key && !get(text, "SPARKFLOW_DATA_DIR"));
+  if (!tty || (!needKey && !needFolder)) return;
+  console.log(`\n  ${blue("✦")} ${bold("Sparkflow")} ${dim(needKey && needFolder ? "— first setup" : "— setup")}\n`);
+  if (needKey) await askKey();
+  if (needFolder) await askFolder();
+}
 
-  console.log(`\n  ${blue("✦")} ${bold("Sparkflow")} ${dim("— first setup")}\n`);
+async function askKey() {
   console.log(`  Paste your ${bold("Muse Spark")} API key ${dim("(Meta Model API, dev.meta.ai)")}.`);
   console.log(`  ${dim("It stays on this computer, in")} ${dim(realpathSafe(ENV))}${dim(", readable by you only.")}`);
   console.log(`  ${dim("Sparkflow calls the Meta API from here: the key never goes to the hosted site.")}`);
@@ -105,6 +115,83 @@ export async function onboarding({ force = false } = {}) {
     set("MODEL_API_KEY", key);
     set("SPARKFLOW_DEMO", "");
     console.log(`  ${green("✓")} ${ok ? "Key works" : "Key saved (couldn't reach Meta to check it)"} ${dim(`— saved in ${realpathSafe(ENV)}`)}\n`);
+    return;
+  }
+}
+
+const home = homedir();
+const tilde = (p) => (p === home || p.startsWith(home + path.sep) ? "~" + p.slice(home.length) : p);
+const expand = (p) => path.resolve(p.replace(/^~(?=$|\/)/, home));
+/** The apps folder now: what `sparkflow` exported (the .env value, else ~/.sparkflow/data). */
+const currentFolder = () => process.env.SPARKFLOW_DATA_DIR || path.join(process.env.SPARKFLOW_HOME || path.join(home, ".sparkflow"), "data");
+
+/** Tab completes folder names, like a shell. */
+function completeFolder(line) {
+  const full = line.replace(/^~(?=$|\/)/, home);
+  const dir = full.endsWith("/") ? full : path.dirname(full || ".");
+  const base = full.endsWith("/") ? "" : path.basename(full);
+  let names = [];
+  try {
+    names = readdirSync(dir, { withFileTypes: true })
+      .filter((d) => d.isDirectory() && !d.name.startsWith(".") && d.name.startsWith(base))
+      .map((d) => d.name);
+  } catch {}
+  return [names.map((n) => line.slice(0, line.length - base.length) + n + "/"), line];
+}
+
+function ask(prompt, completer) {
+  return new Promise((resolve) => {
+    const rl = createInterface({ input: process.stdin, output: process.stdout, completer, terminal: true });
+    rl.on("SIGINT", () => {
+      rl.close();
+      process.stdout.write(`\n  ${dim("Cancelled, nothing saved.")}\n`);
+      process.exit(130);
+    });
+    rl.question(prompt, (answer) => {
+      rl.close();
+      // A Tab with nothing to complete lands in the answer as a tab character.
+      resolve(answer.replace(/\t/g, "").trim());
+    });
+  });
+}
+
+/** Where the apps live: any folder you can write to. Apps already saved can move along. */
+async function askFolder() {
+  const before = currentFolder();
+  console.log(`  Where should your ${bold("apps")} live? ${dim("Tab completes, Enter keeps")} ${dim(tilde(before))}`);
+  for (;;) {
+    const answer = await ask(`  ${blue("›")} Folder: `, completeFolder);
+    const dir = answer ? expand(answer) : before;
+    try {
+      mkdirSync(dir, { recursive: true });
+      accessSync(dir, constants.W_OK);
+    } catch {
+      console.log(`  ${red("✗")} Can't write to ${tilde(dir)}. Pick another folder.`);
+      continue;
+    }
+    // Apps saved in the old folder: offer to bring them (a rename on the same disk, else a copy).
+    const apps = (p) => (existsSync(path.join(p, "projects")) ? readdirSync(path.join(p, "projects")).filter((n) => !n.startsWith(".")).length : 0);
+    const old = dir !== before && existsSync(before) ? apps(before) : 0;
+    if (old && !apps(dir)) {
+      const move = await ask(`  ${blue("›")} Move your ${old} app${old === 1 ? "" : "s"} from ${tilde(before)}? ${dim("(Y/n)")} `);
+      if (!/^n/i.test(move)) {
+        process.stdout.write(`  ${dim("Moving…")}`);
+        for (const name of readdirSync(before)) {
+          const from = path.join(before, name), to = path.join(dir, name);
+          if (existsSync(to)) continue;
+          try {
+            renameSync(from, to);
+          } catch {
+            cpSync(from, to, { recursive: true, verbatimSymlinks: true });
+            rmSync(from, { recursive: true, force: true });
+          }
+        }
+        process.stdout.write("\r\x1b[2K");
+      }
+    }
+    set("SPARKFLOW_DATA_DIR", dir);
+    process.env.SPARKFLOW_DATA_DIR = dir;
+    console.log(`  ${green("✓")} Apps in ${tilde(dir)} ${dim("— change it with")} sparkflow folder\n`);
     return;
   }
 }

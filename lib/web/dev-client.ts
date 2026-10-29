@@ -1,4 +1,4 @@
-import { execFile, spawn } from "node:child_process";
+import { execFile, execFileSync, spawn } from "node:child_process";
 import { createWriteStream, existsSync, type WriteStream } from "node:fs";
 import { cp, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
@@ -161,11 +161,30 @@ async function build(hash: string, platform: DevPlatform) {
 
 const q = (s: string) => `'${s.replace(/'/g, `'\\''`)}'`;
 
-/** The Android SDK for Gradle; throws before anything is built when there is none. */
+/**
+ * A Java for Gradle: JAVA_HOME, else the one Android Studio ships with, else the system's. macOS has
+ * none of its own, and a shell profile that sets JAVA_HOME isn't always what started the server.
+ */
+function javaHome() {
+  const studio = (root: string) => path.join(root, "Android Studio.app", "Contents", "jbr", "Contents", "Home");
+  const found = [process.env.JAVA_HOME, studio("/Applications"), studio(path.join(os.homedir(), "Applications")), "/opt/android-studio/jbr", path.join(os.homedir(), "android-studio", "jbr")].find(
+    (d) => d && existsSync(path.join(d, "bin", "java")),
+  );
+  if (found) return found;
+  try {
+    return execFileSync("/usr/libexec/java_home", { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim() || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** The Android SDK and a Java for Gradle; throws before anything is built when one is missing. */
 function androidEnv(): Record<string, string> {
   const sdk = [process.env.ANDROID_HOME, process.env.ANDROID_SDK_ROOT, path.join(os.homedir(), "Library", "Android", "sdk")].find((d) => d && existsSync(d));
   if (!sdk) throw new Error("Android SDK not found: install Android Studio (SDK in ~/Library/Android/sdk) or set ANDROID_HOME");
-  return { ANDROID_HOME: sdk, ANDROID_SDK_ROOT: sdk };
+  const java = javaHome();
+  if (!java) throw new Error("Java not found: Android builds need a JDK 17 or newer. Install Android Studio (it ships one) or set JAVA_HOME");
+  return { ANDROID_HOME: sdk, ANDROID_SDK_ROOT: sdk, JAVA_HOME: java };
 }
 
 async function checkDisk() {

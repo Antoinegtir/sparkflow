@@ -3,6 +3,7 @@
 #
 #   sparkflow            start the server and connect it to the hosted site
 #   sparkflow key        set or change your Muse Spark API key (kept on this computer)
+#   sparkflow folder     choose where your apps live (default ~/.sparkflow/data)
 #   sparkflow doctor     check what Sparkflow needs (Node, Xcode, cloudflared…)
 #   sparkflow update     install the latest release (or: sparkflow update v0.3.0)
 #   sparkflow version    installed version
@@ -20,7 +21,44 @@ ok() { printf '  \033[32m✓\033[0m %s\n' "$*"; }
 warn() { printf '  \033[33m!\033[0m %s\n' "$*"; }
 bad() { printf '  \033[31m✗\033[0m %s\n' "$*"; }
 
+# Where the apps live: SPARKFLOW_DATA_DIR in ~/.sparkflow/.env (`sparkflow folder`), else ~/.sparkflow/data.
+data_dir() {
+  local d
+  d="$(sed -n 's/^SPARKFLOW_DATA_DIR=//p' "$HOME_DIR/.env" 2>/dev/null | tail -1)"
+  echo "${d:-$HOME_DIR/data}"
+}
+
 version() { node -p "require('$APP/package.json').version" 2>/dev/null || echo "not installed"; }
+
+# Android apps (optional): the SDK, a Java for Gradle (Android Studio ships one) and an emulator.
+android_checks() {
+  local sdk="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$HOME/Library/Android/sdk}}" java="" j avds
+  [ -d "$sdk" ] || sdk="$HOME/Android/Sdk"
+  if [ -x "$sdk/platform-tools/adb" ] || command -v adb >/dev/null 2>&1; then
+    ok "Android SDK (adb)"
+  else
+    warn "Android SDK not found (optional): install Android Studio to build Android apps"
+    return 0
+  fi
+  for j in "${JAVA_HOME:-}" "/Applications/Android Studio.app/Contents/jbr/Contents/Home" "$HOME/Applications/Android Studio.app/Contents/jbr/Contents/Home"; do
+    if [ -n "$j" ] && [ -x "$j/bin/java" ]; then java="$j"; break; fi
+  done
+  if [ -n "$java" ] || /usr/libexec/java_home >/dev/null 2>&1; then
+    ok "Java for Android builds"
+  else
+    warn "No Java for Android builds: install Android Studio (it ships one) or a JDK 17+"
+  fi
+  if [ -x "$sdk/emulator/emulator" ]; then
+    avds=$("$sdk/emulator/emulator" -list-avds 2>/dev/null | grep -v '^INFO' | grep -c . || true)
+    if [ "${avds:-0}" -gt 0 ]; then
+      ok "Android emulator ($avds virtual device$([ "$avds" = 1 ] || echo s))"
+    else
+      warn "No Android virtual device: create one in Android Studio › Device Manager"
+    fi
+  else
+    warn "Android emulator not installed: Android Studio › SDK Manager › Android Emulator"
+  fi
+}
 
 # Same checks as the installer, with the reason for each. Exit 1 if a required one fails.
 doctor() {
@@ -39,8 +77,10 @@ doctor() {
   else
     warn "Not macOS: the iOS Simulator features are unavailable"
   fi
+  android_checks
   command -v watchman >/dev/null && ok "watchman" || warn "watchman not found (optional, faster reloads): brew install watchman"
   [ -f "$HOME_DIR/.env" ] && grep -q '^MODEL_API_KEY=.' "$HOME_DIR/.env" && ok "Muse Spark API key set (on this computer only)" || warn "No Muse Spark API key: demo mode (sparkflow key to add one)"
+  ok "Apps in $(data_dir | sed "s|^$HOME|~|") (sparkflow folder to change)"
   [ -d "$APP/.next-server" ] && ok "Server build present" || { bad "Server build missing: sparkflow update"; failed=1; }
   return $failed
 }
@@ -50,20 +90,24 @@ case "${1:-start}" in
     [ -d "$APP" ] || { echo "Sparkflow is not installed. curl -fsSL $SITE/install.sh | bash"; exit 1; }
     doctor >/dev/null || { doctor; exit 1; }
     cd "$APP"
-    export SPARKFLOW_DATA_DIR="$HOME_DIR/data" SPARKFLOW_SITE="$SITE"
+    export SPARKFLOW_DATA_DIR="$(data_dir)" SPARKFLOW_SITE="$SITE"
     exec node scripts/remote.mjs
     ;;
   key)
     cd "$APP" && exec node scripts/remote.mjs --key
     ;;
+  folder)
+    cd "$APP" && SPARKFLOW_DATA_DIR="$(data_dir)" exec node scripts/remote.mjs --folder
+    ;;
   doctor) doctor ;;
   version | --version | -v) version ;;
   update) curl -fsSL "$SITE/install.sh" | bash -s -- "${2:-}" ;;
   uninstall)
+    APPS="$(data_dir)"
     rm -rf "$HOME_DIR/versions" "$HOME_DIR/current" "$HOME_DIR/bin"
     [ "${2:-}" = "--all" ] && rm -rf "$HOME_DIR"
     rm -f "$HOME/.local/bin/sparkflow"
-    echo "Sparkflow removed.$([ "${2:-}" = "--all" ] || echo " Your apps are still in $HOME_DIR/data.")"
+    echo "Sparkflow removed.$([ -d "$APPS" ] && echo " Your apps are still in $APPS.")"
     ;;
   help | --help | -h) sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//' ;;
   *) echo "Unknown command: $1 (sparkflow help)"; exit 1 ;;

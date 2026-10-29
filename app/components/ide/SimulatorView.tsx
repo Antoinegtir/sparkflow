@@ -22,6 +22,7 @@ export function SimulatorView({
   inspect,
   onPick,
   highlights,
+  selected,
 }: {
   page?: { title: string; parent?: string } | null;
   onPageChange?: (p: { title: string; parent?: string; tab?: number }) => void;
@@ -30,6 +31,8 @@ export function SimulatorView({
   inspect?: boolean;
   onPick?: (p: SimPick) => void;
   highlights?: { texts: string[]; each: boolean } | null;
+  /** The elements in the prompt: a picked area (fractions of the screen) or texts to find, outlined in blue. */
+  selected?: { area?: Area; texts?: string[] }[];
 }) {
   const { supported, device, loaded } = useSimDevice();
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -42,6 +45,7 @@ export function SimulatorView({
   const [error, setError] = useState<string | null>(null);
   const [hover, setHover] = useState<{ el: NonNullable<El>; box: Area } | null>(null);
   const [boxes, setBoxes] = useState<Area[]>([]);
+  const [selBoxes, setSelBoxes] = useState<Area[]>([]);
   const udid = device?.udid;
   const points = device?.points ?? null;
 
@@ -300,6 +304,26 @@ export function SimulatorView({
       .catch(() => setBoxes([]));
   }, [udid, highlights]);
 
+  // Outline the elements in the prompt: picked ones where they were picked, Layout ones by their texts.
+  const selKey = JSON.stringify(selected ?? []);
+  useEffect(() => {
+    const list = selected ?? [];
+    if (!udid || !points || !list.length) return setSelBoxes([]);
+    let alive = true;
+    void Promise.all(
+      list.map(async (s): Promise<Area[]> => {
+        if (s.area) return [{ x: s.area.x * points.width, y: s.area.y * points.height, width: s.area.width * points.width, height: s.area.height * points.height }];
+        if (!s.texts?.length) return [];
+        const q = s.texts.map((t) => `text=${encodeURIComponent(t)}`).join("&");
+        const j = await fetch(`/api/sim/${udid}/find?${q}`).then((r) => r.json()).catch(() => null);
+        return j?.union ? [j.union] : [];
+      }),
+    ).then((r) => alive && setSelBoxes(r.flat()));
+    return () => {
+      alive = false;
+    };
+  }, [udid, selKey, points?.width, points?.height]); // eslint-disable-line react-hooks/exhaustive-deps
+
   if (loaded && !supported) return <Message text="The iOS Simulator needs macOS with Xcode; the Android emulator needs the Android SDK (adb)." />;
   if (loaded && !device)
     return (
@@ -336,13 +360,16 @@ export function SimulatorView({
       {ripples.map((r) => (
         <span key={r.id} className="animate-tap pointer-events-none absolute size-10 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/50" style={{ left: r.x, top: r.y }} />
       ))}
-      {inspect && hover && points && (
+      {inspect && hover && points && !selBoxes.some((b) => Math.abs(b.x - hover.box.x) < 2 && Math.abs(b.y - hover.box.y) < 2 && Math.abs(b.width - hover.box.width) < 2) && (
         <div className="pointer-events-none absolute rounded-md border-2 border-violet-500 bg-violet-500/10" style={pct(hover.box)}>
           <span className="absolute -top-5 left-0 rounded bg-violet-500 px-1.5 text-[10px] font-semibold whitespace-nowrap text-white">{hover.el.label || hover.el.type}</span>
         </div>
       )}
       {points &&
         boxes.map((b, i) => <div key={i} className="pointer-events-none absolute rounded-md border-2 border-violet-500 bg-violet-500/10" style={pct(b)} />)}
+      {/* Selected: blue, above the violet hover (an element just picked stays under the pointer). */}
+      {points &&
+        selBoxes.map((b, i) => <div key={`s${i}`} className="pointer-events-none absolute rounded-md border-2 border-spark-500 bg-spark-500/10" style={pct(b)} />)}
       {frozen && (
         <div className="absolute inset-0 grid place-items-center bg-black/30 backdrop-blur-md">
           <div className="flex flex-col items-center gap-3">

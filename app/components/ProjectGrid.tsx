@@ -1,7 +1,6 @@
 "use client";
 
 import clsx from "clsx";
-import { Smartphone } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -15,6 +14,51 @@ import { apiFetch, appHref, BACKEND_EVENT, backendUrl, openOnBackend } from "@/l
 import { loadSavedApps, saveApps, type SavedApp } from "@/lib/web/cloud-apps";
 
 const COVER_W = 132;
+
+/** The demo app every user gets: its own capture stands in until theirs is taken. */
+const isDemo = (p: { slug?: string; prompt?: string }) => p.slug === "wander" || !!p.prompt?.endsWith("(Sparkflow demo app)");
+
+/**
+ * A card's phone: the project's device peeking out of the card, always with an app on its screen.
+ * Before the first capture (still building), a skeleton of an app screen that shimmers.
+ */
+function Cover({ src, device, native, building, faded }: { src?: string; device?: string; native?: boolean; building?: boolean; faded?: boolean }) {
+  const d = deviceById(device);
+  return (
+    <div className={clsx("relative translate-y-10 transition group-hover:translate-y-7", faded && "opacity-80 group-hover:opacity-100")}>
+      <DeviceMockup device={d} width={d.ipad ? COVER_W * 1.5 : COVER_W} dark={false} bare={native && !!src}>
+        {src ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={src} alt="" className="absolute inset-0 h-full w-full object-cover object-top" />
+        ) : (
+          <SkeletonScreen building={building} />
+        )}
+      </DeviceMockup>
+    </div>
+  );
+}
+
+/** A light app screen drawn in blocks: a large title, a search field, cards, a tab bar. */
+function SkeletonScreen({ building }: { building?: boolean }) {
+  const block = clsx("rounded-[10px] bg-[#e9edf3]", building && "animate-pulse");
+  return (
+    <div className="absolute inset-0 flex flex-col gap-3 bg-white px-4 pb-0 pt-5">
+      <div className={clsx(block, "h-7 w-2/5 rounded-[8px]")} />
+      <div className={clsx(block, "h-9 w-full")} />
+      <div className={clsx(block, "h-40 w-full rounded-[18px]")} />
+      <div className="grid grid-cols-2 gap-3">
+        <div className={clsx(block, "h-28 rounded-[16px]")} />
+        <div className={clsx(block, "h-28 rounded-[16px]")} />
+      </div>
+      <div className={clsx(block, "h-16 w-full rounded-[14px]")} />
+      <div className="mt-auto flex justify-around border-t border-[#eef1f5] pb-7 pt-3">
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className={clsx("size-6 rounded-full", i === 0 ? "bg-spark-500/70" : "bg-[#e3e7ee]")} />
+        ))}
+      </div>
+    </div>
+  );
+}
 
 const STATUS: Record<string, { label: string; className: string }> = {
   running: { label: "building", className: "text-spark-400" },
@@ -152,17 +196,12 @@ export function ProjectGrid() {
                     maskImage: "radial-gradient(circle at 50% 40%, black 0%, transparent 75%)",
                   }}
                 />
-                {p.coverUrl ? (
-                  // The project's preview device, as in the IDE, peeking out of the card.
-                  <div className="relative translate-y-10 transition group-hover:translate-y-7">
-                    <DeviceMockup device={deviceById(p.previewDevice)} width={deviceById(p.previewDevice).ipad ? COVER_W * 1.5 : COVER_W} dark={false} bare={p.native}>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={backendUrl(p.coverUrl)} alt="" className="absolute inset-0 h-full w-full object-cover object-top" />
-                    </DeviceMockup>
-                  </div>
-                ) : (
-                  <Smartphone size={44} strokeWidth={1.2} className="text-ink-300 transition group-hover:scale-105" />
-                )}
+                <Cover
+                  src={p.coverUrl ? backendUrl(p.coverUrl) : isDemo(p) ? "/demo/wander-cover.jpg" : undefined}
+                  device={p.previewDevice}
+                  native={p.native}
+                  building={p.status === "running"}
+                />
               </div>
               <div className="relative border-t border-ink-800 bg-ink-900 px-3.5 py-3">
                 {renaming === p.id ? (
@@ -199,16 +238,7 @@ export function ProjectGrid() {
           // Saved to the account: opening it shows how to start sparkflow, then the app.
           <Link key={p.id} href={appHref(`/${p.slug}`)} className="group relative flex aspect-[4/5] flex-col overflow-hidden rounded-2xl border border-ink-700 bg-ink-900 shadow-[0_20px_50px_-30px_rgba(0,0,0,.8)] transition hover:-translate-y-1 hover:border-ink-600 hover:shadow-[0_30px_60px_-30px_var(--landing-glow)]">
             <div className="relative grid flex-1 place-items-center overflow-hidden bg-[radial-gradient(circle_at_50%_30%,color-mix(in_oklab,var(--color-spark-500)_22%,transparent),transparent_70%)] pt-4">
-              {p.cover ? (
-                <div className="relative translate-y-10 opacity-80 transition group-hover:translate-y-7 group-hover:opacity-100">
-                  <DeviceMockup device={deviceById(p.previewDevice)} width={deviceById(p.previewDevice).ipad ? COVER_W * 1.5 : COVER_W} dark={false} bare={p.native}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={p.cover} alt="" className="absolute inset-0 h-full w-full object-cover object-top" />
-                  </DeviceMockup>
-                </div>
-              ) : (
-                <Smartphone size={44} strokeWidth={1.2} className="text-ink-300 transition group-hover:scale-105" />
-              )}
+              <Cover src={p.cover ?? (isDemo(p) ? "/demo/wander-cover.jpg" : undefined)} device={p.previewDevice} native={p.native} faded />
             </div>
             <div className="relative border-t border-ink-800 bg-ink-900 px-3.5 py-3">
               <p className="truncate text-sm font-medium text-ink-100">{p.name}</p>
