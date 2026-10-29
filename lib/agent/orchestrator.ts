@@ -424,7 +424,7 @@ export class Orchestrator {
     if (action.kind !== "create" && action.kind !== "rebuild") return;
     let id = action.kind === "rebuild" ? action.id : "";
     if (!id) {
-      const meta: ProjectMeta = { id: `${Date.now().toString(36)}-demo`, name: DEMO_NAME, prompt: DEMO_PROMPT, createdAt: Date.now(), inputs: { image: false, audio: false } };
+      const meta: ProjectMeta = { id: "wander", name: DEMO_NAME, prompt: DEMO_PROMPT, createdAt: Date.now(), inputs: { image: false, audio: false } };
       await this.store.create(meta);
       id = meta.id;
     }
