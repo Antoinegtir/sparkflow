@@ -1,79 +1,202 @@
 "use client";
 
 import clsx from "clsx";
-import { Check, Mic, MousePointer2, X } from "lucide-react";
+import { ArrowRight, Camera, Check, FileImage, Loader2, Mic, MousePointer2, RotateCcw, Sparkles, X } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useEffect, useState } from "react";
+import { AppStoreLogo, PlayStoreLogo } from "./BrandIcons";
 
 /** HowItWorks announces the step reaching the middle of the screen; the pinned phone shows it. */
 export const STEP_EVENT = "sparkflow:hiw-step";
 
 const HABITS = ["Read 20 pages", "Morning walk", "Drink water"];
 
-function Describe() {
-  const text = "A habit tracker with streaks and a weekly chart";
+/**
+ * A short scene played in a loop: the phase moves on after each duration (ms), back to 0 after the last.
+ * Each step of the phone is one such scene.
+ */
+function useScene(durations: number[]) {
+  const [phase, setPhase] = useState(0);
+  useEffect(() => {
+    const t = setTimeout(() => setPhase((p) => (p + 1) % durations.length), durations[phase]);
+    return () => clearTimeout(t);
+  }, [phase, durations]);
+  return phase;
+}
+
+/** Text typed out once, a character at a time, from when `on` turns true. */
+function useTyped(text: string, on: boolean, ms = 38) {
   const [n, setN] = useState(0);
   useEffect(() => {
-    const t = setInterval(() => setN((x) => (x >= text.length + 18 ? 0 : x + 1)), 55);
+    if (!on) return setN(0);
+    const t = setInterval(() => setN((x) => (x >= text.length ? x : x + 1)), ms);
     return () => clearInterval(t);
-  }, []);
-  return (
-    <div className="flex h-full flex-col justify-end gap-3 px-2.5 py-3">
-      <div className="ml-auto max-w-[85%] rounded-2xl rounded-br-md bg-spark-500 px-3 py-2 text-[11px] leading-snug text-white">
-        {text.slice(0, n)}
-        <span className="ml-px inline-block h-3 w-px translate-y-0.5 animate-pulse bg-white" />
-      </div>
-      <div className="flex items-center gap-2 overflow-hidden rounded-full bg-black/8 px-3 py-2">
-        <Mic size={12} className="shrink-0 text-spark-400" />
-        {/* As many bars as fit: the wave stays inside the chip. */}
-        <div className="flex h-4 min-w-0 flex-1 items-center gap-[3px] overflow-hidden">
-          {Array.from({ length: 18 }, (_, i) => (
-            <span key={i} className="hiw-wave w-[3px] shrink-0 rounded-full bg-spark-400/80" style={{ animationDelay: `${i * 70}ms` }} />
-          ))}
-        </div>
-      </div>
-    </div>
-  );
+  }, [text, on, ms]);
+  return text.slice(0, n);
 }
 
-function Plan() {
-  const screens = ["Today", "Stats", "Habit", "Settings"];
+const Caret = ({ dark }: { dark?: boolean }) => <span className={clsx("ml-px inline-block h-3 w-px translate-y-0.5 animate-pulse", dark ? "bg-neutral-900" : "bg-white")} />;
+
+const Dots = () => (
+  <span className="inline-flex gap-0.5">
+    {[0, 1, 2].map((i) => (
+      <span key={i} className="size-1 animate-bounce rounded-full bg-neutral-400" style={{ animationDelay: `${i * 120}ms` }} />
+    ))}
+  </span>
+);
+
+// ---- 01 · Describe: a sentence, a sketch, a voice memo, and the answer ----
+
+const DESCRIBE = [2600, 1100, 1700, 900, 2600];
+function Describe() {
+  const phase = useScene(DESCRIBE);
+  const typed = useTyped("A habit tracker with streaks and a weekly chart", phase === 0, 42);
   return (
-    <div className="grid h-full grid-cols-2 content-center gap-2 px-2.5 py-3">
-      {screens.map((s, i) => (
-        <div key={s} className="hiw-pop rounded-xl border border-black/10 bg-black/5 p-2" style={{ animationDelay: `${i * 180}ms` }}>
-          <div className="text-[10px] font-semibold text-neutral-900">{s}</div>
-          <div className="mt-1.5 space-y-1">
-            <div className="h-1 w-3/4 rounded bg-black/20" />
-            <div className="h-1 w-1/2 rounded bg-black/15" />
-            <div className="h-4 rounded bg-spark-500/30" />
+    <div className="flex h-full flex-col justify-end gap-2 px-2.5 py-3">
+      <div className="ml-auto max-w-[88%] rounded-2xl rounded-br-md bg-spark-500 px-3 py-2 text-[11px] leading-snug text-white">
+        {phase === 0 ? typed : "A habit tracker with streaks and a weekly chart"}
+        {phase === 0 && <Caret />}
+      </div>
+      {phase >= 1 && (
+        <div className="hiw-pop ml-auto flex items-center gap-2 rounded-xl border border-black/10 bg-white p-1.5 shadow-sm">
+          {/* A paper sketch: three boxes and a chart drawn in pencil. */}
+          <div className="grid size-9 place-items-center rounded-md bg-[#f6f1e7]">
+            <svg viewBox="0 0 36 36" className="size-8" aria-hidden>
+              <g fill="none" stroke="#6b6253" strokeWidth="1.2" strokeLinecap="round">
+                <path d="M6 7h24M6 13h18M6 19h20" />
+                <path d="M7 31v-5M12 31v-8M17 31v-3M22 31v-9M27 31v-6" />
+              </g>
+            </svg>
+          </div>
+          <div className="pr-1 text-[9px] leading-tight text-neutral-600">
+            <div className="flex items-center gap-1 font-medium text-neutral-900">
+              <FileImage size={9} /> sketch.jpg
+            </div>
+            {phase >= 2 ? <span className="text-emerald-600">3 rows · 1 chart found</span> : "reading…"}
           </div>
         </div>
-      ))}
-      <p className="col-span-2 mt-1 text-center text-[9.5px] text-neutral-500">4 screens · 11 acceptance criteria</p>
+      )}
+      {phase >= 2 && (
+        <div className="hiw-pop flex items-center gap-2 overflow-hidden rounded-full bg-black/8 px-3 py-2">
+          <Mic size={12} className="shrink-0 text-spark-400" />
+          <div className="flex h-4 min-w-0 flex-1 items-center gap-[3px] overflow-hidden">
+            {Array.from({ length: 18 }, (_, i) => (
+              <span key={i} className={clsx("w-[3px] shrink-0 rounded-full bg-spark-400/80", phase === 2 ? "hiw-wave" : "h-[30%]")} style={{ animationDelay: `${i * 70}ms` }} />
+            ))}
+          </div>
+          <span className="shrink-0 font-mono text-[8.5px] text-neutral-500">0:04</span>
+        </div>
+      )}
+      {phase >= 3 && (
+        <div className="hiw-pop max-w-[88%] rounded-2xl rounded-bl-md bg-black/6 px-3 py-2 text-[10.5px] leading-snug text-neutral-800">
+          {phase === 3 ? (
+            <Dots />
+          ) : (
+            <>
+              <Sparkles size={10} className="mr-1 inline text-spark-500" />
+              Got it: 4 screens, a streak on every habit and a chart of the week.
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
-function Build() {
-  const lines = ["<Screen>", '  <Header title="Today" />', "  <ProgressBar value={done} />", "  {habits.map((h) => (", "    <HabitRow habit={h} />", "  ))}", "</Screen>"];
+// ---- 02 · Plan: screens, the links between them, then what each must show ----
+
+const PLAN = [1600, 1300, 2600];
+function Plan() {
+  const phase = useScene(PLAN);
+  const screens = ["Today", "Stats", "Habit", "Settings"];
+  const criteria = ["Three habit rows, a check on each", "A bar chart of the week", "A streak count on every habit"];
   return (
-    <div className="flex h-full flex-col justify-center px-2.5 py-3 font-mono text-[9px] leading-relaxed">
-      {lines.map((l, i) => (
-        <div key={i} className="hiw-type truncate whitespace-pre text-sky-700" style={{ animationDelay: `${i * 260}ms` }}>
-          <span className="mr-2 text-neutral-400">{i + 1}</span>
-          {l}
-        </div>
-      ))}
-      <div className="hiw-pop mt-3 flex items-center gap-1.5 text-[9.5px] text-emerald-600" style={{ animationDelay: "2000ms" }}>
-        <Check size={11} /> Type check passed · commit a1f3c9e
+    <div className="flex h-full flex-col justify-center gap-2 px-2.5 py-3">
+      <div className="relative grid grid-cols-2 gap-2">
+        {screens.map((s, i) => (
+          <div key={s} className="hiw-pop rounded-xl border border-black/10 bg-black/5 p-2" style={{ animationDelay: `${i * 160}ms` }}>
+            <div className="text-[10px] font-semibold text-neutral-900">{s}</div>
+            <div className="mt-1.5 space-y-1">
+              <div className="h-1 w-3/4 rounded bg-black/20" />
+              <div className="h-1 w-1/2 rounded bg-black/15" />
+              <div className="h-3.5 rounded bg-spark-500/30" />
+            </div>
+          </div>
+        ))}
+        {/* Navigation: Today leads to Stats and to a Habit. */}
+        {phase >= 1 && (
+          <>
+            <span className="hiw-pop absolute left-1/2 top-[22%] grid size-4 -translate-x-1/2 place-items-center rounded-full bg-spark-500 text-white shadow">
+              <ArrowRight size={9} />
+            </span>
+            <span className="hiw-pop absolute left-[22%] top-1/2 grid size-4 -translate-y-1/2 rotate-90 place-items-center rounded-full bg-spark-500 text-white shadow" style={{ animationDelay: "150ms" }}>
+              <ArrowRight size={9} />
+            </span>
+          </>
+        )}
+      </div>
+      <div className="mt-1 space-y-1">
+        {criteria.map((c, i) => (
+          <div key={c} className={clsx("flex items-center gap-1.5 text-[9px] transition-opacity duration-300", phase === 2 ? "opacity-100" : "opacity-0")} style={{ transitionDelay: `${i * 300}ms` }}>
+            <span className="grid size-3 shrink-0 place-items-center rounded-full bg-spark-500/15 text-spark-500">
+              <Check size={8} />
+            </span>
+            <span className="truncate text-neutral-700">{c}</span>
+          </div>
+        ))}
       </div>
     </div>
   );
 }
 
+// ---- 03 · Build: the code written, the type check, the commit ----
+
+const BUILD_LINES = [
+  ["<Screen>", "text-sky-700"],
+  ['  <Header title="Today" />', "text-sky-700"],
+  ["  <ProgressBar value={done} />", "text-sky-700"],
+  ["  {habits.map((h) => (", "text-violet-700"],
+  ["    <HabitRow habit={h} />", "text-sky-700"],
+  ["  ))}", "text-violet-700"],
+  ["</Screen>", "text-sky-700"],
+] as const;
+const BUILD = [2300, 1200, 2200];
+function Build() {
+  const phase = useScene(BUILD);
+  return (
+    <div className="flex h-full flex-col justify-center px-2.5 py-3 font-mono text-[9px] leading-relaxed">
+      <div className="mb-2 flex items-center gap-1 text-[8.5px] text-neutral-500">
+        <span className="rounded bg-black/6 px-1.5 py-0.5">app/(tabs)/index.tsx</span>
+      </div>
+      {/* Keyed by the loop: the lines type out again each time round. */}
+      <div key={phase === 0 ? "typing" : "done"}>
+        {BUILD_LINES.map(([l, color], i) => (
+          <div key={i} className={clsx("truncate whitespace-pre", color, phase === 0 && "hiw-type")} style={{ animationDelay: `${i * 280}ms` }}>
+            <span className="mr-2 text-neutral-400">{i + 1}</span>
+            {l}
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 h-4 text-[9.5px]">
+        {phase === 1 && (
+          <span className="hiw-pop flex items-center gap-1.5 text-neutral-500">
+            <Loader2 size={11} className="animate-spin" /> tsc --noEmit
+          </span>
+        )}
+        {phase === 2 && (
+          <span className="hiw-pop flex items-center gap-1.5 text-emerald-600">
+            <Check size={11} /> Type check passed · commit a1f3c9e
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---- 04 · Look: the app runs, a screenshot, each criterion checked ----
+
 /** A tiny Today screen; `done` toggles on tap, which the visitor can try. */
-function MiniApp({ highlight, onTap, done }: { highlight?: number; onTap?: (i: number) => void; done: boolean[] }) {
+function MiniApp({ highlight, onTap, done, big }: { highlight?: number; onTap?: (i: number) => void; done: boolean[]; big?: number }) {
   return (
     <div className="px-2.5 py-3">
       <div className="text-[13px] font-bold text-neutral-900">Today</div>
@@ -88,11 +211,12 @@ function MiniApp({ highlight, onTap, done }: { highlight?: number; onTap?: (i: n
             type="button"
             onClick={() => onTap?.(i)}
             className={clsx(
-              "flex w-full cursor-pointer items-center justify-between rounded-lg bg-black/6 px-2 py-1.5 text-left text-[10px] text-neutral-900 transition",
+              "flex w-full cursor-pointer items-center justify-between rounded-lg px-2 text-left text-neutral-900 transition-all duration-500",
+              big === i ? "bg-sky-500 py-2.5 text-[11px] font-semibold text-white" : "bg-black/6 py-1.5 text-[10px]",
               highlight === i && "ring-2 ring-sky-400",
             )}>
             {h}
-            <span className={clsx("grid size-3.5 place-items-center rounded-full border transition", done[i] ? "border-spark-500 bg-spark-500" : "border-black/30")}>
+            <span className={clsx("grid size-3.5 place-items-center rounded-full border transition", done[i] ? "border-spark-500 bg-spark-500 text-white" : big === i ? "border-white/70" : "border-black/30")}>
               {done[i] && <Check size={8} />}
             </span>
           </button>
@@ -102,69 +226,157 @@ function MiniApp({ highlight, onTap, done }: { highlight?: number; onTap?: (i: n
   );
 }
 
+const LOOK = [700, 400, 650, 650, 650, 1800];
 function Look() {
+  const phase = useScene(LOOK);
   const [done, setDone] = useState([true, false, false]);
   const checks = ["Header reads “Today”", "Three habit rows", "Progress bar"];
   return (
     <div className="relative h-full">
       <MiniApp done={done} onTap={(i) => setDone((d) => d.map((x, j) => (j === i ? !x : x)))} />
-      <div className="hiw-scan pointer-events-none absolute inset-x-0 h-8 bg-gradient-to-b from-transparent via-sky-400/25 to-transparent" />
+      {/* The screenshot: a flash, then the scan runs down the page. */}
+      <div className={clsx("pointer-events-none absolute inset-0 bg-white transition-opacity duration-200", phase === 1 ? "opacity-80" : "opacity-0")} />
+      {phase >= 2 && <div className="hiw-scan pointer-events-none absolute inset-x-0 h-8 bg-gradient-to-b from-transparent via-sky-400/25 to-transparent" />}
+      <div className="absolute left-2.5 top-1 flex items-center gap-1 text-[8px] text-neutral-500">
+        <Camera size={9} /> {phase === 0 ? "iOS Simulator" : "Screenshot taken"}
+      </div>
       <div className="absolute inset-x-2.5 bottom-3 space-y-1">
-        {checks.map((c, i) => (
-          <div key={c} className="hiw-pop flex items-center gap-1.5 rounded-md bg-white/85 shadow-sm px-2 py-1 text-[9px] text-emerald-600 backdrop-blur" style={{ animationDelay: `${600 + i * 400}ms` }}>
-            <Check size={9} /> {c}
-          </div>
-        ))}
+        {checks.map((c, i) => {
+          const state = phase < 2 ? "wait" : phase - 2 > i ? "ok" : phase - 2 === i ? "busy" : "wait";
+          return (
+            <div key={c} className={clsx("flex items-center gap-1.5 rounded-md bg-white/90 px-2 py-1 text-[9px] shadow-sm backdrop-blur transition-opacity", state === "wait" ? "opacity-40" : "opacity-100", state === "ok" ? "text-emerald-600" : "text-neutral-600")}>
+              {state === "busy" ? <Loader2 size={9} className="animate-spin" /> : state === "ok" ? <Check size={9} /> : <span className="size-[9px] rounded-full border border-neutral-300" />} {c}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
 }
 
+// ---- 05 · Fix: a failure, sent back, fixed, verified ----
+
+const FIX = [1700, 1500, 1100, 1900];
 function Fix() {
-  const [fixed, setFixed] = useState(false);
-  useEffect(() => {
-    const t = setInterval(() => setFixed((f) => !f), 2200);
-    return () => clearInterval(t);
-  }, []);
+  const phase = useScene(FIX);
+  const fixed = phase >= 2;
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3 px-2.5 py-3 text-center">
-      <div className={clsx("grid place-items-center rounded-lg bg-spark-500 text-[10px] text-white transition-all duration-500", fixed ? "size-11" : "size-7")}>+</div>
-      <div className={clsx("flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[9.5px] transition-colors duration-500", fixed ? "bg-emerald-500/15 text-emerald-600" : "bg-red-500/15 text-red-600")}>
-        {fixed ? <Check size={10} /> : <X size={10} />}
-        {fixed ? "Touch target 44×44" : "Touch target 28×28 (needs 44)"}
+      <span className="rounded-full bg-black/6 px-2 py-0.5 font-mono text-[8.5px] text-neutral-500">Attempt {fixed ? 2 : 1}</span>
+      <div className={clsx("relative grid place-items-center rounded-lg bg-spark-500 text-[11px] font-semibold text-white transition-all duration-700", fixed ? "size-11" : "size-7")}>
+        +{phase === 0 && <span className="absolute -inset-1.5 animate-pulse rounded-xl border-2 border-dashed border-red-400" />}
       </div>
-      <p className="text-[9px] text-neutral-500">{fixed ? "Verified, moving on" : "Sent back to the Builder…"}</p>
+      <div className={clsx("flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[9.5px] transition-colors duration-500", phase === 3 ? "bg-emerald-500/15 text-emerald-600" : fixed ? "bg-black/6 text-neutral-500" : "bg-red-500/15 text-red-600")}>
+        {phase === 3 ? <Check size={10} /> : fixed ? <Loader2 size={10} className="animate-spin" /> : <X size={10} />}
+        {phase === 3 ? "Touch target 44×44" : fixed ? "Checking again…" : "Touch target 28×28 (needs 44)"}
+      </div>
+      <p className="flex h-3 items-center gap-1 text-[9px] text-neutral-500">
+        {phase === 1 && (
+          <span className="hiw-pop flex items-center gap-1">
+            <RotateCcw size={9} /> Sent back to the Builder with the screenshot
+          </span>
+        )}
+        {phase === 3 && <span className="hiw-pop">Verified, on to the next screen</span>}
+      </p>
     </div>
   );
 }
 
+// ---- 06 · Point and talk: click a row, say the change, see it ----
+
+const POINT = [1300, 600, 2100, 700, 2300];
 function Point() {
-  const [blue, setBlue] = useState(false);
+  const phase = useScene(POINT);
   const [done, setDone] = useState([true, false, false]);
+  const [applied, setApplied] = useState<boolean | null>(null);
+  const said = useTyped("Make this row bigger, in blue", phase === 2, 45);
+  // The scene applies the change at its end; a tap on the button decides instead.
+  const big = applied ?? phase === 4;
   return (
     <div className="relative h-full">
-      <MiniApp done={done} highlight={1} onTap={(i) => setDone((d) => d.map((x, j) => (j === i ? !x : x)))} />
-      <MousePointer2 size={14} className="hiw-cursor absolute fill-white text-black" />
+      <MiniApp done={done} highlight={phase >= 1 && !big ? 1 : undefined} big={big ? 1 : undefined} onTap={(i) => setDone((d) => d.map((x, j) => (j === i ? !x : x)))} />
+      {phase === 0 && <MousePointer2 size={14} className="hiw-cursor pointer-events-none absolute fill-white text-black" />}
+      {phase === 1 && <MousePointer2 size={14} className="pointer-events-none absolute left-[55%] top-[42%] fill-white text-black" />}
       <div className="absolute inset-x-2.5 bottom-3">
-        <div className="mb-1.5 rounded-xl bg-black/8 px-2.5 py-1.5 text-[9.5px] text-neutral-600">“Make this row bigger, in blue”</div>
+        <div className="mb-1.5 flex min-h-[26px] items-center gap-1.5 rounded-xl bg-black/8 px-2.5 py-1.5 text-[9.5px] text-neutral-600">
+          <Mic size={10} className={clsx("shrink-0", phase === 2 ? "text-spark-500" : "text-neutral-400")} />
+          {phase === 2 ? (
+            <span>
+              “{said}
+              <Caret dark />
+            </span>
+          ) : phase >= 3 ? (
+            "“Make this row bigger, in blue”"
+          ) : (
+            "Click something, then say what to change"
+          )}
+        </div>
         <button
           type="button"
-          onClick={() => setBlue((b) => !b)}
-          className={clsx("w-full cursor-pointer rounded-xl py-2 text-[10px] font-semibold text-white transition-all", blue ? "bg-sky-500 py-3" : "bg-spark-500")}>
-          {blue ? "Done · tap to undo" : "Tap to apply"}
+          onClick={() => setApplied(!big)}
+          className={clsx("flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-xl py-2 text-[10px] font-semibold text-white transition-all", big ? "bg-sky-500" : "bg-spark-500")}>
+          {phase === 3 && applied === null ? (
+            <>
+              <Loader2 size={10} className="animate-spin" /> HabitRow.tsx:14
+            </>
+          ) : big ? (
+            "Done · tap to undo"
+          ) : (
+            "Tap to apply"
+          )}
         </button>
       </div>
     </div>
   );
 }
 
+// ---- 07 · Ship: on your phone, a real build, the stores ----
+
+const SHIP = [2400, 2200, 2400];
 function Ship() {
+  const phase = useScene(SHIP);
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-3 px-2.5 py-4 text-center">
-      <div className="rounded-xl border border-black/10 bg-white p-2">
-        <QRCodeSVG value="https://expo.dev" size={92} />
-      </div>
-      <p className="text-[10px] text-neutral-600">Scan with Expo Go</p>
+    <div className="flex h-full flex-col items-center justify-center gap-3 px-2.5 py-3 text-center">
+      {phase === 0 && (
+        <div className="hiw-pop flex flex-col items-center gap-2">
+          <div className="relative overflow-hidden rounded-xl border border-black/10 bg-white p-2">
+            <QRCodeSVG value="https://expo.dev" size={88} />
+            <div className="hiw-scan pointer-events-none absolute inset-x-0 h-6 bg-gradient-to-b from-transparent via-spark-400/40 to-transparent" />
+          </div>
+          <p className="text-[10px] text-neutral-600">Scan with Expo Go</p>
+        </div>
+      )}
+      {phase === 1 && (
+        <div className="hiw-pop flex w-full flex-col items-center gap-2">
+          <div className="grid size-12 place-items-center rounded-[13px] bg-gradient-to-b from-[#1c1f26] to-[#050608] shadow-md">
+            <Check size={18} className="text-emerald-400" />
+          </div>
+          <p className="text-[10.5px] font-semibold text-neutral-900">Habitly</p>
+          <div className="w-4/5">
+            <div className="h-1 overflow-hidden rounded bg-black/10">
+              <div className="h-full animate-[hiw-type_1.8s_ease-out_forwards] bg-spark-500" style={{ maxWidth: 0, width: "100%" }} />
+            </div>
+            <p className="mt-1 text-[8.5px] text-neutral-500">Release build · installed on the iPhone</p>
+          </div>
+        </div>
+      )}
+      {phase === 2 && (
+        <div className="w-full space-y-1.5">
+          {[
+            { logo: <AppStoreLogo className="size-5" />, name: "TestFlight", note: "Build 12 uploaded" },
+            { logo: <PlayStoreLogo className="size-5" />, name: "Google Play", note: "Internal testing" },
+          ].map((s, i) => (
+            <div key={s.name} className="hiw-pop flex items-center gap-2 rounded-xl border border-black/10 bg-white px-2.5 py-2 text-left shadow-sm" style={{ animationDelay: `${i * 350}ms` }}>
+              {s.logo}
+              <div className="min-w-0 flex-1">
+                <div className="text-[10px] font-semibold text-neutral-900">{s.name}</div>
+                <div className="text-[8.5px] text-neutral-500">{s.note}</div>
+              </div>
+              <Check size={11} className="text-emerald-500" />
+            </div>
+          ))}
+        </div>
+      )}
       <div className="flex gap-1.5 text-[9px]">
         <span className="rounded-full bg-black/8 px-2 py-0.5 text-neutral-600">Export .zip</span>
         <span className="rounded-full bg-black/8 px-2 py-0.5 text-neutral-600">Your code</span>

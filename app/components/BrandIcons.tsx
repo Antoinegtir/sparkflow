@@ -77,6 +77,8 @@ export function brandIcon(tag: string): ReactNode {
   if (tag === "TypeScript") return <TypeScriptLogo className={c} />;
   if (tag === "git") return <GitLogo className={c} />;
   if (/^Android/.test(tag)) return <AndroidLogo className={c} />;
+  if (tag === "TestFlight") return <AppStoreLogo className={c} />;
+  if (tag === "Google Play") return <PlayStoreLogo className={c} />;
   // eslint-disable-next-line @next/next/no-img-element
   if (tag === "Bring your project") return <img src="/emoji/party-popper.webp" alt="" width={14} height={14} className={c} />;
   return null;
