@@ -1,7 +1,7 @@
 "use client";
 
 import clsx from "clsx";
-import { FolderOpen } from "lucide-react";
+import { FolderOpen, Pencil } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { NavEdge, ProjectState } from "@/lib/shared";
 import { highlightLine } from "@/lib/web/highlight";
@@ -131,6 +131,12 @@ function CodeView({ projectId, state, file, line, onFile }: { projectId: string;
   const [files, setFiles] = useState<string[]>([]);
   const [content, setContent] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Editing by hand: the draft, and whether it's being saved.
+  const [draft, setDraft] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  // TypeScript errors in this file, shown at the end of their line like VS Code's Error Lens.
+  const [diags, setDiags] = useState<{ line: number; message: string }[]>([]);
+  const [checks, setChecks] = useState(0);
   const scroller = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -139,6 +145,21 @@ function CodeView({ projectId, state, file, line, onFile }: { projectId: string;
       .then((j) => setFiles((j.files as string[]).filter((f) => /\.(tsx?|json)$/.test(f) && !f.startsWith("components/sparkflow"))))
       .catch(() => {});
   }, [projectId, state.commits.length]);
+
+  useEffect(() => setDraft(null), [file]);
+
+  useEffect(() => {
+    setDiags([]);
+    if (!file || !/\.tsx?$/.test(file)) return;
+    let live = true;
+    fetch(`/api/projects/${projectId}/files?diagnostics&path=${encodeURIComponent(file)}`)
+      .then((r) => r.json())
+      .then((j) => live && setDiags(j.diagnostics ?? []))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [projectId, file, state.commits.length, checks]);
 
   useEffect(() => {
     setContent(null);
@@ -158,7 +179,22 @@ function CodeView({ projectId, state, file, line, onFile }: { projectId: string;
     scroller.current?.querySelector(`[data-line="${line}"]`)?.scrollIntoView({ block: "center" });
   }, [line, content]);
 
-  const lines = content?.split("\n") ?? [];
+  const save = async () => {
+    if (draft == null || !file || saving) return;
+    setSaving(true);
+    setError(null);
+    const res = await fetch(`/api/projects/${projectId}/files`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ type: "write", path: file, content: draft }),
+    }).catch(() => null);
+    setSaving(false);
+    if (!res?.ok) return setError((await res?.json().catch(() => null))?.error ?? "Couldn't save the file");
+    setContent(draft);
+    setDraft(null);
+    setChecks((n) => n + 1);
+  };
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex shrink-0 items-center gap-1.5 border-b border-[var(--line)] p-2">
@@ -174,6 +210,29 @@ function CodeView({ projectId, state, file, line, onFile }: { projectId: string;
             </option>
           ))}
         </select>
+        {content != null &&
+          (draft == null ? (
+            <button
+              onClick={() => setDraft(content)}
+              title="Edit this file"
+              aria-label="Edit this file"
+              className="grid size-7 shrink-0 cursor-pointer place-items-center rounded-md border border-[var(--line)] text-ink-200 hover:bg-ink-800">
+              <Pencil size={13} />
+            </button>
+          ) : (
+            <>
+              <button onClick={() => setDraft(null)} className="h-7 shrink-0 cursor-pointer rounded-md border border-[var(--line)] px-2 text-[11.5px] text-ink-300 hover:bg-ink-800">
+                Cancel
+              </button>
+              <button
+                onClick={() => void save()}
+                disabled={saving || draft === content}
+                title="Save (⌘S)"
+                className="h-7 shrink-0 cursor-pointer rounded-md bg-spark-500 px-2.5 text-[11.5px] font-medium text-white hover:bg-spark-400 disabled:cursor-default disabled:opacity-50">
+                {saving ? "Saving…" : "Save"}
+              </button>
+            </>
+          ))}
         <button
           // sparkflow opens the folder in VS Code on this computer.
           onClick={() => void fetch(`/api/projects/${projectId}/reveal?app=vscode`, { method: "POST" })}
@@ -194,7 +253,7 @@ function CodeView({ projectId, state, file, line, onFile }: { projectId: string;
         {!state.native && <GitHubSetup projectId={projectId} appName={state.name} />}
       </div>
       <div ref={scroller} className="min-h-0 flex-1 overflow-auto">
-        {!file && <p className="p-4 text-[12px] text-ink-500">Read-only view of the project&apos;s code. Pick a file, or click an element in the Layout tab.</p>}
+        {!file && <p className="p-4 text-[12px] text-ink-500">The project&apos;s code. Pick a file, or click an element in the Layout tab; the pencil edits it.</p>}
         {file && IMAGE.test(file) && (
           <div className="p-4">
             <div className="grid place-items-center rounded-lg border border-[var(--line)] bg-[repeating-conic-gradient(#8882_0_25%,transparent_0_50%)] bg-[length:16px_16px] p-4">
@@ -208,14 +267,45 @@ function CodeView({ projectId, state, file, line, onFile }: { projectId: string;
         {file && !IMAGE.test(file) && !CODE.test(file) && !content && !error && <p className="p-4 text-[12px] text-ink-500">Binary file.</p>}
         {error && <p className="p-4 text-[12px] text-red-400">{error}</p>}
         {content != null && (
-          <pre className="py-2 font-mono text-[11.5px] leading-[1.6]">
-            {lines.map((l, i) => (
-              <div key={i} data-line={i + 1} className={clsx("flex", line === i + 1 && "bg-spark-500/15")}>
-                <span className="w-10 shrink-0 select-none pr-3 text-right text-ink-600">{i + 1}</span>
-                <code className="whitespace-pre text-ink-200">{highlightLine(l)}</code>
-              </div>
-            ))}
-          </pre>
+          // The editor is a transparent textarea over the highlighted lines, so errors stay on their line while typing.
+          <div className="relative w-max min-w-full">
+            <pre className="py-2 font-mono text-[11.5px] leading-[1.6]" aria-hidden={draft != null}>
+              {(draft ?? content).split("\n").map((l, i) => {
+                const errs = diags.filter((d) => d.line === i + 1);
+                return (
+                  <div key={i} data-line={i + 1} className={clsx("flex", errs.length ? "bg-red-500/10" : line === i + 1 && draft == null && "bg-spark-500/15")}>
+                    <span className={clsx("w-10 shrink-0 select-none pr-3 text-right", errs.length ? "text-red-400" : "text-ink-600")}>{i + 1}</span>
+                    <code className="whitespace-pre text-ink-200">{highlightLine(l)}</code>
+                    {errs.length > 0 && <span className="select-none whitespace-pre pl-6 pr-3 text-red-400/90">{errs.map((e) => e.message).join("  ·  ")}</span>}
+                  </div>
+                );
+              })}
+            </pre>
+            {draft != null && (
+              <textarea
+                autoFocus
+                value={draft}
+                wrap="off"
+                spellCheck={false}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if ((e.metaKey || e.ctrlKey) && e.key === "s") {
+                    e.preventDefault();
+                    void save();
+                  } else if (e.key === "Escape") setDraft(null);
+                  else if (e.key === "Tab") {
+                    // Two spaces, like the project's code, instead of leaving the field.
+                    e.preventDefault();
+                    const t = e.currentTarget;
+                    const { selectionStart: a, selectionEnd: b } = t;
+                    setDraft(draft.slice(0, a) + "  " + draft.slice(b));
+                    requestAnimationFrame(() => t.setSelectionRange(a + 2, a + 2));
+                  }
+                }}
+                className="absolute inset-0 resize-none overflow-hidden whitespace-pre bg-transparent py-2 pl-10 font-mono text-[11.5px] leading-[1.6] text-transparent caret-ink-100 outline-none selection:bg-spark-500/30"
+              />
+            )}
+          </div>
         )}
       </div>
     </div>

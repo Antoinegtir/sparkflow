@@ -10,6 +10,7 @@ export const GET = handle(async (req: Request, { params }: RouteCtx) => {
   const url = new URL(req.url);
   const p = url.searchParams.get("path");
   if (!p) return Response.json({ files: await orchestrator().listProjectFiles(id) });
+  if (url.searchParams.has("diagnostics")) return Response.json({ diagnostics: await orchestrator().fileDiagnostics(id, p) });
   if (url.searchParams.has("raw")) {
     const bytes = await orchestrator().readProjectFileBytes(id, p);
     const ext = p.split(".").pop()?.toLowerCase() ?? "";
@@ -40,9 +41,13 @@ const Op = z.discriminatedUnion("type", [
   z.object({ type: z.literal("mkdir"), path: z.string() }),
   z.object({ type: z.literal("move"), from: z.string(), to: z.string() }),
   z.object({ type: z.literal("delete"), path: z.string() }),
+  z.object({ type: z.literal("write"), path: z.string(), content: z.string().max(2_000_000) }),
 ]);
 
 export const PATCH = handle(async (req: Request, { params }: RouteCtx) => {
-  await orchestrator().assetOp((await params).id, Op.parse(await req.json()));
+  const { id } = await params;
+  const op = Op.parse(await req.json());
+  if (op.type === "write") await orchestrator().writeProjectFile(id, op.path, op.content);
+  else await orchestrator().assetOp(id, op);
   return Response.json({ ok: true });
 });

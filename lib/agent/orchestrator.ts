@@ -885,6 +885,31 @@ export class Orchestrator {
     return (await this.sandbox(rt)).readFile(this.checkRel(rel));
   }
 
+  /** TypeScript errors in one file of the project, for the code view's inline messages. */
+  async fileDiagnostics(id: string, rel: string) {
+    const rt = await this.runtime(id);
+    const { errors } = await typecheck(await this.sandbox(rt));
+    const file = this.checkRel(rel);
+    return errors.flatMap((e) => {
+      const m = e.match(/^(.+?):(\d+):(\d+) (TS\d+) (.+)$/);
+      return m && m[1] === file ? [{ line: Number(m[2]), col: Number(m[3]), code: m[4], message: m[5] }] : [];
+    });
+  }
+
+  /** Saves a file edited by hand in the IDE's code view, as its own commit. */
+  async writeProjectFile(id: string, rel: string, content: string) {
+    const rt = await this.runtime(id);
+    const sb = await this.sandbox(rt);
+    if (!rt.meta.native && rt.running) throw new BusyError();
+    await sb.writeFile(this.checkRel(rel), content);
+    if (!rt.meta.native) {
+      const message = `Edit ${rel}`;
+      const sha = await gitCommit(sb, message);
+      if (sha) rt.emit({ type: "commit", sha, message, routes: [] });
+      await this.emitTree(rt);
+    }
+  }
+
   async readProjectFileBytes(id: string, rel: string) {
     const rt = await this.runtime(id);
     return (await this.sandbox(rt)).readFileBytes(this.checkRel(rel));
