@@ -1,6 +1,6 @@
 "use client";
 
-import { collection, deleteDoc, doc, getDocs, getFirestore, setDoc } from "firebase/firestore";
+import { collection, deleteDoc, doc, getDocs, getFirestore, setDoc, updateDoc } from "firebase/firestore";
 import { deleteObject, getDownloadURL, getStorage, ref, uploadBytes } from "firebase/storage";
 import type { ProjectSummary } from "@/lib/shared";
 import { firebaseApp } from "./auth";
@@ -24,7 +24,24 @@ const apps = (uid: string) => collection(getFirestore(firebaseApp()), "users", u
 
 export async function loadSavedApps(uid: string): Promise<SavedApp[]> {
   const snap = await getDocs(apps(uid));
-  return snap.docs.map((d) => ({ ...(d.data() as Omit<SavedApp, "id">), id: d.id })).sort((a, b) => b.createdAt - a.createdAt);
+  const list = snap.docs.map((d) => ({ ...(d.data() as Omit<SavedApp, "id">), id: d.id })).sort((a, b) => b.createdAt - a.createdAt);
+  // Covers saved inline (data: URLs, before Cloud Storage) move there now, without the computer.
+  await Promise.all(
+    list.filter((a) => a.cover?.startsWith("data:")).map(async (a) => {
+      const url = await uploadCover(uid, a.id, await (await fetch(a.cover!)).blob()).catch(() => undefined);
+      if (!url) return;
+      a.cover = url;
+      await updateDoc(doc(apps(uid), a.id), { cover: url }).catch(() => {});
+    }),
+  );
+  return list;
+}
+
+/** Puts a cover JPEG in Cloud Storage; its download URL. */
+async function uploadCover(uid: string, id: string, jpeg: Blob) {
+  const r = coverRef(uid, id);
+  await uploadBytes(r, jpeg, { contentType: "image/jpeg", cacheControl: "public, max-age=31536000" });
+  return getDownloadURL(r);
 }
 
 const coverRef = (uid: string, id: string) => ref(getStorage(firebaseApp()), `users/${uid}/covers/${id}.jpg`);
@@ -36,13 +53,7 @@ const coverRef = (uid: string, id: string) => ref(getStorage(firebaseApp()), `us
 async function storeCover(uid: string, id: string, coverUrl: string): Promise<string | undefined> {
   const jpeg = await thumbnail(coverUrl);
   if (!jpeg) return undefined;
-  try {
-    const r = coverRef(uid, id);
-    await uploadBytes(r, jpeg, { contentType: "image/jpeg", cacheControl: "public, max-age=31536000" });
-    return await getDownloadURL(r);
-  } catch {
-    return undefined;
-  }
+  return uploadCover(uid, id, jpeg).catch(() => undefined);
 }
 
 async function thumbnail(coverUrl: string): Promise<Blob | undefined> {
