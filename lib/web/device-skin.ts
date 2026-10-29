@@ -38,7 +38,12 @@ const lastDevice = (): { name: string; platform: string } | null => {
  * `orLast`: with no device running, the frame of the last one shown.
  */
 export function useDeviceSkin(device: SimDevice | null, orLast = false) {
-  const [skin, setSkin] = useState<DeviceSkin | null>(null);
+  // Starts with the last device's frame, so a reload doesn't flash the iPhone while the device loads.
+  const [skin, setSkin] = useState<DeviceSkin | null>(() => {
+    if (!orLast || typeof window === "undefined") return null;
+    const last = lastDevice();
+    return last?.platform === "android" ? cached(last.name) : null;
+  });
   const name = device?.platform === "android" ? device.name : null;
   useEffect(() => {
     if (device) {

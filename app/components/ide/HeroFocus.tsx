@@ -103,7 +103,7 @@ export function HeroFocus(p: Props) {
   const simDevice = useSimDevice().device;
   const simUdid = simDevice?.udid;
   // An Android emulator wears its own frame (its SDK skin); the iOS Simulator, the drawn iPhone.
-  const skin = useDeviceSkin(native ? simDevice : null);
+  const skin = useDeviceSkin(native ? simDevice : null, true);
   const webSim = !p.state.native && p.state.previewDevice === "simulator";
   // A page change that came from the Simulator itself (the user tapped a tab there) needs no reopening.
   const fromSim = useRef(false);

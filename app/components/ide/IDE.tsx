@@ -34,7 +34,7 @@ export function IDE({ id, slug: initialSlug, initialPage }: { id: string; slug: 
   const { state } = api;
   const sim = useSimDevice();
   // Pages shown in an Android emulator wear its frame, on the canvas as in focus.
-  const skin = useDeviceSkin(state?.native || state?.previewDevice === "simulator" ? sim.device : null);
+  const skin = useDeviceSkin(state?.native || state?.previewDevice === "simulator" ? sim.device : null, !sim.loaded || !state);
   const ipad = !!state?.native && !!sim.device?.ipad;
 
   const [focused, setFocused] = useState<string | null>(null);
