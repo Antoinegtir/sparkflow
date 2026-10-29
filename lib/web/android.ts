@@ -189,7 +189,21 @@ export function parseHierarchy(xml: string, s: number): AxElement[] {
  * (Android exposes no tab bar role for JS tab bars).
  */
 export function bottomTabs(els: AxElement[], screenHeight: number) {
-  const low = flatten(els).filter((e) => e.type === "Button" && e.AXLabel && e.frame && e.frame.y > screenHeight * 0.8 && e.frame.width < 300);
+  const all = flatten(els);
+  // Material bottom navigation (react-native-bottom-tabs): each item holds navigation_bar_item_* views.
+  // The selected one isn't clickable, and a badge joins its label ("Favoris, 4").
+  const material = all.filter((e) => e.AXLabel && e.frame && (e.children ?? []).some((c) => /^navigation_bar_item_/.test(c.AXUniqueId ?? "")));
+  if (material.length >= 2)
+    return material
+      .sort((a, b) => a.frame!.x - b.frame!.x)
+      .map((e, i) => ({
+        label: e.AXLabel!.replace(/,\s*\d+\+?$/, ""),
+        x: e.frame!.x + e.frame!.width / 2,
+        y: e.frame!.y + e.frame!.height / 2,
+        selected: (e.traits ?? []).includes("selected"),
+        index: i + 1,
+      }));
+  const low = all.filter((e) => e.type === "Button" && e.AXLabel && e.frame && e.frame.y > screenHeight * 0.8 && e.frame.width < 300);
   const rows = new Map<number, AxElement[]>();
   for (const e of low) {
     const k = Math.round(e.frame!.y / 8);
@@ -211,7 +225,12 @@ const flatten = (els: AxElement[]): AxElement[] => els.flatMap((e) => [e, ...fla
 
 /** The tree, or the smallest labelled element under a point (like idb's describe-point). */
 export async function accessibilityInfo(serial: string, point?: { x: number; y: number }): Promise<AxElement[]> {
-  const xml = (await adb(serial, "exec-out", "uiautomator", "dump", "/dev/tty")).toString("utf8");
+  let xml = (await adb(serial, "exec-out", "uiautomator", "dump", "/dev/tty").catch(() => Buffer.from(""))).toString("utf8");
+  // Recent Android images kill a dump to /dev/tty ("Killed"): dump to a file and read it back.
+  if (!xml.includes("<hierarchy")) {
+    await adb(serial, "shell", "uiautomator", "dump", "/sdcard/sparkflow-ui.xml").catch(() => null);
+    xml = (await adb(serial, "exec-out", "cat", "/sdcard/sparkflow-ui.xml").catch(() => Buffer.from(""))).toString("utf8");
+  }
   const end = xml.lastIndexOf("</hierarchy>");
   const tree = parseHierarchy(end >= 0 ? xml.slice(0, end) : xml, await scale(serial));
   if (!point) return tree;
