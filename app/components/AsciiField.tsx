@@ -124,7 +124,7 @@ const MOTIFS: Motif[] = [
     const d = head - y;
     return d >= 0 && d < 7 ? 1 - d / 7 : 0;
   },
-  // 04 Look: a phone, its screen being captured (viewfinder corners, a flash) and scanned line by line.
+  // 04 Look: a phone, its screen being captured (viewfinder corners blink) and scanned line by line.
   (x, y, t, w, h) => {
     const cx = w / 2;
     const cy = Math.round(h / 2);
@@ -141,15 +141,16 @@ const MOTIFS: Motif[] = [
       const scan = -hh + ((cycle / 4) * hh * 2.2) % (hh * 2);
       const row = Math.round((dy + hh - 3) / 3);
       const onRow = (dy + hh - 3) % 3 === 0 && row >= 0 && Math.abs(dx) < hw - 2 && dy < hh - 2 && Math.abs(dx) < hw * (row === 0 ? 0.5 : 0.85);
+      // The scan lights the rows it crosses, and draws a thin line of its own.
       const lit = Math.exp(-((dy - scan) ** 2) / 2);
-      const flash = cycle < 0.25 ? 1 - cycle * 4 : 0;
-      return Math.max(onRow ? 0.3 + lit * 0.7 : 0, lit * 0.35, flash * 0.5);
+      return Math.max(onRow ? 0.3 + lit * 0.7 : 0, Math.abs(dy - scan) < 0.5 ? 0.45 : 0);
     }
     // Viewfinder corners around the phone.
     const ox = Math.abs(dx) - (hw + 2);
     const oy = Math.abs(dy) - (hh + 1.5);
     const corner = (Math.abs(ox) < 0.5 && oy > -h * 0.12 && oy < 0.5) || (Math.abs(oy) < 0.5 && ox > -hw * 0.45 && ox < 0.5);
-    return corner ? 0.6 : 0;
+    // They blink once at the start of each round: the capture.
+    return corner ? (cycle < 0.5 && Math.sin(cycle * 40) > 0 ? 1 : 0.6) : 0;
   },
   // 05 Fix: a spiral turning, the loop of verify, fix, repeat.
   (x, y, t, w, h) => {
