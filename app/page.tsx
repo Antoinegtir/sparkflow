@@ -1,8 +1,7 @@
 import { Composer } from "./components/Composer";
 import { DotLens } from "./components/DotLens";
 import { MetaLogo } from "./components/MetaLogo";
-import { ScrollVideo } from "./components/ScrollVideo";
-import { HowItWorks } from "./components/HowItWorks";
+import { HowItWorksSection } from "./components/HowItWorksSection";
 import { LoopVideo } from "./components/LoopVideo";
 import { ReactLogo } from "./components/ReactLogo";
 import { ImportNative } from "./components/ImportNative";
@@ -94,9 +93,7 @@ export default function Home() {
       </section>
 
       {/* Scroll-scrubbed glass phone, right under the import link. */}
-      <ScrollVideo src="/videos/phone.mp4">
-        <HowItWorks />
-      </ScrollVideo>
+      <HowItWorksSection />
       <div id="apps" className="scroll-mt-20">
         <ProjectGrid />
       </div>

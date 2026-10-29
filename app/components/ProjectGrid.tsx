@@ -12,6 +12,8 @@ import { deviceById, DeviceMockup } from "./ide/ui";
 import { SkinFrame } from "./ide/SkinFrame";
 import { useDeviceSkin, type DeviceSkin } from "@/lib/web/device-skin";
 import { useSimDevice } from "@/lib/web/sim-device";
+import { useIsPhone } from "@/lib/web/phone";
+import { DesktopNote } from "./DesktopNote";
 import { requireSignIn, watchUser } from "@/lib/web/auth";
 import { apiFetch, appHref, BACKEND_EVENT, backendUrl, openOnBackend } from "@/lib/web/backend";
 import { loadSavedApps, saveApps, type SavedApp } from "@/lib/web/cloud-apps";
@@ -103,6 +105,8 @@ export function ProjectGrid() {
   // The Android emulator in use (or last used, while sparkflow is off) frames the apps shown in it.
   const skin = useDeviceSkin(useSimDevice().device, true);
   const router = useRouter();
+  // Apps open on a computer: on a phone the cards show but don't open, the note says where to go.
+  const phone = useIsPhone();
   // Everyone sees the demo app, even signed out and without sparkflow: it invites them in. Hidden
   // once their own Wander (seeded by sparkflow) is listed.
   const hasDemo = [...(projects ?? []), ...(saved ?? [])].some((p) => p.slug === "wander");
@@ -167,7 +171,22 @@ export function ProjectGrid() {
           </p>
         </div>
       </div>
-      <div data-no-lens className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {phone && (
+        <div className="mb-6">
+          <DesktopNote what="open and edit your apps" />
+        </div>
+      )}
+      <div
+        data-no-lens
+        className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
+        onClickCapture={
+          phone
+            ? (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }
+            : undefined
+        }>
         <button
           onMouseEnter={() => setInstalls((n) => n + 1)}
           onClick={() => {

@@ -8,7 +8,9 @@ import type { MediaInput } from "@/lib/shared";
 import { blobToWav, imageToInput, startRecording } from "@/lib/web/media";
 import { requireSignIn } from "@/lib/web/auth";
 import { apiFetch, getBackend, openOnBackend, STATIC_SITE } from "@/lib/web/backend";
+import { useIsPhone } from "@/lib/web/phone";
 import { patchPresence } from "@/lib/web/presence";
+import { DesktopNote } from "./DesktopNote";
 
 const PENDING = "sparkflow.pendingPrompt";
 
@@ -31,7 +33,9 @@ export function Composer() {
   const [error, setError] = useState<string | null>(null);
   const input = useRef<HTMLTextAreaElement>(null);
   const file = useRef<HTMLInputElement>(null);
-  const ready = (value.trim().length > 0 || !!image || !!audio) && !busy && !recording;
+  // On a phone nothing gets built (it needs a computer): the prompt stays to try, the note says where.
+  const phone = useIsPhone();
+  const ready = !phone && (value.trim().length > 0 || !!image || !!audio) && !busy && !recording;
 
   // A prompt kept while the hosted site walked you through connecting your computer.
   useEffect(() => {
@@ -209,6 +213,11 @@ export function Composer() {
         </div>
       </div>
       {error && <p className="mt-3 text-center text-sm text-red-400">{error}</p>}
+      {phone && (
+        <div className="mt-5">
+          <DesktopNote what="build your app" />
+        </div>
+      )}
 
       <ul data-no-lens className="mx-auto mt-6 max-w-[80%]">
         {EXAMPLES.map((ex) => (
