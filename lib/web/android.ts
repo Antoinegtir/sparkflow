@@ -347,10 +347,11 @@ export async function videoFrames(serial: string, onFrame: (jpeg: Buffer) => voi
   const once = () => {
     if (stopped) return;
     const rec = spawn(adbBin, ["-s", serial, "exec-out", "screenrecord", "--output-format=h264", "--size", size, "--bit-rate", "8000000", "-"]);
-    // No probing or buffering: each frame goes out as soon as it's decoded (showall: even before the
-    // stream is fully known). The raw stream has no timestamps: the clock gives them.
+    // No probing: each frame goes out as soon as it's decoded. Not `-fflags nobuffer`: it drops the packets
+    // read while probing, the first keyframe among them, and every frame after decodes to grey garbage.
+    // The raw stream has no timestamps: the clock gives them.
     const dec = spawn(ff, [
-      ...["-loglevel", "error", "-probesize", "32", "-analyzeduration", "0", "-fflags", "nobuffer", "-flags", "low_delay", "-flags2", "showall"],
+      ...["-loglevel", "error", "-probesize", "32", "-analyzeduration", "0", "-flags", "low_delay"],
       ...["-use_wallclock_as_timestamps", "1", "-f", "h264", "-i", "-"],
       ...["-vf", "format=yuvj420p", "-fps_mode", "passthrough", "-enc_time_base", "1/1000000", "-f", "mjpeg", "-q:v", "4", "-flush_packets", "1", "-"],
     ]);
