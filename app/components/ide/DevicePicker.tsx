@@ -11,7 +11,21 @@ type Device = { udid: string; name: string; runtime: string; booted: boolean; ki
  * Device picker grouped iPhone / iPad / Android. Picking boots the device (shutting the current one down) and
  * reinstalls the app there. `inline`: the list itself, for when nothing is running yet.
  */
-export function DevicePicker({ bundleId, onSwitching, inline }: { bundleId?: string; onSwitching?: (name: string | null) => void; inline?: boolean }) {
+export function DevicePicker({
+  bundleId,
+  onSwitching,
+  inline,
+  platform,
+  label,
+}: {
+  bundleId?: string;
+  onSwitching?: (name: string | null) => void;
+  inline?: boolean;
+  /** Only this platform's devices (Play: boot an iOS Simulator from the iOS tab). */
+  platform?: "ios" | "android";
+  /** The button's text instead of the booted device's name; the list then opens below its left edge. */
+  label?: string;
+}) {
   const [devices, setDevices] = useState<Device[]>([]);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -48,12 +62,13 @@ export function DevicePicker({ bundleId, onSwitching, inline }: { bundleId?: str
     }
   }
 
-  const group = (kind: Device["kind"], label: string) => {
+  const group = (kind: Device["kind"], title: string) => {
+    if (platform && (kind === "android") !== (platform === "android")) return null;
     const list = devices.filter((d) => d.kind === kind);
     if (!list.length) return null;
     return (
       <div>
-        <p className="px-2.5 pt-2 pb-1 text-[10.5px] font-semibold uppercase tracking-wide text-ink-500">{label}</p>
+        <p className="px-2.5 pt-2 pb-1 text-[10.5px] font-semibold uppercase tracking-wide text-ink-500">{title}</p>
         {list.map((d) => (
           <button key={d.udid} onClick={() => void pick(d)} className="flex w-full cursor-pointer items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-[12.5px] text-ink-200 hover:bg-ink-800">
             <span className="flex-1 truncate">{d.name}</span>
@@ -88,11 +103,11 @@ export function DevicePicker({ bundleId, onSwitching, inline }: { bundleId?: str
     <div ref={ref} className="relative">
       <button onClick={() => setOpen((o) => !o)} className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--line)] px-2 py-1 text-[12px] text-ink-300 hover:text-ink-100">
         {busy ? <Loader2 size={13} className="animate-spin" /> : current?.kind === "ipad" ? <Tablet size={13} /> : <Smartphone size={13} />}
-        <span className="max-w-[140px] truncate">{current?.name ?? "No device"}</span>
+        <span className="max-w-[160px] truncate">{busy ? "Booting…" : (label ?? current?.name ?? "No device")}</span>
         <ChevronDown size={12} />
       </button>
       {open && (
-        <div className={clsx("absolute right-0 z-50 mt-1 max-h-96 w-72 overflow-auto rounded-xl border border-[var(--line)] bg-[var(--panel)] p-1 shadow-2xl")}>
+        <div className={clsx("absolute z-50 mt-1 max-h-96 w-72 overflow-auto rounded-xl border border-[var(--line)] bg-[var(--panel)] p-1 text-left shadow-2xl", label ? "left-0" : "right-0")}>
           {group("iphone", "iPhone")}
           {group("ipad", "iPad")}
           {group("android", "Android")}

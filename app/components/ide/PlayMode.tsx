@@ -9,6 +9,7 @@ import { useDeviceSkin } from "@/lib/web/device-skin";
 import { useSimDevice } from "@/lib/web/sim-device";
 import { openInSimulator } from "@/lib/web/sim-open";
 import { DevClientOverlay } from "./DevClientOverlay";
+import { DevicePicker } from "./DevicePicker";
 import { SimulatorView } from "./SimulatorView";
 import { PREVIEW_DEVICES, SE_CHIN } from "@/lib/web/devices";
 import { SkinFrame } from "./SkinFrame";
@@ -301,7 +302,8 @@ export function PlayMode({ state, scheme, startPath, onClose, onSimButton, onDev
                   </span>
                 </button>
               ) : (
-                !native && <span className="px-2.5 py-1 text-[11.5px] text-white/40">No {platform === "android" ? "emulator" : "Simulator"} running</span>
+                // None running for this platform: pick one to boot; it then shows up as the live device.
+                !native && <DevicePicker platform={platform} label={`Boot ${platform === "android" ? "an emulator" : "a Simulator"}`} />
               )}
               {previews.length > 0 && (
                 <>
