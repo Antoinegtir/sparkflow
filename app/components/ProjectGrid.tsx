@@ -32,7 +32,7 @@ function Cover({ src, device, native, building, faded, skin }: { src?: string; d
   // An app shown in the Android emulator: that emulator's own frame.
   if (skin && device === "simulator")
     return (
-      <div className={clsx("relative translate-y-10 transition group-hover:translate-y-7", faded && "opacity-80 group-hover:opacity-100")}>
+      <div className={clsx("relative translate-y-10 transition group-hover:translate-y-7 max-sm:[zoom:.6]", faded && "opacity-80 group-hover:opacity-100")}>
         <SkinFrame skin={skin} style={{ width: COVER_W, height: Math.round((COVER_W * skin.height) / skin.width) }}>
           {src ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -44,7 +44,7 @@ function Cover({ src, device, native, building, faded, skin }: { src?: string; d
       </div>
     );
   return (
-    <div className={clsx("relative translate-y-10 transition group-hover:translate-y-7", faded && "opacity-80 group-hover:opacity-100")}>
+    <div className={clsx("relative translate-y-10 transition group-hover:translate-y-7 max-sm:[zoom:.6]", faded && "opacity-80 group-hover:opacity-100")}>
       <DeviceMockup device={d} width={d.ipad ? COVER_W * 1.5 : COVER_W} dark={false} bare={native && !!src}>
         {src ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -178,7 +178,7 @@ export function ProjectGrid() {
       )}
       <div
         data-no-lens
-        className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
+        className="grid grid-cols-3 gap-2 sm:gap-4 lg:grid-cols-4"
         onClickCapture={
           phone
             ? (e) => {
@@ -205,9 +205,9 @@ export function ProjectGrid() {
               maskImage: "radial-gradient(circle at 50% 40%, black 0%, transparent 75%)",
             }}
           />
-          <span className="relative flex flex-col items-center gap-1 text-sm">
+          <span className="relative flex flex-col items-center gap-1 text-sm max-sm:scale-75">
             <InstallIcon replay={installs} label="New app" />
-            <span className="text-[11.5px] text-ink-500">Describe, sketch or talk</span>
+            <span className="text-[11.5px] text-ink-500 max-sm:hidden">Describe, sketch or talk</span>
           </span>
         </button>
         {projects?.map((p) => {
@@ -242,7 +242,7 @@ export function ProjectGrid() {
                   skin={skin}
                 />
               </div>
-              <div className="relative border-t border-ink-800 bg-ink-900 px-3.5 py-3">
+              <div className="relative border-t border-ink-800 bg-ink-900 px-2 py-2 sm:px-3.5 sm:py-3">
                 {renaming === p.id ? (
                   <input
                     autoFocus
@@ -258,14 +258,14 @@ export function ProjectGrid() {
                     className="w-full rounded bg-ink-800 px-1 text-sm font-medium text-ink-100 outline-none"
                   />
                 ) : (
-                  <p className="truncate text-sm font-medium text-ink-100">{p.name}</p>
+                  <p className="truncate text-xs font-medium text-ink-100 sm:text-sm">{p.name}</p>
                 )}
-                <div className="mt-1.5 flex items-center gap-2 text-xs text-ink-500">
+                <div className="mt-1 flex items-center gap-2 text-[10px] text-ink-500 sm:mt-1.5 sm:text-xs">
                   <span className={clsx("flex items-center gap-1.5 rounded-full bg-ink-800 px-2 py-0.5", st.className)}>
                     <span className={clsx("size-1.5 rounded-full bg-current", p.status === "running" && "animate-pulse")} />
                     {st.label}
                   </span>
-                  <span className="truncate">
+                  <span className="truncate max-sm:hidden">
                     {p.screenCount} screens · {timeAgo(p.createdAt)}
                   </span>
                 </div>
@@ -279,14 +279,14 @@ export function ProjectGrid() {
             <div className="relative grid flex-1 place-items-center overflow-hidden bg-[radial-gradient(circle_at_50%_30%,color-mix(in_oklab,var(--color-spark-500)_22%,transparent),transparent_70%)] pt-4">
               <Cover src={p.cover ?? (isDemo(p) ? "/demo/wander-cover.jpg" : undefined)} device={p.previewDevice} native={p.native} faded skin={skin} />
             </div>
-            <div className="relative border-t border-ink-800 bg-ink-900 px-3.5 py-3">
-              <p className="truncate text-sm font-medium text-ink-100">{p.name}</p>
-              <div className="mt-1.5 flex items-center gap-2 text-xs text-ink-500">
+            <div className="relative border-t border-ink-800 bg-ink-900 px-2 py-2 sm:px-3.5 sm:py-3">
+              <p className="truncate text-xs font-medium text-ink-100 sm:text-sm">{p.name}</p>
+              <div className="mt-1 flex items-center gap-2 text-[10px] text-ink-500 sm:mt-1.5 sm:text-xs">
                 <span className="flex items-center gap-1.5 rounded-full bg-ink-800 px-2 py-0.5 text-ink-400">
                   <span className="size-1.5 rounded-full bg-current" />
                   saved
                 </span>
-                <span className="truncate">
+                <span className="truncate max-sm:hidden">
                   {p.screenCount} screens · {timeAgo(p.createdAt)}
                 </span>
               </div>
@@ -304,21 +304,21 @@ export function ProjectGrid() {
             }}
             className="group relative flex aspect-[4/5] cursor-pointer flex-col overflow-hidden rounded-2xl border border-ink-700 bg-ink-900 text-left shadow-[0_20px_50px_-30px_rgba(0,0,0,.8)] transition hover:-translate-y-1 hover:border-spark-500/60 hover:shadow-[0_30px_60px_-30px_var(--landing-glow)]">
             <div className="relative grid flex-1 place-items-center overflow-hidden bg-[radial-gradient(circle_at_50%_30%,color-mix(in_oklab,var(--color-spark-500)_22%,transparent),transparent_70%)] pt-4">
-              <div className="relative translate-y-10 transition group-hover:translate-y-7">
+              <div className="relative translate-y-10 transition group-hover:translate-y-7 max-sm:[zoom:.6]">
                 <DeviceMockup device={deviceById("iphone")} width={COVER_W} dark={false}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src="/demo/wander-cover.jpg" alt="" className="absolute inset-0 h-full w-full object-cover object-top" />
                 </DeviceMockup>
               </div>
             </div>
-            <div className="relative border-t border-ink-800 bg-ink-900 px-3.5 py-3">
-              <p className="truncate text-sm font-medium text-ink-100">Wander</p>
-              <div className="mt-1.5 flex items-center gap-2 text-xs text-ink-500">
+            <div className="relative border-t border-ink-800 bg-ink-900 px-2 py-2 sm:px-3.5 sm:py-3">
+              <p className="truncate text-xs font-medium text-ink-100 sm:text-sm">Wander</p>
+              <div className="mt-1 flex items-center gap-2 text-[10px] text-ink-500 sm:mt-1.5 sm:text-xs">
                 <span className="flex items-center gap-1.5 rounded-full bg-spark-500/15 px-2 py-0.5 text-spark-400">
                   <span className="size-1.5 rounded-full bg-current" />
                   demo
                 </span>
-                <span className="truncate">{uid ? "Open the demo app" : "Sign in to try it"}</span>
+                <span className="truncate max-sm:hidden">{uid ? "Open the demo app" : "Sign in to try it"}</span>
               </div>
             </div>
           </button>

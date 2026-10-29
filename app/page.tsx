@@ -102,9 +102,12 @@ export default function Home() {
       <LandingPresence />
       <footer className="relative mx-auto max-w-5xl border-t border-ink-800 px-6 pb-10 pt-6">
         <div className="flex flex-col items-center justify-between gap-3 text-[12.5px] text-ink-400 sm:flex-row">
-          <span className="flex items-center gap-2">
+          {/* On phones the logo sits above the copyright, which stays on one line. */}
+          <span className="flex flex-col items-center gap-2 sm:flex-row">
             <Logo />
-            <span className="text-ink-600">·</span>© {new Date().getFullYear()} Antoine Gonthier. All rights reserved.
+            <span className="whitespace-nowrap">
+              <span className="mr-2 text-ink-600 max-sm:hidden">·</span>© {new Date().getFullYear()} Antoine Gonthier. All rights reserved.
+            </span>
           </span>
           <span className="flex flex-wrap items-center justify-center gap-x-1.5 text-ink-500">
             Built with
