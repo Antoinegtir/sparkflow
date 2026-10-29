@@ -4,6 +4,7 @@ import clsx from "clsx";
 import { Check, ChevronDown, Globe, Loader2, Monitor, QrCode, Smartphone, Tablet } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { ProjectState } from "@/lib/shared";
 import { PREVIEW_DEVICES } from "@/lib/web/devices";
 import { SIM_CHANGED, useSimDevice } from "@/lib/web/sim-device";
@@ -17,12 +18,14 @@ type Device = { udid: string; name: string; runtime: string; booted: boolean; ki
 export function RunOn({ state, onDevice, onSwitching }: { state: ProjectState; onDevice: (id: string) => void; onSwitching: (name: string | null) => void }) {
   const sim = useSimDevice();
   const native = !!state.native;
-  const [open, setOpen] = useState(false);
+  // Where the menu shows: in a portal at a fixed spot under the button, above the focus view.
+  const [open, setOpen] = useState<{ right: number; top: number } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
+  const menu = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
-    const close = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
+    const close = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && !menu.current?.contains(e.target as Node) && setOpen(null);
     document.addEventListener("mousedown", close);
     return () => document.removeEventListener("mousedown", close);
   }, [open]);
@@ -37,25 +40,33 @@ export function RunOn({ state, onDevice, onSwitching }: { state: ProjectState; o
 
   return (
     <div ref={ref} className="relative">
-      <button onClick={() => setOpen((o) => !o)} className="flex cursor-pointer items-center gap-2 rounded-lg border border-[var(--line)] px-2.5 py-1.5 text-[12.5px] text-ink-200 hover:text-ink-100">
+      <button
+        onClick={(e) => {
+          if (open) return setOpen(null);
+          const r = e.currentTarget.getBoundingClientRect();
+          setOpen({ right: innerWidth - r.right, top: r.bottom + 4 });
+        }}
+        className="flex cursor-pointer items-center gap-2 rounded-lg border border-[var(--line)] px-2.5 py-1.5 text-[12.5px] text-ink-200 hover:text-ink-100">
         {busy ? <Loader2 size={13} className="animate-spin" /> : <Icon size={13} />}
         <span className="max-w-[160px] truncate">{label}</span>
         <span className={clsx("hidden rounded px-1.5 py-px text-[10.5px] sm:inline", onLive ? "bg-emerald-400/15 text-emerald-300" : "bg-ink-800 text-ink-400")}>{kind}</span>
         <ChevronDown size={12} className="text-ink-500" />
       </button>
-      {open && (
-        <div className="absolute right-0 z-50 mt-1">
-          <RunOnMenu
-            state={state}
-            onDevice={onDevice}
-            onDone={() => setOpen(false)}
-            onSwitching={(name) => {
-              setBusy(name);
-              onSwitching(name);
-            }}
-          />
-        </div>
-      )}
+      {open &&
+        createPortal(
+          <div ref={menu} data-ide className="fixed z-[90]" style={open}>
+            <RunOnMenu
+              state={state}
+              onDevice={onDevice}
+              onDone={() => setOpen(null)}
+              onSwitching={(name) => {
+                setBusy(name);
+                onSwitching(name);
+              }}
+            />
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

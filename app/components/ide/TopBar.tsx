@@ -31,7 +31,7 @@ export function TopBar(p: Props) {
   const verified = s.order.filter((r) => s.screens[r]?.status === "done").length;
   const native = !!s.native;
   return (
-    <header className="relative flex h-12 shrink-0 items-center justify-between gap-3 border-b border-[var(--line)] bg-[var(--panel)] px-3">
+    <header className="relative z-30 flex h-12 shrink-0 items-center justify-between gap-3 border-b border-[var(--line)] bg-[var(--panel)] px-3">
       <div className="flex min-w-0 items-center gap-3">
         <span className="shrink-0" title="All projects">
           <Logo compact />

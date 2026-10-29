@@ -3,6 +3,7 @@
 import clsx from "clsx";
 import { Camera, Check, Crosshair, ExternalLink, FileDiff, House, Loader2, Moon, Play, RotateCcw, RotateCw, Smartphone, Sun, Tablet, X } from "lucide-react";
 import { animate, motion, useMotionValue } from "motion/react";
+import { createPortal } from "react-dom";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { isAppMessage, matchRoute, qualityFixPrompt, type ProjectState, type ScreenState } from "@/lib/shared";
 import { withScheme, type AppScheme } from "@/lib/web/app-scheme";
@@ -447,7 +448,15 @@ export function HeroFocus(p: Props) {
 /** 390×844 iframe scaled to the frame; fades in once the app reports ready. */
 /** Vertical tools beside the phone: appearance, screenshot, point at elements, reload, open, play. */
 function ToolRail(p: Omit<Props, "onDevice"> & { style: React.CSSProperties; onReload: () => void; device: string | null; onDevice: (id: string) => void }) {
-  const [picker, setPicker] = useState(false);
+  // The device menu, at a fixed spot beside its button, kept inside the window (above the prompt bar).
+  const [picker, setPicker] = useState<{ left: number; top: number } | null>(null);
+  const pickerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!picker) return;
+    const close = (e: MouseEvent) => !pickerRef.current?.contains(e.target as Node) && !(e.target as Element).closest?.('[aria-label="Run on"]') && setPicker(null);
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [picker]);
   const native = !!p.state.native;
   const sim = useSimDevice();
   const [saving, setSaving] = useState(false);
@@ -493,15 +502,26 @@ function ToolRail(p: Omit<Props, "onDevice"> & { style: React.CSSProperties; onR
       {p.device && (
         // Preview device: iPhone, SE, iPad mini, Pixel or Galaxy.
         <div className="relative">
-          <button onClick={() => setPicker((o) => !o)} title="Preview device" aria-label="Preview device" className={clsx(btn, picker && "bg-ink-800 text-ink-100")}>
+          <button
+            onClick={(e) => {
+              if (picker) return setPicker(null);
+              const r = e.currentTarget.getBoundingClientRect();
+              // The menu is at most 70% of the window tall: start high enough for all of it to show.
+              setPicker({ left: r.right + 8, top: Math.max(12, Math.min(r.top, innerHeight * 0.3 - 12)) });
+            }}
+            title="Run on"
+            aria-label="Run on"
+            className={clsx(btn, picker && "bg-ink-800 text-ink-100")}>
             {PREVIEW_DEVICES.find((d) => d.id === p.device)?.ipad ? <Tablet size={15} /> : <Smartphone size={15} />}
           </button>
-          {picker && (
-            // Same choices as the top bar's Run on menu: this Mac's devices, your phone, web previews.
-            <div className="absolute top-0 left-full z-50 ml-2">
-              <RunOnMenu state={p.state} onDevice={p.onDevice} onDone={() => setPicker(false)} />
-            </div>
-          )}
+          {picker &&
+            createPortal(
+              // Same choices as the top bar's Run on menu: this Mac's devices, your phone, web previews.
+              <div ref={pickerRef} data-ide className="fixed z-[90]" style={picker}>
+                <RunOnMenu state={p.state} onDevice={p.onDevice} onDone={() => setPicker(null)} />
+              </div>,
+              document.body,
+            )}
         </div>
       )}
       <button onClick={() => void screenshot()} disabled={saving || (!native && !p.screen.screenshotUrl)} title="Save a screenshot" aria-label="Save a screenshot" className={btn}>
