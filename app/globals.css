@@ -249,3 +249,9 @@ html:has([data-landing]) { scroll-behavior: smooth; }
 @keyframes build-sweep { from { transform: translateX(-120%) skewX(-12deg); } to { transform: translateX(220%) skewX(-12deg); } }
 .animate-build-sweep { animation: build-sweep 1.8s cubic-bezier(.45, 0, .55, 1) infinite; }
 
+
+/* Code view: errors at the end of their line, like VS Code's Error Lens. */
+.monaco-editor .error-lens-line { background: color-mix(in oklab, #ef4444 10%, transparent); }
+.monaco-editor .error-lens-gutter { background: #ef4444; width: 2px !important; margin-left: 3px; }
+.monaco-editor .error-lens-message { color: color-mix(in oklab, #f87171 90%, transparent); font-style: italic; }
+.monaco-editor .code-jump-line { background: color-mix(in oklab, var(--color-spark-500) 15%, transparent); }

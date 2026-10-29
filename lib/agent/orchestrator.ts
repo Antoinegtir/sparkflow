@@ -47,6 +47,7 @@ import { runBuilderTask, runPlanner, runtimeProblems, runVerifier, type RoleDeps
 import { ProjectRuntime } from "./runtime";
 import { applyDemoOverlay, DEMO_NAME, DEMO_PROMPT, demoAction, isDemoProject, isSeeded, loadDemoPlan, markSeeded } from "./seed";
 import { ProjectStore } from "./store";
+import { lang, type LangRequest } from "./lang";
 import { gitCommit, typecheck, type ToolContext, type ToolName } from "./tools";
 import { BudgetExceededError, UsageMeter } from "./usage";
 
@@ -907,6 +908,15 @@ export class Orchestrator {
     });
     // With a syntax error, TypeScript's messages are mostly its consequences: keep Babel's alone.
     return syntax.length ? syntax : types;
+  }
+
+  /** Hover, completions and definitions for the code view, from the app's own TypeScript. */
+  async lang(id: string, req: LangRequest) {
+    const rt = await this.runtime(id);
+    const dir = ((await this.sandbox(rt)) as { dir?: string }).dir;
+    if (!dir) return null;
+    this.checkRel(req.path);
+    return lang(dir, req);
   }
 
   /** Saves a file edited by hand in the IDE's code view, as its own commit. */

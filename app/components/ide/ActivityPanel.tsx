@@ -4,7 +4,7 @@ import clsx from "clsx";
 import { FolderOpen } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { NavEdge, ProjectState } from "@/lib/shared";
-import { highlightLine } from "@/lib/web/highlight";
+import { CodeEditor } from "./CodeEditor";
 import { MaterialIcon } from "./FileTree";
 import { FlowPanel } from "./FlowPanel";
 import { GitHubSetup } from "./GitHubSetup";
@@ -56,7 +56,7 @@ export function ActivityPanel(p: Props) {
       </div>
       <div className="min-h-0 flex-1">
         {p.tab === "activity" && <Activity state={p.state} />}
-        {p.tab === "code" && <CodeView projectId={p.projectId} state={p.state} file={p.file} line={p.line} onReveal={p.onReveal} />}
+        {p.tab === "code" && <CodeView projectId={p.projectId} state={p.state} file={p.file} line={p.line} onReveal={p.onReveal} onFile={p.onFile} />}
         {p.tab === "layout" &&
           (p.focused || p.state.native ? (
             <LayoutTree projectId={p.projectId} state={p.state} route={p.focused} selectedKeys={p.selectedKeys} onHover={p.onLayoutHover} onPick={p.onLayoutPick} onJump={(f, l) => p.onFile(f, l)} />
@@ -130,7 +130,7 @@ function Bubble({ who, sub, children }: { who: "user" | "agent"; sub?: string; c
 const CODE = /\.(tsx?|jsx?|json|mjs|cjs|md|css|swift)$/i;
 const IMAGE = /\.(png|jpe?g|gif|webp|svg)$/i;
 
-function CodeView({ projectId, state, file, line, onReveal }: { projectId: string; state: ProjectState; file: string | null; line: number | null; onReveal: () => void }) {
+function CodeView({ projectId, state, file, line, onReveal, onFile }: { projectId: string; state: ProjectState; file: string | null; line: number | null; onReveal: () => void; onFile: (p: string, l?: number | null) => void }) {
   // `saved` is the file as on disk; `draft` is the editor, saved automatically a moment after you stop typing.
   const [saved, setSaved] = useState<string | null>(null);
   const [draft, setDraft] = useState<string | null>(null);
@@ -203,11 +203,6 @@ function CodeView({ projectId, state, file, line, onReveal }: { projectId: strin
     return () => clearTimeout(t);
   }, [draft, saved, file, projectId]);
 
-  useEffect(() => {
-    if (!line || saved == null) return;
-    scroller.current?.querySelector(`[data-line="${line}"]`)?.scrollIntoView({ block: "center" });
-  }, [line, saved]);
-
   const name = file?.split("/").pop() ?? "";
   return (
     <div className="flex h-full flex-col">
@@ -248,7 +243,7 @@ function CodeView({ projectId, state, file, line, onReveal }: { projectId: strin
         </button>
         {!state.native && <GitHubSetup projectId={projectId} appName={state.name} />}
       </div>
-      <div ref={scroller} className="min-h-0 flex-1 overflow-auto">
+      <div ref={scroller} className={clsx("min-h-0 flex-1", draft != null && file ? "overflow-hidden" : "overflow-auto")}>
         {!file && <p className="p-4 text-[12px] text-ink-500">Open a file from Source in the explorer, or click an element in the Layout tab. Edits save automatically.</p>}
         {file && IMAGE.test(file) && (
           <div className="p-4">
@@ -262,42 +257,8 @@ function CodeView({ projectId, state, file, line, onReveal }: { projectId: strin
         )}
         {file && !IMAGE.test(file) && !CODE.test(file) && draft == null && !error && <p className="p-4 text-[12px] text-ink-500">Binary file.</p>}
         {error && <p className="px-4 py-2 text-[12px] text-red-400">{error}</p>}
-        {draft != null && (
-          // A transparent textarea over the highlighted lines, so errors stay on their line while typing.
-          <div className="relative w-max min-w-full">
-            <pre className="py-2 font-mono text-[11.5px] leading-[1.6]" aria-hidden>
-              {draft.split("\n").map((l, i) => {
-                const errs = diags.filter((d) => d.line === i + 1);
-                return (
-                  <div key={i} data-line={i + 1} className={clsx("flex", errs.length ? "bg-red-500/10" : line === i + 1 && "bg-spark-500/15")}>
-                    <span className={clsx("w-10 shrink-0 select-none pr-3 text-right", errs.length ? "text-red-400" : "text-ink-600")}>{i + 1}</span>
-                    <code className="whitespace-pre text-ink-200">{highlightLine(l)}</code>
-                    {errs.length > 0 && <span className="select-none whitespace-pre pl-6 pr-3 text-red-400/90">{errs.map((e) => e.message).join("  ·  ")}</span>}
-                  </div>
-                );
-              })}
-            </pre>
-            <textarea
-              value={draft}
-              wrap="off"
-              spellCheck={false}
-              aria-label={file ?? "Code"}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => {
-                // ⌘S out of habit: it's saved anyway.
-                if ((e.metaKey || e.ctrlKey) && e.key === "s") e.preventDefault();
-                else if (e.key === "Tab") {
-                  // Two spaces, like the project's code, instead of leaving the field.
-                  e.preventDefault();
-                  const t = e.currentTarget;
-                  const { selectionStart: a, selectionEnd: b } = t;
-                  setDraft(draft.slice(0, a) + "  " + draft.slice(b));
-                  requestAnimationFrame(() => t.setSelectionRange(a + 2, a + 2));
-                }
-              }}
-              className="absolute inset-0 resize-none overflow-hidden whitespace-pre bg-transparent py-2 pl-10 font-mono text-[11.5px] leading-[1.6] text-transparent caret-ink-100 outline-none selection:bg-spark-500/30"
-            />
-          </div>
+        {draft != null && file && (
+          <CodeEditor projectId={projectId} file={file} value={draft} line={line} diagnostics={diags} onChange={setDraft} onOpenFile={(p, l) => onFile(p, l)} />
         )}
       </div>
     </div>
