@@ -2,14 +2,7 @@
 
 import Editor, { type Monaco } from "@monaco-editor/react";
 import type * as MonacoApi from "monaco-editor";
-import type {
-  editor as Ed,
-  IPosition,
-  IRange,
-  languages,
-  Position,
-  Uri,
-} from "monaco-editor";
+import type { editor as Ed, IPosition, IRange, languages, Position, Uri } from "monaco-editor";
 import { useEffect, useRef } from "react";
 
 /**
@@ -40,8 +33,7 @@ const LANG: Record<string, string> = {
   swift: "swift",
 };
 const TS_FILE = /\.(tsx?|jsx?|mjs|cjs)$/;
-const uriOf = (projectId: string, file: string) =>
-  `file:///${projectId}/${file}`;
+const uriOf = (projectId: string, file: string) => `file:///${projectId}/${file}`;
 
 // The open editor's project and file: the language providers are registered once for every model.
 const current: {
@@ -50,10 +42,7 @@ const current: {
 } = {};
 let registered = false;
 
-async function ask<T>(
-  projectId: string,
-  body: Record<string, unknown>,
-): Promise<T | null> {
+async function ask<T>(projectId: string, body: Record<string, unknown>): Promise<T | null> {
   const res = await fetch(`/api/projects/${projectId}/lang`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -66,9 +55,7 @@ async function ask<T>(
 /** The project-relative path of a model, when it belongs to the open project. */
 function fileOf(model: Ed.ITextModel) {
   const prefix = `/${current.projectId}/`;
-  return current.projectId && model.uri.path.startsWith(prefix)
-    ? model.uri.path.slice(prefix.length)
-    : null;
+  return current.projectId && model.uri.path.startsWith(prefix) ? model.uri.path.slice(prefix.length) : null;
 }
 
 function setup(m: Monaco) {
@@ -174,16 +161,8 @@ function setup(m: Monaco) {
         const a = model.getPositionAt(r.start);
         const b = model.getPositionAt(r.start + r.length);
         return {
-          range: new monaco.Range(
-            a.lineNumber,
-            a.column,
-            b.lineNumber,
-            b.column,
-          ),
-          contents: [
-            { value: "```typescript\n" + r.text + "\n```" },
-            ...(r.docs ? [{ value: r.docs }] : []),
-          ],
+          range: new monaco.Range(a.lineNumber, a.column, b.lineNumber, b.column),
+          contents: [{ value: "```typescript\n" + r.text + "\n```" }, ...(r.docs ? [{ value: r.docs }] : [])],
         };
       },
     });
@@ -194,15 +173,7 @@ function setup(m: Monaco) {
         const path = fileOf(model);
         if (!path) return { suggestions: [] };
         // A space only opens the list inside a JSX tag (its props).
-        if (
-          context.triggerCharacter === " " &&
-          !/<[A-Za-z][\w.]*(\s+[^<>]*)?\s$/.test(
-            model
-              .getLineContent(position.lineNumber)
-              .slice(0, position.column - 1),
-          )
-        )
-          return { suggestions: [] };
+        if (context.triggerCharacter === " " && !/<[A-Za-z][\w.]*(\s+[^<>]*)?\s$/.test(model.getLineContent(position.lineNumber).slice(0, position.column - 1))) return { suggestions: [] };
         const content = model.getValue();
         const offset = model.getOffsetAt(position);
         const r = await ask<{ entries: Entry[] }>(current.projectId!, {
@@ -212,24 +183,14 @@ function setup(m: Monaco) {
           offset,
         });
         const word = model.getWordUntilPosition(position);
-        const range = new monaco.Range(
-          position.lineNumber,
-          word.startColumn,
-          position.lineNumber,
-          word.endColumn,
-        );
+        const range = new monaco.Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn);
         return {
           suggestions: (r?.entries ?? []).map((e): Item => {
             let itemRange = range;
             if (e.replace) {
               const a = model.getPositionAt(e.replace.start);
               const b = model.getPositionAt(e.replace.start + e.replace.length);
-              itemRange = new monaco.Range(
-                a.lineNumber,
-                a.column,
-                b.lineNumber,
-                b.column,
-              );
+              itemRange = new monaco.Range(a.lineNumber, a.column, b.lineNumber, b.column);
             }
             return {
               label: e.from ? { label: e.name, description: e.from } : e.name,
@@ -259,9 +220,7 @@ function setup(m: Monaco) {
           edits: { span: { start: number; length: number }; newText: string }[];
         }>(current.projectId, req);
         if (!d) return item;
-        const model = monaco.editor
-          .getModels()
-          .find((m) => fileOf(m) === req.path);
+        const model = monaco.editor.getModels().find((m) => fileOf(m) === req.path);
         return {
           ...item,
           detail: d.detail,
@@ -272,12 +231,7 @@ function setup(m: Monaco) {
                 const a = model.getPositionAt(e.span.start);
                 const b = model.getPositionAt(e.span.start + e.span.length);
                 return {
-                  range: new monaco.Range(
-                    a.lineNumber,
-                    a.column,
-                    b.lineNumber,
-                    b.column,
-                  ),
+                  range: new monaco.Range(a.lineNumber, a.column, b.lineNumber, b.column),
                   text: e.newText,
                 };
               })
@@ -290,9 +244,7 @@ function setup(m: Monaco) {
       async provideDefinition(model: Ed.ITextModel, position: Position) {
         const path = fileOf(model);
         if (!path) return null;
-        const defs = await ask<
-          { path: string; line: number; col: number; length: number }[]
-        >(current.projectId!, {
+        const defs = await ask<{ path: string; line: number; col: number; length: number }[]>(current.projectId!, {
           op: "definition",
           path,
           content: model.getValue(),
@@ -301,12 +253,7 @@ function setup(m: Monaco) {
         return (defs ?? []).map((d) => {
           const uri = monaco.Uri.parse(uriOf(current.projectId!, d.path));
           // Monaco only follows links to models it has; the opener below loads the real file.
-          if (!monaco.editor.getModel(uri))
-            monaco.editor.createModel(
-              "",
-              LANG[d.path.split(".").pop() ?? ""] ?? "plaintext",
-              uri,
-            );
+          if (!monaco.editor.getModel(uri)) monaco.editor.createModel("", LANG[d.path.split(".").pop() ?? ""] ?? "plaintext", uri);
           return {
             uri,
             range: new monaco.Range(d.line, d.col, d.line, d.col + d.length),
@@ -318,37 +265,17 @@ function setup(m: Monaco) {
 
   // ⌘-click on a symbol from another file: open that file in the code view.
   monaco.editor.registerEditorOpener({
-    openCodeEditor(
-      source: Ed.ICodeEditor,
-      resource: Uri,
-      selection?: IRange | IPosition,
-    ) {
+    openCodeEditor(source: Ed.ICodeEditor, resource: Uri, selection?: IRange | IPosition) {
       const prefix = `/${current.projectId}/`;
-      if (
-        !current.projectId ||
-        !resource.path.startsWith(prefix) ||
-        resource.toString() === source.getModel()?.uri.toString()
-      )
-        return false;
-      const line =
-        selection && "startLineNumber" in selection
-          ? selection.startLineNumber
-          : (selection?.lineNumber ?? 1);
+      if (!current.projectId || !resource.path.startsWith(prefix) || resource.toString() === source.getModel()?.uri.toString()) return false;
+      const line = selection && "startLineNumber" in selection ? selection.startLineNumber : (selection?.lineNumber ?? 1);
       current.open?.(resource.path.slice(prefix.length), line);
       return true;
     },
   });
 }
 
-export function CodeEditor({
-  projectId,
-  file,
-  value,
-  line,
-  diagnostics,
-  onChange,
-  onOpenFile,
-}: Props) {
+export function CodeEditor({ projectId, file, value, line, diagnostics, onChange, onOpenFile }: Props) {
   const editor = useRef<Ed.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
   const lens = useRef<Ed.IEditorDecorationsCollection | null>(null);
@@ -363,8 +290,7 @@ export function CodeEditor({
     const monaco = monacoRef.current;
     if (!ed || !monaco) return;
     const lines = new Map<number, string[]>();
-    for (const d of diagnostics)
-      lines.set(d.line, [...(lines.get(d.line) ?? []), d.message]);
+    for (const d of diagnostics) lines.set(d.line, [...(lines.get(d.line) ?? []), d.message]);
     const model = ed.getModel()!;
     const decorations = [...lines]
       .filter(([n]) => n <= model.getLineCount())
@@ -373,7 +299,10 @@ export function CodeEditor({
         return [
           { range: new monaco.Range(n, 1, n, 1), options: { isWholeLine: true, className: "error-lens-line", linesDecorationsClassName: "error-lens-gutter" } },
           // The message, injected after the line's last character.
-          { range: new monaco.Range(n, end, n, end), options: { showIfCollapsed: true, after: { content: `   ${msgs.join("  ·  ")}`, inlineClassName: "error-lens-message" }, hoverMessage: { value: msgs.join("\n\n") } } },
+          {
+            range: new monaco.Range(n, end, n, end),
+            options: { showIfCollapsed: true, after: { content: `   ${msgs.join("  ·  ")}`, inlineClassName: "error-lens-message" }, hoverMessage: { value: msgs.join("\n\n") } },
+          },
         ];
       });
     lens.current ??= ed.createDecorationsCollection();
@@ -385,9 +314,7 @@ export function CodeEditor({
         startLineNumber: d.line,
         endLineNumber: d.line,
         startColumn: 1,
-        endColumn: ed
-          .getModel()!
-          .getLineMaxColumn(Math.min(d.line, ed.getModel()!.getLineCount())),
+        endColumn: ed.getModel()!.getLineMaxColumn(Math.min(d.line, ed.getModel()!.getLineCount())),
         message: d.message,
         severity: monaco.MarkerSeverity.Error,
       })),
@@ -414,10 +341,7 @@ export function CodeEditor({
   const ext = file.split(".").pop() ?? "";
   return (
     // Escape closes the editor's own widgets, not the IDE's open page.
-    <div
-      className="h-full"
-      onKeyDown={(e) => e.key === "Escape" && e.stopPropagation()}
-    >
+    <div className="h-full" onKeyDown={(e) => e.key === "Escape" && e.stopPropagation()}>
       <Editor
         path={uriOf(projectId, file)}
         language={LANG[ext] ?? "plaintext"}
@@ -440,12 +364,9 @@ export function CodeEditor({
           }
         }}
         onChange={(v) => onChange(v ?? "")}
-        loading={
-          <p className="p-4 text-[12px] text-ink-500">Loading the editor…</p>
-        }
+        loading={<p className="p-4 text-[12px] text-ink-500">Loading the editor…</p>}
         options={{
-          fontFamily:
-            "var(--font-mono), ui-monospace, SFMono-Regular, Menlo, monospace",
+          fontFamily: "var(--font-mono), ui-monospace, SFMono-Regular, Menlo, monospace",
           fontSize: 12,
           lineHeight: 19,
           minimap: { enabled: false },
@@ -458,9 +379,7 @@ export function CodeEditor({
           // Hover cards and suggestions can leave the narrow panel.
           fixedOverflowWidgets: true,
           definitionLinkOpensInPeek: false,
-          quickSuggestions: TS_FILE.test(file)
-            ? { other: true, comments: false, strings: true }
-            : false,
+          quickSuggestions: TS_FILE.test(file) ? { other: true, comments: false, strings: true } : false,
           suggest: { showStatusBar: true, preview: true },
           stickyScroll: { enabled: false },
           overviewRulerBorder: false,
