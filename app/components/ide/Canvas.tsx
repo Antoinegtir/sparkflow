@@ -24,8 +24,10 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { NavEdge, ScreenState } from "@/lib/shared";
 import { edgeSides, layoutScreens, NODE_W, PHONE_H, PHONE_W } from "@/lib/web/layout";
 import { CupertinoSpinner, deviceById, DeviceMockup, PhoneFrame, StatusPill } from "./ui";
+import { SkinFrame } from "./SkinFrame";
+import type { DeviceSkin } from "@/lib/web/device-skin";
 
-export type PhoneData = { screen: ScreenState; hidden: boolean; scanning: boolean; ipad: boolean; native: boolean; dark: boolean; device?: string; onOpen: (route: string) => void };
+export type PhoneData = { screen: ScreenState; hidden: boolean; scanning: boolean; ipad: boolean; native: boolean; dark: boolean; device?: string; skin?: DeviceSkin | null; onOpen: (route: string) => void };
 
 const SIDES = { top: Position.Top, bottom: Position.Bottom, left: Position.Left, right: Position.Right };
 
@@ -54,7 +56,12 @@ export const PhoneNode = memo(function PhoneNode({ data }: NodeProps<Node<PhoneD
         {s.title} <span className="font-mono text-[10.5px] text-ink-500">{s.previewPath} · v{s.version}</span>
       </div>
       <button onClick={() => data.onOpen(s.route)} className={clsx("cursor-zoom-in transition hover:-translate-y-1", data.hidden && "invisible")} aria-label={`Open ${s.title}`}>
-        {data.native ? (
+        {data.native && data.skin ? (
+          // The Android emulator in use: its own frame.
+          <SkinFrame skin={data.skin} style={{ width: PHONE_W, height: Math.round((PHONE_W * data.skin.height) / data.skin.width) }}>
+            <ScreenContent screen={s} scanning={data.scanning} />
+          </SkinFrame>
+        ) : data.native ? (
           <PhoneFrame width={PHONE_W} height={h} radius={data.ipad ? PHONE_W * 0.03 : PHONE_W * 0.137} bezel={Math.max(5, PHONE_W * 0.025)} hardware ipad={data.ipad} glow={busy ? "spark" : s.status === "failed" ? "bad" : null}>
             <ScreenContent screen={s} scanning={data.scanning} />
           </PhoneFrame>
@@ -131,6 +138,8 @@ type Props = {
   scanning: Set<string>;
   ipad: boolean;
   native: boolean;
+  /** The Android emulator's frame, when the pages show in one. */
+  skin?: DeviceSkin | null;
   dark: boolean;
   device?: string;
   status: string;
@@ -169,7 +178,7 @@ function Flow(p: Props) {
     type: "phone",
     position: posOf(s.route),
     measured: sizes.current.get(s.route),
-    data: { screen: s, hidden: p.hiddenRoute === s.route, scanning: p.scanning.has(s.route), ipad: p.ipad, native: p.native, dark: p.dark, device: p.device, onOpen: open },
+    data: { screen: s, hidden: p.hiddenRoute === s.route, scanning: p.scanning.has(s.route), ipad: p.ipad, native: p.native, dark: p.dark, device: p.device, skin: p.skin, onOpen: open },
   }));
 
   const onNodesChange = (changes: NodeChange[]) => {

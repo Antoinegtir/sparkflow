@@ -22,14 +22,33 @@ const cached = (name: string): DeviceSkin | null => {
   }
 };
 
+const LAST = "sparkflow-last-device";
+/** The device last shown, for pages drawn while none is running (My apps, sparkflow stopped). */
+const lastDevice = (): { name: string; platform: string } | null => {
+  try {
+    return JSON.parse(localStorage.getItem(LAST) ?? "null");
+  } catch {
+    return null;
+  }
+};
+
 /**
  * The frame to draw around this device: kept in the browser per device name, so it shows at once,
  * and still shows while sparkflow isn't running. null for an iOS Simulator or a device without a skin.
+ * `orLast`: with no device running, the frame of the last one shown.
  */
-export function useDeviceSkin(device: SimDevice | null) {
+export function useDeviceSkin(device: SimDevice | null, orLast = false) {
   const [skin, setSkin] = useState<DeviceSkin | null>(null);
   const name = device?.platform === "android" ? device.name : null;
   useEffect(() => {
+    if (device) {
+      try {
+        localStorage.setItem(LAST, JSON.stringify({ name: device.name, platform: device.platform }));
+      } catch {}
+    } else if (orLast) {
+      const last = lastDevice();
+      return setSkin(last?.platform === "android" ? cached(last.name) : null);
+    }
     if (!name || !device) return setSkin(null);
     const kept = cached(name);
     setSkin(kept);
@@ -48,6 +67,6 @@ export function useDeviceSkin(device: SimDevice | null) {
     return () => {
       alive = false;
     };
-  }, [name, device?.udid]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [name, device?.udid, orLast]); // eslint-disable-line react-hooks/exhaustive-deps
   return skin;
 }

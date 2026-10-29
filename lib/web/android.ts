@@ -227,9 +227,8 @@ const flatten = (els: AxElement[]): AxElement[] => els.flatMap((e) => [e, ...fla
 /** The last tree read per device: pointing around (one request every 120 ms) reuses it for a moment. */
 const recentTree = new Map<string, { at: number; tree: Promise<AxElement[]> }>();
 
-export async function accessibilityInfo(serial: string, point?: { x: number; y: number }): Promise<AxElement[]> {
-  if (!point) return readTree(serial);
-  // A read takes about 2 s: the tree counts as fresh for 3 s after it arrives.
+/** The tree, reused for 3 s after it arrives (a read takes about 2 s): for pointing and outlining, not for page sync. */
+export function recentAccessibility(serial: string): Promise<AxElement[]> {
   const kept = recentTree.get(serial);
   let tree = kept && Date.now() - kept.at < 3000 ? kept.tree : null;
   if (!tree) {
@@ -241,7 +240,12 @@ export async function accessibilityInfo(serial: string, point?: { x: number; y: 
     );
     tree = entry.tree;
   }
-  const all = flatten(await tree);
+  return tree;
+}
+
+export async function accessibilityInfo(serial: string, point?: { x: number; y: number }): Promise<AxElement[]> {
+  if (!point) return readTree(serial);
+  const all = flatten(await recentAccessibility(serial));
   const screen = Math.max(...all.map((e) => (e.frame ? e.frame.width * e.frame.height : 0)), 1);
   const area = (e: AxElement) => (e.frame!.width || 1) * (e.frame!.height || 1);
   const hits = all.filter((e) => {

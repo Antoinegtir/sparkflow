@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MediaInput, ScreenState } from "@/lib/shared";
 import { APP_SCHEME_KEY, darkStale, inScheme, type AppScheme } from "@/lib/web/app-scheme";
+import { useDeviceSkin } from "@/lib/web/device-skin";
 import { usePresence } from "@/lib/web/presence";
 import { SIM_CHANGED, useSimDevice } from "@/lib/web/sim-device";
 import { useProject } from "@/lib/web/useProject";
@@ -32,6 +33,8 @@ export function IDE({ id, slug: initialSlug, initialPage }: { id: string; slug: 
   const api = useProject(id);
   const { state } = api;
   const sim = useSimDevice();
+  // Pages shown in an Android emulator wear its frame, on the canvas as in focus.
+  const skin = useDeviceSkin(state?.native || state?.previewDevice === "simulator" ? sim.device : null);
   const ipad = !!state?.native && !!sim.device?.ipad;
 
   const [focused, setFocused] = useState<string | null>(null);
@@ -489,6 +492,7 @@ export function IDE({ id, slug: initialSlug, initialPage }: { id: string; slug: 
             ipad={ipad}
             // Simulator captures already hold the status bar: drawn bare, like a native app's.
             native={!!state.native || state.previewDevice === "simulator"}
+            skin={skin}
             dark={scheme === "dark"}
             device={shotDevice(state.previewDevice)}
             status={state.status}

@@ -1,3 +1,4 @@
+import { isAndroidId, recentAccessibility } from "@/lib/web/android";
 import { accessibilityInfo, type AxElement } from "@/lib/web/idb";
 import { assertUdid } from "@/lib/web/simulator";
 import { handle, type RouteCtx } from "@/lib/web/server";
@@ -15,7 +16,9 @@ export const GET = handle(async (req: Request, { params }: RouteCtx<{ udid: stri
   const q = new URL(req.url).searchParams;
   const ids = new Set(q.getAll("id").filter(Boolean));
   const texts = q.getAll("text").map((t) => t.trim().toLowerCase()).filter(Boolean);
-  const all = flatten(await accessibilityInfo(assertUdid((await params).udid)));
+  const udid = assertUdid((await params).udid);
+  // Android reads its whole UI tree in about 2 s: hovering row after row reuses a recent one.
+  const all = flatten(await (isAndroidId(udid) ? recentAccessibility(udid) : accessibilityInfo(udid)));
   if (q.get("whole") === "1") {
     // The largest element on screen is the app's window.
     const screen = all.filter((e) => e.frame && e.frame.width < 1000).sort((a, b) => b.frame!.width * b.frame!.height - a.frame!.width * a.frame!.height)[0]?.frame;

@@ -8,6 +8,7 @@ import { isAppMessage, matchRoute, qualityFixPrompt, type ProjectState, type Scr
 import { withScheme, type AppScheme } from "@/lib/web/app-scheme";
 import { outerSize, PREVIEW_DEVICES } from "@/lib/web/devices";
 import { useDeviceSkin } from "@/lib/web/device-skin";
+import { SkinFrame } from "./SkinFrame";
 import { useSimDevice } from "@/lib/web/sim-device";
 import { openInSimulator } from "@/lib/web/sim-open";
 import { DotLens } from "../DotLens";
@@ -378,32 +379,9 @@ export function HeroFocus(p: Props) {
 
       <motion.div data-hero-phone className="absolute" style={{ left: x, top: y, width: targetW, height: targetH, scale: sc, transformOrigin: "0 0" }}>
         {native && skin ? (
-          // The skin's frame image over the screen, which is cut to its rounded corners by the skin's
-          // overlay (opaque where the screen hides, so it is used inverted).
-          <div className="relative h-full w-full">
-            <div
-              className="absolute overflow-hidden bg-black"
-              style={{
-                left: `${(skin.screen.x / skin.width) * 100}%`,
-                top: `${(skin.screen.y / skin.height) * 100}%`,
-                width: `${(skin.screen.width / skin.width) * 100}%`,
-                height: `${(skin.screen.height / skin.height) * 100}%`,
-                ...(skin.mask
-                  ? {
-                      maskImage: `linear-gradient(#000 0 0), url(${skin.mask})`,
-                      WebkitMaskImage: `linear-gradient(#000 0 0), url(${skin.mask})`,
-                      maskSize: "100% 100%, 100% 100%",
-                      WebkitMaskSize: "100% 100%, 100% 100%",
-                      maskComposite: "exclude",
-                      WebkitMaskComposite: "xor",
-                    }
-                  : {}),
-              }}>
-              {screenContent}
-            </div>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={skin.back} alt="" draggable={false} className="pointer-events-none absolute inset-0 h-full w-full select-none" />
-          </div>
+          <SkinFrame skin={skin} className="h-full w-full">
+            {screenContent}
+          </SkinFrame>
         ) : native ? (
         <PhoneFrame
           width={9999}

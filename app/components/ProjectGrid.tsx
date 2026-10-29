@@ -9,6 +9,9 @@ import { timeAgo } from "@/lib/web/media";
 import { InstallIcon } from "./InstallIcon";
 import { ProjectCardMenu } from "./ProjectCardMenu";
 import { deviceById, DeviceMockup } from "./ide/ui";
+import { SkinFrame } from "./ide/SkinFrame";
+import { useDeviceSkin, type DeviceSkin } from "@/lib/web/device-skin";
+import { useSimDevice } from "@/lib/web/sim-device";
 import { requireSignIn, watchUser } from "@/lib/web/auth";
 import { apiFetch, appHref, BACKEND_EVENT, backendUrl, openOnBackend } from "@/lib/web/backend";
 import { loadSavedApps, saveApps, type SavedApp } from "@/lib/web/cloud-apps";
@@ -22,8 +25,22 @@ const isDemo = (p: { slug?: string; prompt?: string }) => p.slug === "wander" ||
  * A card's phone: the project's device peeking out of the card, always with an app on its screen.
  * Before the first capture (still building), a skeleton of an app screen that shimmers.
  */
-function Cover({ src, device, native, building, faded }: { src?: string; device?: string; native?: boolean; building?: boolean; faded?: boolean }) {
+function Cover({ src, device, native, building, faded, skin }: { src?: string; device?: string; native?: boolean; building?: boolean; faded?: boolean; skin?: DeviceSkin | null }) {
   const d = deviceById(device);
+  // An app shown in the Android emulator: that emulator's own frame.
+  if (skin && device === "simulator")
+    return (
+      <div className={clsx("relative translate-y-10 transition group-hover:translate-y-7", faded && "opacity-80 group-hover:opacity-100")}>
+        <SkinFrame skin={skin} style={{ width: COVER_W, height: Math.round((COVER_W * skin.height) / skin.width) }}>
+          {src ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={src} alt="" className="absolute inset-0 h-full w-full object-cover object-top" />
+          ) : (
+            <SkeletonScreen building={building} />
+          )}
+        </SkinFrame>
+      </div>
+    );
   return (
     <div className={clsx("relative translate-y-10 transition group-hover:translate-y-7", faded && "opacity-80 group-hover:opacity-100")}>
       <DeviceMockup device={d} width={d.ipad ? COVER_W * 1.5 : COVER_W} dark={false} bare={native && !!src}>
@@ -83,6 +100,8 @@ export function ProjectGrid() {
   const draft = useRef("");
   const [installs, setInstalls] = useState(0);
   const lastSave = useRef(0);
+  // The Android emulator in use (or last used, while sparkflow is off) frames the apps shown in it.
+  const skin = useDeviceSkin(useSimDevice().device, true);
   const router = useRouter();
   // Everyone sees the demo app, even signed out and without sparkflow: it invites them in. Hidden
   // once their own Wander (seeded by sparkflow) is listed.
@@ -201,6 +220,7 @@ export function ProjectGrid() {
                   device={p.previewDevice}
                   native={p.native}
                   building={p.status === "running"}
+                  skin={skin}
                 />
               </div>
               <div className="relative border-t border-ink-800 bg-ink-900 px-3.5 py-3">
@@ -238,7 +258,7 @@ export function ProjectGrid() {
           // Saved to the account: opening it shows how to start sparkflow, then the app.
           <Link key={p.id} href={appHref(`/${p.slug}`)} className="group relative flex aspect-[4/5] flex-col overflow-hidden rounded-2xl border border-ink-700 bg-ink-900 shadow-[0_20px_50px_-30px_rgba(0,0,0,.8)] transition hover:-translate-y-1 hover:border-ink-600 hover:shadow-[0_30px_60px_-30px_var(--landing-glow)]">
             <div className="relative grid flex-1 place-items-center overflow-hidden bg-[radial-gradient(circle_at_50%_30%,color-mix(in_oklab,var(--color-spark-500)_22%,transparent),transparent_70%)] pt-4">
-              <Cover src={p.cover ?? (isDemo(p) ? "/demo/wander-cover.jpg" : undefined)} device={p.previewDevice} native={p.native} faded />
+              <Cover src={p.cover ?? (isDemo(p) ? "/demo/wander-cover.jpg" : undefined)} device={p.previewDevice} native={p.native} faded skin={skin} />
             </div>
             <div className="relative border-t border-ink-800 bg-ink-900 px-3.5 py-3">
               <p className="truncate text-sm font-medium text-ink-100">{p.name}</p>
