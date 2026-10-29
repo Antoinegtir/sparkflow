@@ -2,7 +2,7 @@
 
 import clsx from "clsx";
 import { ChevronDown, ChevronRight, CornerDownRight, File, FolderPlus, Home, LayoutGrid, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState, type DragEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import type { ProjectState } from "@/lib/shared";
 import { History } from "./History";
 import { StatusDot } from "./ui";
@@ -18,8 +18,12 @@ function FolderIcon({ open, size = 44 }: { open?: boolean; size?: number }) {
   );
 }
 
-function Section({ title, count, children, defaultOpen = true, className }: { title: string; count?: number; children: React.ReactNode; defaultOpen?: boolean; className?: string }) {
+function Section({ title, count, children, defaultOpen = true, className, openKey }: { title: string; count?: number; children: React.ReactNode; defaultOpen?: boolean; className?: string; openKey?: number }) {
   const [open, setOpen] = useState(defaultOpen);
+  // Opens again when something inside asks to be shown.
+  useEffect(() => {
+    if (openKey) setOpen(true);
+  }, [openKey]);
   return (
     <div className={clsx("border-b border-[var(--line)]", className)}>
       <button onClick={() => setOpen((o) => !o)} className="flex w-full cursor-pointer items-center gap-1 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-ink-500 hover:text-ink-300">
@@ -37,10 +41,13 @@ type Props = {
   focused: string | null;
   onOpenPage: (route: string) => void;
   onOpenFile: (path: string) => void;
+  /** The file open in the code view, and a counter bumped to reveal it in Source. */
+  active?: string | null;
+  reveal?: number;
 };
 
 /** Explorer: pages (with status), assets (Finder-like, drag & drop) and source files. */
-export function FileTree({ projectId, state, focused, onOpenPage, onOpenFile }: Props) {
+export function FileTree({ projectId, state, focused, onOpenPage, onOpenFile, active, reveal }: Props) {
   const [files, setFiles] = useState<string[]>(state.tree);
   const [cwd, setCwd] = useState("assets");
   const [selected, setSelected] = useState<string | null>(null);
@@ -163,6 +170,11 @@ export function FileTree({ projectId, state, focused, onOpenPage, onOpenFile }: 
   const headSha = state.commits.at(-1)?.sha;
   const pageFile = focused ? state.screens[focused]?.file : undefined;
   const pageFiles = usePageFiles(projectId, pageFile, source);
+  // Revealing a file this page doesn't use lists all the files.
+  useEffect(() => {
+    if (reveal && active && !pageFiles.includes(active)) setAllSource(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reveal]);
   const [allSource, setAllSource] = useState(false);
   useEffect(() => setAllSource(false), [focused]);
 
@@ -308,18 +320,18 @@ export function FileTree({ projectId, state, focused, onOpenPage, onOpenFile }: 
           {error && <p className="px-3 text-[11px] text-red-400">{error}</p>}
         </Section>
 
-        <Section title={pageFile && !allSource ? "Source · this page" : "Source"} count={pageFile && !allSource ? pageFiles.length : source.length}>
+        <Section title={pageFile && !allSource ? "Source · this page" : "Source"} count={pageFile && !allSource ? pageFiles.length : source.length} openKey={reveal}>
           {pageFile && !allSource ? (
             // A focused page only lists the files it is built from, in their folders.
             <div className="pb-1">
-              <SourceTree files={pageFiles} onOpen={onOpenFile} />
+              <SourceTree files={pageFiles} onOpen={onOpenFile} active={active} reveal={reveal} />
               <button onClick={() => setAllSource(true)} className="ml-3 mt-1 cursor-pointer text-[11px] text-spark-400 hover:text-spark-300">
                 Show all {source.length} files
               </button>
             </div>
           ) : (
             <>
-              <SourceTree files={source} onOpen={onOpenFile} />
+              <SourceTree files={source} onOpen={onOpenFile} active={active} reveal={reveal} />
               {pageFile && (
                 <button onClick={() => setAllSource(false)} className="ml-3 mt-1 cursor-pointer text-[11px] text-spark-400 hover:text-spark-300">
                   Only this page&apos;s files
@@ -344,7 +356,9 @@ export function FileTree({ projectId, state, focused, onOpenPage, onOpenFile }: 
 
 type Tree = { name: string; path: string; children: Map<string, Tree>; file: boolean };
 
-function SourceTree({ files, onOpen, expanded }: { files: string[]; onOpen: (p: string) => void; expanded?: boolean }) {
+type Reveal = { active?: string | null; reveal?: number };
+
+function SourceTree({ files, onOpen, expanded, active, reveal }: { files: string[]; onOpen: (p: string) => void; expanded?: boolean } & Reveal) {
   const root = useMemo(() => {
     const r: Tree = { name: "", path: "", children: new Map(), file: false };
     for (const f of files) {
@@ -357,14 +371,20 @@ function SourceTree({ files, onOpen, expanded }: { files: string[]; onOpen: (p: 
     }
     return r;
   }, [files]);
-  return <TreeLevel node={root} depth={0} onOpen={onOpen} expanded={expanded} />;
+  return <TreeLevel node={root} depth={0} onOpen={onOpen} expanded={expanded} active={active} reveal={reveal} />;
 }
 
-function TreeLevel({ node, depth, onOpen, expanded }: { node: Tree; depth: number; onOpen: (p: string) => void; expanded?: boolean }) {
+function TreeLevel({ node, depth, onOpen, expanded, active, reveal }: { node: Tree; depth: number; onOpen: (p: string) => void; expanded?: boolean } & Reveal) {
   const kids = [...node.children.values()].sort((a, b) => Number(a.file) - Number(b.file) || a.name.localeCompare(b.name));
   return (
     <>
-      {kids.map((k) => (k.file ? <FileRow key={k.path} node={k} depth={depth} onOpen={onOpen} /> : <FolderRow key={k.path} node={k} depth={depth} onOpen={onOpen} expanded={expanded} />))}
+      {kids.map((k) =>
+        k.file ? (
+          <FileRow key={k.path} node={k} depth={depth} onOpen={onOpen} active={active} reveal={reveal} />
+        ) : (
+          <FolderRow key={k.path} node={k} depth={depth} onOpen={onOpen} expanded={expanded} active={active} reveal={reveal} />
+        ),
+      )}
     </>
   );
 }
@@ -376,8 +396,12 @@ export function MaterialIcon({ name, folder, open }: { name: string; folder?: bo
   return <img src={`/api/file-icon?${q}`} alt="" width={16} height={16} className="size-4 shrink-0" draggable={false} />;
 }
 
-function FolderRow({ node, depth, onOpen, expanded }: { node: Tree; depth: number; onOpen: (p: string) => void; expanded?: boolean }) {
+function FolderRow({ node, depth, onOpen, expanded, active, reveal }: { node: Tree; depth: number; onOpen: (p: string) => void; expanded?: boolean } & Reveal) {
   const [open, setOpen] = useState(!!expanded);
+  // Unfolds to show the open file when it's revealed.
+  useEffect(() => {
+    if (reveal && active?.startsWith(node.path + "/")) setOpen(true);
+  }, [reveal, active, node.path]);
   return (
     <>
       <button onClick={() => setOpen((o) => !o)} className="flex w-full cursor-pointer items-center gap-1.5 py-0.5 text-left text-[12px] text-ink-300 hover:bg-ink-800/60" style={{ paddingLeft: 12 + depth * 12 }}>
@@ -385,14 +409,23 @@ function FolderRow({ node, depth, onOpen, expanded }: { node: Tree; depth: numbe
         <MaterialIcon name={node.name} folder open={open} />
         <span className="truncate">{node.name}</span>
       </button>
-      {open && <TreeLevel node={node} depth={depth + 1} onOpen={onOpen} expanded={expanded} />}
+      {open && <TreeLevel node={node} depth={depth + 1} onOpen={onOpen} expanded={expanded} active={active} reveal={reveal} />}
     </>
   );
 }
 
-function FileRow({ node, depth, onOpen }: { node: Tree; depth: number; onOpen: (p: string) => void }) {
+function FileRow({ node, depth, onOpen, active, reveal }: { node: Tree; depth: number; onOpen: (p: string) => void } & Reveal) {
+  const row = useRef<HTMLButtonElement>(null);
+  const on = active === node.path;
+  useEffect(() => {
+    if (reveal && on) row.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [reveal, on]);
   return (
-    <button onClick={() => onOpen(node.path)} className="flex w-full cursor-pointer items-center gap-1.5 py-0.5 text-left text-[12px] text-ink-300 hover:bg-ink-800/60" style={{ paddingLeft: 24 + depth * 12 }}>
+    <button
+      ref={row}
+      onClick={() => onOpen(node.path)}
+      className={clsx("flex w-full cursor-pointer items-center gap-1.5 py-0.5 text-left text-[12px] hover:bg-ink-800/60", on ? "bg-spark-500/15 text-ink-100" : "text-ink-300")}
+      style={{ paddingLeft: 24 + depth * 12 }}>
       <MaterialIcon name={node.name} />
       <span className="truncate">{node.name}</span>
     </button>

@@ -885,15 +885,28 @@ export class Orchestrator {
     return (await this.sandbox(rt)).readFile(this.checkRel(rel));
   }
 
-  /** TypeScript errors in one file of the project, for the code view's inline messages. */
+  /**
+   * Errors in one file of the project, for the code view's inline messages: Babel's first syntax error
+   * (the one Metro shows, at the line that caused it), else TypeScript's errors.
+   */
   async fileDiagnostics(id: string, rel: string) {
     const rt = await this.runtime(id);
-    const { errors } = await typecheck(await this.sandbox(rt));
+    const sb = await this.sandbox(rt);
     const file = this.checkRel(rel);
-    return errors.flatMap((e) => {
+    const babel = `const fs=require("fs"),p=require("@babel/parser");try{const r=p.parse(fs.readFileSync(${JSON.stringify(file)},"utf8"),{sourceType:"module",plugins:["jsx","typescript"]});console.log(JSON.stringify((r.errors||[]).map(e=>({line:e.loc.line,message:e.message.replace(/ \\(\\d+:\\d+\\)$/,"")}))))}catch(e){console.log(JSON.stringify(e.loc?[{line:e.loc.line,message:e.message.replace(/ \\(\\d+:\\d+\\)$/,"")}]:[]))}`;
+    const [syntax, { errors }] = await Promise.all([
+      sb
+        .exec(`node -e ${shq(babel)}`, { timeoutSec: 20 })
+        .then((r) => JSON.parse(r.stdout.trim().split("\n").pop() || "[]") as { line: number; message: string }[])
+        .catch(() => []),
+      typecheck(sb),
+    ]);
+    const types = errors.flatMap((e) => {
       const m = e.match(/^(.+?):(\d+):(\d+) (TS\d+) (.+)$/);
-      return m && m[1] === file ? [{ line: Number(m[2]), col: Number(m[3]), code: m[4], message: m[5] }] : [];
+      return m && m[1] === file ? [{ line: Number(m[2]), message: m[5] }] : [];
     });
+    // With a syntax error, TypeScript's messages are mostly its consequences: keep Babel's alone.
+    return syntax.length ? syntax : types;
   }
 
   /** Saves a file edited by hand in the IDE's code view, as its own commit. */

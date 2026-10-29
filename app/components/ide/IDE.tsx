@@ -46,6 +46,8 @@ export function IDE({ id, slug: initialSlug, initialPage }: { id: string; slug: 
   const [layoutHover, setLayoutHover] = useState<LayoutPick | null>(null);
   const [tab, setTab] = useState<PanelTab>("layout");
   const [file, setFile] = useState<{ path: string | null; line: number | null }>({ path: null, line: null });
+  // Bumped to show the open file in the explorer's Source tree.
+  const [reveal, setReveal] = useState(0);
   const [panelOpen, setPanelOpen] = useState(true);
   const [panelW, setPanelW] = useState(340);
   const [explorerW, setExplorerW] = useState(232);
@@ -480,6 +482,8 @@ export function IDE({ id, slug: initialSlug, initialPage }: { id: string; slug: 
           state={state}
           focused={focused}
           onOpenPage={open}
+          active={file.path}
+          reveal={reveal}
           onOpenFile={(p) => {
             setFile({ path: p, line: null });
             setTab("code");
@@ -487,7 +491,7 @@ export function IDE({ id, slug: initialSlug, initialPage }: { id: string; slug: 
           }}
         />
         </div>
-        <main className="relative min-h-0 overflow-hidden">
+        <main className="relative isolate min-h-0 overflow-hidden">
           <Canvas
             projectId={id}
             screens={screens}
@@ -581,6 +585,7 @@ export function IDE({ id, slug: initialSlug, initialPage }: { id: string; slug: 
                   setFile({ path: p, line: l ?? null });
                   setTab("code");
                 }}
+                onReveal={() => setReveal((n) => n + 1)}
                 onLayoutHover={setLayoutHover}
                 onLayoutPick={onLayoutPick}
                 selectedKeys={new Set(selections.map((x) => x.key))}

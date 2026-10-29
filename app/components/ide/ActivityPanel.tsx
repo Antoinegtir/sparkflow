@@ -21,6 +21,8 @@ type Props = {
   file: string | null;
   line: number | null;
   onFile: (path: string | null, line?: number | null) => void;
+  /** Shows the open file in the explorer's Source tree. */
+  onReveal: () => void;
   onLayoutHover: (pick: LayoutPick | null) => void;
   onLayoutPick: (pick: LayoutPick) => void;
   selectedKeys: Set<string>;
@@ -54,7 +56,7 @@ export function ActivityPanel(p: Props) {
       </div>
       <div className="min-h-0 flex-1">
         {p.tab === "activity" && <Activity state={p.state} />}
-        {p.tab === "code" && <CodeView projectId={p.projectId} state={p.state} file={p.file} line={p.line} />}
+        {p.tab === "code" && <CodeView projectId={p.projectId} state={p.state} file={p.file} line={p.line} onReveal={p.onReveal} />}
         {p.tab === "layout" &&
           (p.focused || p.state.native ? (
             <LayoutTree projectId={p.projectId} state={p.state} route={p.focused} selectedKeys={p.selectedKeys} onHover={p.onLayoutHover} onPick={p.onLayoutPick} onJump={(f, l) => p.onFile(f, l)} />
@@ -128,7 +130,7 @@ function Bubble({ who, sub, children }: { who: "user" | "agent"; sub?: string; c
 const CODE = /\.(tsx?|jsx?|json|mjs|cjs|md|css|swift)$/i;
 const IMAGE = /\.(png|jpe?g|gif|webp|svg)$/i;
 
-function CodeView({ projectId, state, file, line }: { projectId: string; state: ProjectState; file: string | null; line: number | null }) {
+function CodeView({ projectId, state, file, line, onReveal }: { projectId: string; state: ProjectState; file: string | null; line: number | null; onReveal: () => void }) {
   // `saved` is the file as on disk; `draft` is the editor, saved automatically a moment after you stop typing.
   const [saved, setSaved] = useState<string | null>(null);
   const [draft, setDraft] = useState<string | null>(null);
@@ -213,8 +215,10 @@ function CodeView({ projectId, state, file, line }: { projectId: string; state: 
         <div className="flex h-7 min-w-0 flex-1 items-center gap-2 px-1 font-mono text-[11.5px] text-ink-200" title={file ?? undefined}>
           {file ? (
             <>
-              <MaterialIcon name={name} />
-              <span className="truncate">{file}</span>
+              <button onClick={onReveal} title="Show in Source" className="flex min-w-0 cursor-pointer items-center gap-2 rounded px-1 py-0.5 hover:bg-ink-800">
+                <MaterialIcon name={name} />
+                <span className="truncate">{file}</span>
+              </button>
               {draft != null && (
                 <span className={clsx("ml-auto shrink-0 font-sans text-[10.5px]", status === "error" ? "text-red-400" : "text-ink-500")}>
                   {status === "saving" || dirty.current ? "Saving…" : status === "error" ? "Not saved" : "Saved"}
