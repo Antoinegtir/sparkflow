@@ -1,3 +1,4 @@
+import { ExpoLogo } from "./components/BrandIcons";
 import { Composer } from "./components/Composer";
 import { DotLens } from "./components/DotLens";
 import { MetaLogo } from "./components/MetaLogo";
@@ -102,10 +103,22 @@ export default function Home() {
       <footer className="relative mx-auto max-w-5xl border-t border-ink-800 px-6 pb-10 pt-6">
         <div className="flex flex-col items-center justify-between gap-3 text-[12.5px] text-ink-400 sm:flex-row">
           <span className="flex items-center gap-2">
-            <span className="font-medium text-ink-200">Sparkflow</span>
+            <Logo />
             <span className="text-ink-600">·</span>© {new Date().getFullYear()} Antoine Gonthier. All rights reserved.
           </span>
-          <span className="text-ink-500">Built with Muse Spark, Expo and React Native</span>
+          <span className="flex flex-wrap items-center justify-center gap-x-1.5 text-ink-500">
+            Built with
+            <span className="flex items-center gap-1 text-ink-300">
+              <MetaLogo className="size-3.5" /> Muse Spark,
+            </span>
+            <span className="flex items-center gap-1 text-ink-300">
+              <ExpoLogo className="size-3.5 text-ink-200" /> Expo
+            </span>
+            and
+            <span className="flex items-center gap-1 text-ink-300">
+              <ReactLogo className="size-3.5" /> React Native
+            </span>
+          </span>
         </div>
         <p className="mt-4 text-center text-[11px] text-ink-600 sm:text-left">
           Apple and the Apple logo are trademarks of Apple Inc. Android robot © Google, CC BY 3.0. Sparkflow is not affiliated with Apple or Google.
