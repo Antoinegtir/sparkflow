@@ -33,6 +33,10 @@ function OpenOnPhone({ state }: { state: ProjectState }) {
                 <QRCodeSVG value={`https://sparkflow-ai.web.app/open?u=${encodeURIComponent(url)}`} size={180} />
               </div>
               <p className="mt-3 text-[12px] text-ink-300">Scan with your phone's camera: it opens the app in Expo Go (same Wi‑Fi).</p>
+              {/* Expo Go only opens a computer's project when both are signed in to the same Expo account. */}
+              <p className="mt-2 text-[11.5px] leading-snug text-ink-500">
+                First time: sign in to Expo Go on the phone, and with the same account here: <span className="font-mono text-ink-300">npx expo login</span>
+              </p>
               <p className="mt-1 truncate font-mono text-[11px] text-ink-500">{url}</p>
             </>
           ) : (

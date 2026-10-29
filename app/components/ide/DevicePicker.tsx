@@ -38,7 +38,8 @@ export function DevicePicker({ bundleId, onSwitching, inline }: { bundleId?: str
     try {
       const res = await fetch("/api/sim/devices", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ udid: d.udid, bundleId }) });
       const json = await res.json();
-      if (!res.ok) alert(json.error ?? "Could not switch the simulator");
+      // Still booting past the wait (an Android cold boot): it shows up by itself once ready.
+      if (!res.ok && !/did not boot/i.test(json.error ?? "")) alert(json.error ?? "Could not switch the simulator");
       window.dispatchEvent(new Event(SIM_CHANGED));
       await load();
     } finally {
@@ -67,10 +68,10 @@ export function DevicePicker({ bundleId, onSwitching, inline }: { bundleId?: str
   const empty = <p className="p-3 text-[12px] text-ink-500">No simulators or emulators found. Install an iOS Simulator in Xcode or an Android emulator in Android Studio.</p>;
   if (inline)
     return (
-      <div className="w-72 max-w-full rounded-xl border border-[var(--line)] bg-[var(--panel)] p-1 text-left">
+      <div className="w-full min-w-0 rounded-xl border border-[var(--line)] bg-[var(--panel)] p-1 text-left">
         {busy ? (
           <p className="flex items-center gap-2 p-3 text-[12px] text-ink-400">
-            <Loader2 size={13} className="animate-spin" /> Booting…
+            <Loader2 size={13} className="animate-spin" /> Booting… (an Android emulator's first start can take a few minutes)
           </p>
         ) : (
           <>

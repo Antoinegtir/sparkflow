@@ -345,11 +345,10 @@ export function SimulatorView({
   if (loaded && !supported) return <Message text="The iOS Simulator needs macOS with Xcode; the Android emulator needs the Android SDK (adb)." />;
   if (loaded && !device)
     return (
-      <div className="grid h-full place-items-center overflow-auto p-6 text-center">
-        <div className="flex flex-col items-center gap-3">
-          <p className="text-[12.5px] text-ink-400">No simulator or emulator is running. Pick one to boot it:</p>
-          <DevicePicker inline />
-        </div>
+      // Fits the phone's screen: the text wraps, the list takes the width and scrolls.
+      <div className="flex h-full w-full min-w-0 flex-col gap-3 overflow-y-auto px-4 pt-14 pb-8 text-center">
+        <p className="text-[12.5px] leading-snug text-ink-400">No simulator or emulator is running. Pick one to boot it: it shows up here once it's ready.</p>
+        <DevicePicker inline />
       </div>
     );
   if (!loaded) return <Message text="Connecting to the simulator…" />;

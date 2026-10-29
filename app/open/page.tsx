@@ -37,6 +37,9 @@ export default function OpenOnPhone() {
               {store.label}
             </a>
             <p className="mt-4 text-[12px] text-ink-500">No Expo Go yet? Install it, come back to this page and tap Open.</p>
+            <p className="mt-2 text-[12px] text-ink-500">
+              Expo Go asks you to sign in? Sign in to Expo Go here, then on your computer with the same account: <span className="font-mono text-ink-300">npx expo login</span>
+            </p>
           </>
         ) : (
           <p className="mt-2 text-[14px] text-ink-400">This link is incomplete: scan the QR code in Sparkflow again.</p>
