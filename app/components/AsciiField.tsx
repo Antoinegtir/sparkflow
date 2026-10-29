@@ -84,20 +84,17 @@ function shipLines(w: number, t: number) {
 /** An arrow pointer; the spaces inside it hide the ripples behind. */
 // Figma's pointer, drawn in white over the ripples: its tip at the top left.
 const CURSOR = [
-  "+@@:",
-  " @@@@@@",
-  " @@#  @@@@=",
-  " :@@      @@@@",
-  "  @@         %@@@#",
-  "  *@@            @@@@.",
-  "   @@               +@@@@",
-  "   @@=           :@@@@@@@",
-  "   -@@      %@@@@@-",
-  "    @@     @@=",
-  "    %@%  +@@",
-  "     @@.@@@",
-  "     @@@@:",
-  "     =@@",
+  "@@:",
+  " @@@@@",
+  " @@   @@@+",
+  " .@       @@@",
+  "  @:         %@@-",
+  "  @@         .@@@@*",
+  "  :@     @@@@",
+  "   @@  #@",
+  "   *@ @@",
+  "    @@#",
+  "    *.",
 ];
 /** Marks a character drawn in white rather than the field's blue. */
 const WHITE = "\u0001";
@@ -185,7 +182,7 @@ const MOTIFS: Motif[] = [
   // spreading from where it points.
   (x, y, t, w, h) => {
     // The tip of the arrow, kept far enough from the right edge for the tag.
-    const room = Math.max(4, w - Math.max(CURSOR_TAG.length + 2, 25) - 2);
+    const room = Math.max(4, w - Math.max(CURSOR_TAG.length + 2, 19) - 2);
     const cx = Math.round(Math.min(room, Math.max(3, w / 2 - 8 + Math.sin(t * 0.5) * (w * 0.12))));
     const cy = Math.round(h / 2 - 3 + Math.cos(t * 0.7) * h * 0.12);
     const dx = x - cx;
