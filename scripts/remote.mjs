@@ -285,9 +285,14 @@ function stop(code = 0) {
   if (tty) process.stdout.write("\x1b[?25h" + (tintable ? "\x1b]111\x07" : "") + "\x1b]0;\x07");
   process.exit(code);
 }
-function fail(step, detail) {
+/** Stops on a failed step. `hint`: what to do, shown instead of the server's last output. */
+function fail(step, detail, hint) {
   step.state = "fail";
   step.detail = detail;
+  if (hint) {
+    warning = hint;
+    return stop(1);
+  }
   const tail = existsSync(logPath) ? readFileSync(logPath, "utf8").trim().split("\n").slice(-6).join("\n    ") : "";
   if (tail) warning = `Last server output:\n    ${dim(tail)}`;
   stop(1);
@@ -297,6 +302,43 @@ process.on("SIGTERM", () => stop(0));
 
 // ---------- Server ----------
 const [serverStep, tunnelStep, reachStep] = steps;
+
+// Something already answers on the port: most likely Sparkflow running in another terminal. Say so
+// and stop before opening a tunnel, rather than failing halfway with its logs.
+let taken = await fetch(`http://localhost:${PORT}/api/projects`, { signal: AbortSignal.timeout(1500) }).then(
+  (r) => (r.ok && /json/.test(r.headers.get("content-type") ?? "") ? "sparkflow" : "other"),
+  () => null,
+);
+const busy = (who) =>
+  fail(
+    serverStep,
+    who === "sparkflow" ? "Sparkflow is already running" : `port ${PORT} is taken`,
+    who === "sparkflow"
+      ? `Sparkflow already runs in another terminal: use that one,\n  or stop it there (Ctrl+C) and run ${bold("sparkflow")} again.`
+      : `Another program uses port ${PORT}. Close it, or start on another port:\n  ${bold(`PORT=${Number(PORT) + 1} sparkflow`)}`,
+  );
+// A server left behind by a Sparkflow whose terminal was closed: no other `sparkflow` runs, so
+// stop it and take its place.
+if (taken === "sparkflow") {
+  const sh = (cmd) => {
+    try {
+      return execSync(cmd, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+    } catch {
+      return "";
+    }
+  };
+  const others = sh(`pgrep -f "[s]cripts/remote.mjs"`).split("\n").filter((p) => p.trim() && Number(p) !== process.pid);
+  if (!others.length) {
+    for (const pid of sh(`lsof -tiTCP:${PORT} -sTCP:LISTEN`).split("\n").filter(Boolean)) {
+      try {
+        process.kill(Number(pid), "SIGKILL");
+      } catch {}
+    }
+    await new Promise((r) => setTimeout(r, 800));
+    taken = null;
+  }
+}
+if (taken) busy(taken);
 if (process.argv.includes("--build") || !existsSync(".next-server/BUILD_ID")) {
   serverStep.state = "run";
   serverStep.detail = "building (first run only)…";
@@ -315,7 +357,7 @@ children.push(server);
 const onServerOutput = (d) => {
   log.write(d);
   const text = String(d);
-  if (/EADDRINUSE/.test(text)) fail(serverStep, `port ${PORT} is taken (another Sparkflow running?)`);
+  if (/EADDRINUSE/.test(text)) busy("other");
   // Errors while running (a build that failed, Metro…) show up as one line; details in the log.
   const err = text.split("\n").find((l) => /\b(Error|error)\b/.test(l));
   if (err && serverStep.state === "ok") warning = err.replace(/^\s*\[sparkflow\]\s*/, "").slice(0, 100);
