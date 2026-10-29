@@ -191,7 +191,7 @@ const MOTIFS: Motif[] = [
     // Inside the outline it's blank (the ripples stop at its edge); the outline is white.
     if (arrow !== undefined && dx >= 0 && dx < arrow.length) return arrow[dx] === " " ? " " : WHITE + arrow[dx];
     // The tag under the arrow, like a collaborator's name in Figma.
-    if (dy === CURSOR.length && dx >= 2 && dx < 2 + CURSOR_TAG.length) return CURSOR_TAG[dx - 2];
+    if (dy === CURSOR.length && dx >= 2 && dx < 2 + CURSOR_TAG.length) return WHITE + CURSOR_TAG[dx - 2];
     const r = Math.hypot(dx * ASPECT, dy);
     return Math.max(0, Math.sin(r * 1.3 - t * 5)) * Math.exp(-r / (h * 0.45));
   },
