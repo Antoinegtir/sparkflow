@@ -4,7 +4,7 @@ import clsx from "clsx";
 import { Camera, Check, FileImage, Loader2, Mic, MousePointer2, RotateCcw, Sparkles, X } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useEffect, useState } from "react";
-import { AppStoreLogo, PlayStoreLogo } from "./BrandIcons";
+import { AppStoreLogo, PlayStoreLogo, ReactLogo } from "./BrandIcons";
 import { InstallIcon } from "./InstallIcon";
 
 /** HowItWorks announces the step reaching the middle of the screen; the pinned phone shows it. */
@@ -122,12 +122,12 @@ function Describe() {
 /** A screen of the plan as a tiny wireframe: its name and a sketch of what it holds. */
 function PlanCard({ name, children, delay, lit }: { name: string; children: React.ReactNode; delay: number; lit?: boolean }) {
   return (
-    <div className={clsx("hiw-pop rounded-lg border bg-white p-1.5 shadow-sm transition-colors duration-500", lit ? "border-spark-400 ring-2 ring-spark-400/25" : "border-black/10")} style={{ animationDelay: `${delay}ms` }}>
-      <div className="mb-1 flex items-center justify-between">
-        <span className="text-[8.5px] font-semibold text-neutral-900">{name}</span>
+    <div className={clsx("hiw-pop rounded-lg border bg-white px-1.5 py-1 shadow-sm transition-colors duration-500", lit ? "border-spark-400 ring-2 ring-spark-400/25" : "border-black/10")} style={{ animationDelay: `${delay}ms` }}>
+      <div className="mb-0.5 flex items-center justify-between">
+        <span className="text-[8px] font-semibold text-neutral-900">{name}</span>
         <span className="h-1 w-1 rounded-full bg-black/15" />
       </div>
-      <div className="h-[34px]">{children}</div>
+      <div className="h-[24px]">{children}</div>
     </div>
   );
 }
@@ -136,14 +136,15 @@ const bar = "rounded-sm bg-black/12";
 const PLAN = [1500, 1200, 3200];
 function Plan() {
   const phase = useScene(PLAN);
-  const criteria = ["Three habit rows, a check on each", "A progress bar for the day", "A streak count on every habit"];
+  const criteria = ["3 habit rows with a check", "A progress bar for the day", "A streak on each habit"];
   return (
-    <div className="flex h-full flex-col justify-center gap-2.5 px-2.5 py-3">
+    // Laid out from the top, under the Dynamic Island, and short enough to stay above the dots.
+    <div className="flex h-full flex-col gap-2 px-2.5 pb-2 pt-4">
       <div className="flex items-baseline justify-between px-0.5">
         <span className="text-[11px] font-bold text-neutral-900">Plan</span>
         <span className="text-[8px] text-neutral-500">4 screens · tabs</span>
       </div>
-      <div className="relative grid grid-cols-2 gap-x-3 gap-y-3">
+      <div className="relative grid grid-cols-2 gap-x-3 gap-y-2.5">
         <PlanCard name="Today" delay={0} lit={phase === 2}>
           <div className="space-y-[3px]">
             {[0, 1, 2].map((i) => (
@@ -163,7 +164,7 @@ function Plan() {
         </PlanCard>
         <PlanCard name="Habit" delay={280}>
           <div className="flex h-full items-center gap-1.5">
-            <span className="text-[15px] font-bold leading-none text-spark-500">12</span>
+            <span className="text-[13px] font-bold leading-none text-spark-500">12</span>
             <div className="flex-1 space-y-[3px]">
               <span className={clsx(bar, "block h-[4px] w-full")} />
               <span className={clsx(bar, "block h-[4px] w-2/3")} />
@@ -171,7 +172,7 @@ function Plan() {
           </div>
         </PlanCard>
         <PlanCard name="Settings" delay={420}>
-          <div className="space-y-[4px]">
+          <div className="space-y-[3px]">
             {[true, false, true].map((on, i) => (
               <div key={i} className="flex items-center gap-1">
                 <span className={clsx(bar, "h-[4px] flex-1")} />
@@ -187,12 +188,12 @@ function Plan() {
         <span className={clsx("pointer-events-none absolute left-[24%] top-1/2 h-3 w-[2px] -translate-y-1/2 origin-top rounded-full bg-spark-500 transition-transform duration-500 delay-200", phase >= 1 ? "scale-y-100" : "scale-y-0")} />
       </div>
       {/* What Today must show: checked on its screenshot later. */}
-      <div className={clsx("rounded-lg border border-black/10 bg-black/[0.03] p-2 transition-opacity duration-300", phase === 2 ? "opacity-100" : "opacity-0")}>
+      <div className={clsx("rounded-lg border border-black/10 bg-black/[0.03] px-2 py-1.5 transition-opacity duration-300", phase === 2 ? "opacity-100" : "opacity-0")}>
         <p className="mb-1 text-[8px] font-semibold uppercase tracking-wide text-neutral-500">Today must show</p>
         <div className="space-y-1">
           {criteria.map((c, i) => (
-            <div key={c} className={clsx("flex items-start gap-1.5 text-[9px] leading-snug text-neutral-700 transition-all duration-300", phase === 2 ? "translate-y-0 opacity-100" : "translate-y-1 opacity-0")} style={{ transitionDelay: `${200 + i * 250}ms` }}>
-              <span className="mt-[1px] grid size-3 shrink-0 place-items-center rounded-full bg-spark-500 text-white">
+            <div key={c} className={clsx("flex items-center gap-1.5 whitespace-nowrap text-[8.5px] leading-snug text-neutral-700 transition-all duration-300", phase === 2 ? "translate-y-0 opacity-100" : "translate-y-1 opacity-0")} style={{ transitionDelay: `${200 + i * 250}ms` }}>
+              <span className="grid size-3 shrink-0 place-items-center rounded-full bg-spark-500 text-white">
                 <Check size={7} strokeWidth={3} />
               </span>
               {c}
@@ -221,7 +222,9 @@ function Build() {
   return (
     <div className="flex h-full flex-col justify-center px-2.5 py-3 font-mono text-[9px] leading-relaxed">
       <div className="mb-2 flex items-center gap-1 text-[8.5px] text-neutral-500">
-        <span className="rounded bg-black/6 px-1.5 py-0.5">app/(tabs)/index.tsx</span>
+        <span className="flex items-center gap-1 rounded bg-black/6 px-1.5 py-0.5">
+          <ReactLogo className="size-3" /> app/(tabs)/index.tsx
+        </span>
       </div>
       {/* Keyed by the loop: the lines type out again each time round. */}
       <div key={phase === 0 ? "typing" : "done"}>
