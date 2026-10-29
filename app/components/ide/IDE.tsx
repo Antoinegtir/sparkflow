@@ -232,7 +232,13 @@ export function IDE({ id, slug: initialSlug, initialPage }: { id: string; slug: 
     try {
       localStorage.setItem(APP_SCHEME_KEY, next);
     } catch {}
-    if (!state?.native || !sim.device) return;
+    if (!state || !sim.device) return;
+    // A generated app in the live Simulator: the Simulator switches with it (its pages are web captures).
+    if (!state.native) {
+      if (state.previewDevice === "simulator")
+        void fetch("/api/sim/appearance", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ appearance: next }) }).catch(() => {});
+      return;
+    }
     setCapturingDark(true);
     try {
       await fetch("/api/sim/appearance", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ appearance: next }) });
