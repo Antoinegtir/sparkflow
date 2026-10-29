@@ -269,7 +269,9 @@ export function ScrollVideo({ src, className, children }: { src: string; classNa
           className="scroll-video-side pointer-events-auto relative px-6 pb-[8vh] opacity-0 lg:px-0"
           style={
             {
-              marginTop: `calc(${(ROTATE_VH + SLIDE_VH) * 100 + SIDE_DROP_VH}vh - ${SIZE})`,
+              // The bigger phone takes longer to slide aside (its middle is pinned lower): the steps
+              // start later by as much, so step 1 (where the scroll assist stops) shows once it has.
+              marginTop: `calc(${(ROTATE_VH + SLIDE_VH) * 100 + SIDE_DROP_VH}vh - ${SIZE} + ${GROWTH} / 2)`,
               "--side-w": `${SIDE_W}px`,
               "--phone-w": `calc(${SIZE} * ${PHONE_RATIO})`,
               "--gap": `${GAP}px`,
