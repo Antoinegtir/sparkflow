@@ -3,6 +3,7 @@
 import clsx from "clsx";
 import { Eye, Hammer, Map as MapIcon, MessageSquareText, MousePointerClick, RefreshCcw, Rocket } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { brandIcon } from "./BrandIcons";
 import { STEP_EVENT } from "./PhoneSteps";
 
 /** The process, step by step, as shown on the landing's vertical timeline. */
@@ -154,7 +155,7 @@ export function HowItWorks() {
                   <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-ink-500">
                     {tags.map((t) => (
                       <span key={t} className="flex items-center gap-1.5">
-                        <span className={clsx("h-1 w-1 rounded-full", on ? "bg-spark-400" : "bg-ink-600")} />
+                        {brandIcon(t) ?? <span className={clsx("h-1 w-1 rounded-full", on ? "bg-spark-400" : "bg-ink-600")} />}
                         {t}
                       </span>
                     ))}
