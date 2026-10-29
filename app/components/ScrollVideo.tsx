@@ -3,8 +3,10 @@
 import { useEffect, useRef } from "react";
 import { PhoneSteps } from "./PhoneSteps";
 
+/** How much bigger than its first size the phone is drawn (its screen's content grows with it). */
+const PHONE_SCALE = 1.5;
 /** Video box size: square clip, as large as fits comfortably. */
-const SIZE = "min(70vh, 640px)";
+const SIZE = `min(${70 * PHONE_SCALE}vh, ${640 * PHONE_SCALE}px)`;
 /** Vertical squash of the edge-on phone at the top of the page (thinner white edge); width is never changed. */
 const MIN_SCALE = 0.03;
 /** How fast it un-squashes: back to full height after 1/GROW_SPEED of the way to the middle. */
@@ -241,7 +243,8 @@ export function ScrollVideo({ src, className, children }: { src: string; classNa
               style={{ width: `calc(${SIZE} * ${PHONE_RATIO} * ${SCREEN_W})`, height: `calc(${SIZE} * ${SCREEN_H})`, borderRadius: `calc(${SIZE} * 0.042)` }}>
               {/* White screen lighting up slowly once the phone has slid aside. */}
               <div ref={glass} className="absolute inset-0 bg-white opacity-0 transition-opacity ease-out" />
-              <div className="relative h-full">
+              {/* Laid out at the first size, then zoomed with the phone: the scenes keep their proportions. */}
+              <div className="relative h-full" style={{ zoom: PHONE_SCALE }}>
                 <PhoneSteps />
               </div>
               {/* Dynamic Island: pops in with a bounce once the white screen has faded in. */}
