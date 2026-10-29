@@ -9,7 +9,7 @@
 import { execSync, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { Resolver } from "node:dns/promises";
-import { createWriteStream, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { accessSync, constants, createWriteStream, existsSync, mkdirSync, readFileSync, rmSync, statfsSync, writeFileSync } from "node:fs";
 import { request } from "node:https";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
@@ -20,15 +20,32 @@ const PORT = process.env.PORT ?? "3002";
 const token = randomBytes(24).toString("base64url");
 // Own build folder: `npm run build:static` and `next dev` both write to .next.
 const env = { ...process.env, NEXT_DIST_DIR: ".next-server" };
-const version = JSON.parse(readFileSync("package.json", "utf8")).version;
+/** Before the status screen exists: one clear line and out. */
+function early(message) {
+  console.error(`\n  \x1b[31m✗\x1b[0m ${message}\n`);
+  process.exit(1);
+}
+let version = "";
+try {
+  version = JSON.parse(readFileSync("package.json", "utf8")).version;
+} catch {
+  early("This Sparkflow install is incomplete. Reinstall it: sparkflow update");
+}
 const sparkHome = process.env.SPARKFLOW_HOME ?? join(homedir(), ".sparkflow");
 const logDir = join(sparkHome, "logs");
 // The tunnel address and token of this run, for /api/connect: the hosted site, open in a browser on
 // this computer, asks localhost for them and connects by itself.
 const connection = join(sparkHome, "connection.json");
-mkdirSync(logDir, { recursive: true });
+try {
+  mkdirSync(logDir, { recursive: true });
+  accessSync(logDir, constants.W_OK);
+} catch {
+  early(`Sparkflow can't write to ${logDir}. Check its permissions (or free some disk space).`);
+}
 const logPath = join(logDir, "server.log");
 const log = createWriteStream(logPath, { flags: "w" });
+// A full disk must not crash the screen: the log just stops growing.
+log.on("error", () => {});
 
 // First run (or `--key`): the Muse Spark API key, before the status screen takes the terminal.
 const setup = { key: process.argv.includes("--key"), folder: process.argv.includes("--folder") };
@@ -274,7 +291,10 @@ const timer = setInterval(draw, 80);
 if (tty) process.stdout.write("\x1b[?25l"); // hide the cursor while the spinner runs
 
 const children = [];
+let stopping = false;
 function stop(code = 0) {
+  if (stopping) return;
+  stopping = true;
   clearInterval(timer);
   clearInterval(presenceTimer);
   rmSync(connection, { force: true });
@@ -283,20 +303,50 @@ function stop(code = 0) {
   draw();
   // Give the terminal back as it was: cursor, background, title.
   if (tty) process.stdout.write("\x1b[?25h" + (tintable ? "\x1b]111\x07" : "") + "\x1b]0;\x07");
+  // No status screen (output piped, a service): the failure as plain lines.
+  else if (code) console.error(steps.filter((x) => x.state === "fail").map((x) => `${x.label}: ${x.detail}`).concat(warning ? [warning.replace(/\x1b\[[0-9;]*m/g, "")] : []).join("\n"));
   process.exit(code);
 }
+/**
+ * Known failures, recognized in an error or the server's output, with what to do about them.
+ * Anything else shows the last lines of the log.
+ */
+const KNOWN = [
+  [/ENOSPC|no space left/i, "Your disk is full. Free some space, then run sparkflow again."],
+  [/EMFILE|too many open files/i, "Too many open files. Install watchman (brew install watchman), then run sparkflow again."],
+  [/Could not find a production build|Cannot find module|MODULE_NOT_FOUND|ERR_MODULE_NOT_FOUND/, "This Sparkflow install is incomplete. Reinstall it: sparkflow update"],
+  [/EACCES|EPERM|permission denied/i, "Sparkflow isn't allowed to write somewhere it needs. Check your apps folder (sparkflow folder) and ~/.sparkflow."],
+  [/ENOMEM|JavaScript heap out of memory/i, "Your Mac ran out of memory. Close a few apps (or a simulator), then run sparkflow again."],
+];
+const explain = (text) => KNOWN.find(([re]) => re.test(text))?.[1];
+const logTail = (n = 6) => {
+  try {
+    return readFileSync(logPath, "utf8").trim().split("\n").slice(-n).join("\n");
+  } catch {
+    return "";
+  }
+};
+
 /** Stops on a failed step. `hint`: what to do, shown instead of the server's last output. */
 function fail(step, detail, hint) {
+  if (stopping) return;
   step.state = "fail";
   step.detail = detail;
-  if (hint) {
-    warning = hint;
-    return stop(1);
-  }
-  const tail = existsSync(logPath) ? readFileSync(logPath, "utf8").trim().split("\n").slice(-6).join("\n    ") : "";
-  if (tail) warning = `Last server output:\n    ${dim(tail)}`;
+  const tail = logTail();
+  hint ??= explain(tail);
+  if (hint) warning = hint;
+  else if (tail) warning = `Last server output (${short(logPath)}):\n    ${dim(tail.split("\n").join("\n    "))}`;
   stop(1);
 }
+
+// A bug in this script itself: the same clean ending instead of a stack trace over the screen.
+const crash = (err) => {
+  log.write(`\n[sparkflow] ${err?.stack ?? err}\n`);
+  const step = steps.find((x) => x.state === "run") ?? steps[0];
+  fail(step, "stopped unexpectedly", explain(String(err?.message ?? err)) ?? `Something went wrong: ${String(err?.message ?? err).slice(0, 120)}\n  Details in ${short(logPath)}. Run sparkflow again; if it keeps happening, sparkflow update.`);
+};
+process.on("uncaughtException", crash);
+process.on("unhandledRejection", crash);
 process.on("SIGINT", () => stop(0));
 process.on("SIGTERM", () => stop(0));
 
@@ -346,9 +396,30 @@ if (process.argv.includes("--build") || !existsSync(".next-server/BUILD_ID")) {
   try {
     execSync(`npx next build >> "${logPath}" 2>&1`, { stdio: "ignore", env });
   } catch {
-    fail(serverStep, "build failed");
+    fail(serverStep, "build failed", explain(logTail(30)) ?? `The server build failed. Reinstall Sparkflow: sparkflow update\n  Details in ${short(logPath)}.`);
   }
 }
+
+// The apps folder: it may sit on a disk that isn't plugged in, or be read-only.
+const appsDir = env.SPARKFLOW_DATA_DIR;
+if (appsDir) {
+  try {
+    mkdirSync(appsDir, { recursive: true });
+    accessSync(appsDir, constants.W_OK);
+  } catch {
+    fail(
+      serverStep,
+      "apps folder unavailable",
+      `${short(appsDir)} isn't available${appsDir.startsWith("/Volumes/") ? " (disk unplugged?)" : ""}.\n  Plug it in, or pick another folder: ${bold("sparkflow folder")}`,
+    );
+  }
+}
+// Little disk left: builds and screenshots will fail halfway, so say it now (without stopping).
+try {
+  const { bavail, bsize } = statfsSync(appsDir || sparkHome);
+  const gb = (bavail * bsize) / 1024 ** 3;
+  if (gb < 2) warning = `Only ${gb.toFixed(1)} GB left on disk: builds may fail. Free some space.`;
+} catch {}
 
 serverStep.state = "run";
 serverStep.detail = `starting on localhost:${PORT}…`;
@@ -360,11 +431,12 @@ const onServerOutput = (d) => {
   if (/EADDRINUSE/.test(text)) busy("other");
   // Errors while running (a build that failed, Metro…) show up as one line; details in the log.
   const err = text.split("\n").find((l) => /\b(Error|error)\b/.test(l));
-  if (err && serverStep.state === "ok") warning = err.replace(/^\s*\[sparkflow\]\s*/, "").slice(0, 100);
+  if (err && serverStep.state === "ok") warning = explain(text) ?? err.replace(/^\s*\[sparkflow\]\s*/, "").trim().slice(0, 100);
 };
+server.on("error", (e) => fail(serverStep, "couldn't start", explain(e.message) ?? "Node's npx wasn't found. Reinstall Sparkflow: sparkflow update"));
 server.stdout.on("data", onServerOutput);
 server.stderr.on("data", onServerOutput);
-server.on("exit", (code) => serverStep.state !== "fail" && fail(serverStep, `stopped (exit ${code})`));
+server.on("exit", (code, signal) => serverStep.state !== "fail" && fail(serverStep, signal ? `stopped (${signal})` : `stopped (exit ${code})`));
 
 // Where the open Sparkflow tab is (straight from this machine, so no token needed).
 async function pollPresence() {
@@ -383,19 +455,61 @@ async function pollPresence() {
     }
     await new Promise((r) => setTimeout(r, 500));
   }
-  fail(serverStep, "didn't start in 60 s");
+  fail(serverStep, "didn't start in 60 s", explain(logTail(30)) ?? `The server didn't answer in 60 s. Run sparkflow again; details in ${short(logPath)}.`);
 })();
 
 // ---------- Tunnel ----------
 // Empty config: a ~/.cloudflared/config.yml with its own ingress rules would answer 404 to everything.
 const emptyConfig = join(tmpdir(), "sparkflow-cloudflared.yml");
-writeFileSync(emptyConfig, "{}\n");
+try {
+  writeFileSync(emptyConfig, "{}\n");
+} catch {}
 tunnelStep.state = "run";
 tunnelStep.detail = "opening a Cloudflare quick tunnel…";
+
+/**
+ * Without a tunnel Sparkflow still works in a browser on this Mac (the site reaches localhost):
+ * keep the server, say why the tunnel is missing, and what that costs (other devices, phones).
+ */
+let tunnelOutput = "";
+function tunnelDown(detail, hint) {
+  if (stopping || tunnelStep.state === "fail") return;
+  tunnelStep.state = "fail";
+  tunnelStep.detail = detail;
+  reachStep.state = "wait";
+  reachStep.detail = "this Mac only";
+  warning = `${hint}\n  Works on this Mac; other devices can't reach it.`;
+  if (!ready) {
+    const local = `http://localhost:${PORT}`;
+    try {
+      writeFileSync(connection, JSON.stringify({ url: local, token }), { mode: 0o600 });
+    } catch {}
+    ready = { url: local, link: SITE, picked: false, opened: false, local: true };
+  }
+}
+const why = () =>
+  /429|Too Many Requests|failed to (request|unmarshal) quick Tunnel/i.test(tunnelOutput)
+    ? "Cloudflare refused a new tunnel (too many in a short time): wait a minute, then run sparkflow again."
+    : /no such host|lookup .* failed|network is unreachable|dial tcp|i\/o timeout|ENOTFOUND/i.test(tunnelOutput)
+      ? "No internet connection: the tunnel couldn't open. Check your network, then run sparkflow again."
+      : `The Cloudflare tunnel couldn't open. Run sparkflow again; details in ${short(logPath)}.`;
+
 const tunnel = spawn("cloudflared", ["--config", emptyConfig, "tunnel", "--no-autoupdate", "--url", `http://localhost:${PORT}`], { stdio: ["ignore", "pipe", "pipe"] });
 children.push(tunnel);
-tunnel.on("error", () => fail(tunnelStep, "cloudflared is missing: brew install cloudflared"));
-tunnel.on("exit", (code) => tunnelStep.state !== "fail" && fail(tunnelStep, `closed (exit ${code})`));
+tunnel.on("error", () => tunnelDown("cloudflared is missing", `Install it to reach Sparkflow from other devices: ${bold("brew install cloudflared")}`));
+tunnel.on("exit", (code) => {
+  if (stopping) return;
+  // Closed after working (sleep, network change): the server stays up on this Mac.
+  if (seen) tunnelDown("closed", "The tunnel closed (sleep or a network change). Restart sparkflow to reach it from other devices again.");
+  else tunnelDown(`closed (exit ${code})`, why());
+});
+// No address after 45 s: offline, or Cloudflare is slow to hand one out.
+setTimeout(() => {
+  if (!seen && tunnelStep.state === "run") {
+    tunnel.kill("SIGTERM");
+    tunnelDown("no address after 45 s", why());
+  }
+}, 45000);
 
 /**
  * The tunnel's name takes a little while to exist. Opening the site before that makes the system
@@ -428,8 +542,15 @@ async function reachable(url) {
 let seen = false;
 const watch = async (chunk) => {
   log.write(chunk);
+  const text = chunk.toString();
+  tunnelOutput = (tunnelOutput + text).slice(-4000);
+  // A dropped connection that cloudflared is bringing back: show it, then the host again.
+  if (seen && tunnelStep.state !== "fail") {
+    if (/ERR .*(connection|Serve tunnel)/i.test(text)) tunnelStep.detail = "reconnecting…";
+    else if (/Registered tunnel connection/i.test(text)) tunnelStep.detail = new URL(ready?.url ?? "https://x").host;
+  }
   const url = chunk.toString().match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/)?.[0];
-  if (!url || seen) return;
+  if (!url || seen || tunnelStep.state === "fail") return;
   seen = true;
   tunnelStep.state = "ok";
   tunnelStep.detail = new URL(url).host;
