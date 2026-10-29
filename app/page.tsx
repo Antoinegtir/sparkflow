@@ -1,4 +1,5 @@
 import { ExpoLogo } from "./components/BrandIcons";
+import { ScrollHint } from "./components/ScrollHint";
 import { Composer } from "./components/Composer";
 import { DotLens } from "./components/DotLens";
 import { MetaLogo } from "./components/MetaLogo";
@@ -91,6 +92,7 @@ export default function Home() {
         </div>
       </section>
 
+      <ScrollHint />
       {/* Scroll-scrubbed glass phone, right under the prompt. */}
       <HowItWorksSection />
       <div id="apps" className="scroll-mt-20">
