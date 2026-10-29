@@ -82,7 +82,7 @@ function shipLines(w: number, t: number) {
 }
 
 /** An arrow pointer, tip at the top left; the spaces inside it hide the ripples behind. */
-const CURSOR = ["|\\", "| \\", "|  \\", "|   \\", "|    \\", "|  .-'", "| /", "|/"];
+const CURSOR = ["|\\", "| \\", "|  \\", "| .-'", "|/"];
 const CURSOR_TAG = "[ bigger, in blue ]";
 
 const MOTIFS: Motif[] = [
