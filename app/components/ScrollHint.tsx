@@ -19,7 +19,7 @@ export function ScrollHint() {
       aria-label="Scroll to How it works"
       onClick={() => document.getElementById("how")?.scrollIntoView({ behavior: "smooth", block: "start" })}
       className={clsx(
-        "fixed bottom-6 left-1/2 z-30 grid size-10 -translate-x-1/2 cursor-pointer place-items-center text-white transition-opacity duration-500 hover:opacity-80",
+        "fixed bottom-1 left-1/2 z-30 grid size-10 -translate-x-1/2 cursor-pointer place-items-center text-white transition-opacity duration-500 hover:opacity-80",
         top ? "opacity-100" : "pointer-events-none opacity-0",
       )}>
       <ChevronDown size={30} strokeWidth={3} className="animate-bounce motion-reduce:animate-none" />

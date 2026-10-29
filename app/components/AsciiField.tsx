@@ -81,8 +81,9 @@ function shipLines(w: number, t: number) {
   return out;
 }
 
-/** An arrow pointer, tip at the top left; the spaces inside it hide the ripples behind. */
-const CURSOR = ["|\\", "| \\", "|  \\", "| .-'", "|/"];
+/** An arrow pointer; the spaces inside it hide the ripples behind. */
+// Short and wide like Figma's: a triangle, its tip at the top left.
+const CURSOR = ["|\\", "| \\", "|.-'"];
 const CURSOR_TAG = "[ bigger, in blue ]";
 
 const MOTIFS: Motif[] = [
