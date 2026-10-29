@@ -5,7 +5,6 @@ import { MetaLogo } from "./components/MetaLogo";
 import { HowItWorksSection } from "./components/HowItWorksSection";
 import { LoopVideo } from "./components/LoopVideo";
 import { ReactLogo } from "./components/ReactLogo";
-import { ImportNative } from "./components/ImportNative";
 import { ProjectGrid } from "./components/ProjectGrid";
 import { DemoNotice } from "./components/DemoNotice";
 import { LandingPresence } from "./components/LandingPresence";
@@ -89,11 +88,10 @@ export default function Home() {
         </p>
         <div className="mt-10 w-full">
           <Composer />
-          <ImportNative />
         </div>
       </section>
 
-      {/* Scroll-scrubbed glass phone, right under the import link. */}
+      {/* Scroll-scrubbed glass phone, right under the prompt. */}
       <HowItWorksSection />
       <div id="apps" className="scroll-mt-20">
         <ProjectGrid />
