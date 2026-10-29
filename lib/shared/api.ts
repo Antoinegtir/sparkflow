@@ -41,6 +41,8 @@ export type ProjectSummary = {
   coverUrl?: string;
   native?: boolean;
   previewDevice?: string;
+  /** iOS bundle ID, e.g. com.sparkflow.wander. */
+  bundleId?: string;
 };
 
 export type ResolvedElement = { testId: string; file?: string; line?: number; snippet?: string };

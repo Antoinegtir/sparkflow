@@ -233,6 +233,7 @@ export class Orchestrator {
           ...(cover ? { coverUrl: cover } : {}),
           ...(m.native ? { native: true } : {}),
           ...(s?.previewDevice ? { previewDevice: s.previewDevice } : {}),
+          bundleId: m.native ? m.native.bundleId : await this.bundleIdOf(m.id, s?.name ?? m.name),
         };
       }),
     );
@@ -985,6 +986,14 @@ export class Orchestrator {
     return mine;
   }
 
+  /** The app's iOS bundle ID (what its cover is stored under in the account). */
+  private async bundleIdOf(id: string, name: string): Promise<string> {
+    const own = await readFile(path.join(dataDir(), "sandboxes", id, "app.json"), "utf8")
+      .then((t) => JSON.parse(t).expo?.ios?.bundleIdentifier as string | undefined)
+      .catch(() => undefined);
+    return own && own !== "dev.sparkflow.app" ? own : defaultBundleId(name);
+  }
+
   /** The app's own settings, from app.json: what the Settings dialog shows. */
   async appSettings(id: string): Promise<AppSettings> {
     const rt = await this.runtime(id);
@@ -992,7 +1001,7 @@ export class Orchestrator {
     const expo = JSON.parse(await (await this.sandbox(rt)).readFile("app.json")).expo ?? {};
     const splash = (expo.plugins ?? []).find((p: unknown) => Array.isArray(p) && p[0] === "expo-splash-screen")?.[1] ?? {};
     // The template's placeholders give way to the project's own name.
-    const id_ = `com.sparkflow.${rt.meta.name.toLowerCase().replace(/[^a-z0-9]/g, "") || "app"}`;
+    const id_ = defaultBundleId(rt.meta.name);
     return {
       name: expo.name && expo.name !== "Sparkflow App" ? expo.name : rt.meta.name,
       version: expo.version ?? "1.0.0",
@@ -1339,3 +1348,6 @@ function webUrlOf(remote: string) {
   const m = /github\.com[:/]([\w.-]+)\/([\w.-]+?)(\.git)?$/.exec(remote);
   return m ? `https://github.com/${m[1]}/${m[2]}` : null;
 }
+
+/** com.sparkflow.<name>: the bundle ID of an app that hasn't chosen its own. */
+const defaultBundleId = (name: string) => `com.sparkflow.${name.toLowerCase().replace(/[^a-z0-9]/g, "") || "app"}`;

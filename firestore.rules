@@ -6,7 +6,7 @@ service cloud.firestore {
     match /users/{uid}/apps/{appId} {
       allow read, delete: if request.auth != null && request.auth.uid == uid;
       allow create, update: if request.auth != null && request.auth.uid == uid
-        && request.resource.data.keys().hasOnly(['slug', 'name', 'status', 'screenCount', 'createdAt', 'native', 'previewDevice', 'cover', 'coverKey', 'updatedAt'])
+        && request.resource.data.keys().hasOnly(['slug', 'name', 'status', 'screenCount', 'createdAt', 'native', 'previewDevice', 'cover', 'coverKey', 'bundleId', 'updatedAt'])
         && request.resource.data.name is string && request.resource.data.name.size() <= 80
         && request.resource.data.slug is string && request.resource.data.slug.size() <= 80
         // The cover is a link to Cloud Storage (storage.rules), not the image itself.

@@ -10,9 +10,9 @@ import { apiFetch } from "./backend";
  * The apps of a signed-in user, saved to their account (Firestore users/{uid}/apps/{projectId}) whenever
  * the site reaches their computer, so My apps still lists them when `sparkflow` isn't running. Only what
  * the card shows is kept: name, status, size, and the link to a small JPEG of the cover, which is in
- * Cloud Storage (users/{uid}/covers/{projectId}.jpg), not in the document.
+ * Cloud Storage under the app's bundle ID (users/{uid}/covers/com.sparkflow.wander.jpg), not in the document.
  */
-export type SavedApp = Pick<ProjectSummary, "id" | "slug" | "name" | "status" | "screenCount" | "createdAt" | "native" | "previewDevice"> & {
+export type SavedApp = Pick<ProjectSummary, "id" | "slug" | "name" | "status" | "screenCount" | "createdAt" | "native" | "previewDevice" | "bundleId"> & {
   /** Download URL of the cover (Cloud Storage), about 240 px wide. */
   cover?: string;
   /** The cover URL it was made from: unchanged covers aren't encoded again. */
@@ -28,7 +28,7 @@ export async function loadSavedApps(uid: string): Promise<SavedApp[]> {
   // Covers saved inline (data: URLs, before Cloud Storage) move there now, without the computer.
   await Promise.all(
     list.filter((a) => a.cover?.startsWith("data:")).map(async (a) => {
-      const url = await uploadCover(uid, a.id, await (await fetch(a.cover!)).blob()).catch(() => undefined);
+      const url = await uploadCover(uid, coverName(a), await (await fetch(a.cover!)).blob()).catch(() => undefined);
       if (!url) return;
       a.cover = url;
       await updateDoc(doc(apps(uid), a.id), { cover: url }).catch(() => {});
@@ -38,22 +38,24 @@ export async function loadSavedApps(uid: string): Promise<SavedApp[]> {
 }
 
 /** Puts a cover JPEG in Cloud Storage; its download URL. */
-async function uploadCover(uid: string, id: string, jpeg: Blob) {
-  const r = coverRef(uid, id);
+async function uploadCover(uid: string, name: string, jpeg: Blob) {
+  const r = coverRef(uid, name);
   await uploadBytes(r, jpeg, { contentType: "image/jpeg", cacheControl: "public, max-age=31536000" });
   return getDownloadURL(r);
 }
 
-const coverRef = (uid: string, id: string) => ref(getStorage(firebaseApp()), `users/${uid}/covers/${id}.jpg`);
+const coverRef = (uid: string, name: string) => ref(getStorage(firebaseApp()), `users/${uid}/covers/${name}.jpg`);
+/** The cover's file name: the app's bundle ID (the project id for apps saved before it was known). */
+const coverName = (a: { id: string; bundleId?: string }) => a.bundleId ?? a.id;
 
 /**
  * A small JPEG of a cover served by the computer (it can't be loaded from the site later), uploaded to
  * Cloud Storage; its download URL, or undefined if it couldn't be made or stored.
  */
-async function storeCover(uid: string, id: string, coverUrl: string): Promise<string | undefined> {
+async function storeCover(uid: string, name: string, coverUrl: string): Promise<string | undefined> {
   const jpeg = await thumbnail(coverUrl);
   if (!jpeg) return undefined;
-  return uploadCover(uid, id, jpeg).catch(() => undefined);
+  return uploadCover(uid, name, jpeg).catch(() => undefined);
 }
 
 async function thumbnail(coverUrl: string): Promise<Blob | undefined> {
@@ -75,9 +77,13 @@ export async function saveApps(uid: string, projects: ProjectSummary[]) {
   for (const p of projects) {
     const old = saved.get(p.id);
     saved.delete(p.id);
-    // Unchanged covers are kept; old ones stored inline (data: URLs) move to Cloud Storage.
-    const kept = p.coverUrl && old?.coverKey === p.coverUrl && old.cover && !old.cover.startsWith("data:") ? old.cover : undefined;
-    const cover = kept ?? (p.coverUrl ? await storeCover(uid, p.id, p.coverUrl) : undefined);
+    // Unchanged covers are kept; a new bundle ID moves the cover to its new name.
+    // A computer that doesn't send the bundle ID yet keeps the saved one.
+    const bundleId = p.bundleId ?? old?.bundleId;
+    const moved = !!old && coverName(old) !== coverName({ id: p.id, bundleId });
+    const kept = p.coverUrl && old?.coverKey === p.coverUrl && old.cover && !old.cover.startsWith("data:") && !moved ? old.cover : undefined;
+    const cover = kept ?? (p.coverUrl ? await storeCover(uid, coverName({ id: p.id, bundleId }), p.coverUrl) : undefined);
+    if (moved && cover) await deleteObject(coverRef(uid, coverName(old))).catch(() => {});
     const next: Omit<SavedApp, "id"> = {
       slug: p.slug,
       name: p.name,
@@ -86,14 +92,15 @@ export async function saveApps(uid: string, projects: ProjectSummary[]) {
       createdAt: p.createdAt,
       ...(p.native ? { native: true } : {}),
       ...(p.previewDevice ? { previewDevice: p.previewDevice } : {}),
+      ...(bundleId ? { bundleId } : {}),
       ...(cover ? { cover, coverKey: p.coverUrl } : {}),
       updatedAt: Date.now(),
     };
     const same = old && JSON.stringify({ ...old, id: undefined, updatedAt: 0 }) === JSON.stringify({ ...next, updatedAt: 0 });
     if (!same) await setDoc(doc(apps(uid), p.id), next);
   }
-  for (const id of saved.keys()) {
+  for (const [id, a] of saved) {
     await deleteDoc(doc(apps(uid), id));
-    await deleteObject(coverRef(uid, id)).catch(() => {});
+    await deleteObject(coverRef(uid, coverName(a))).catch(() => {});
   }
 }
