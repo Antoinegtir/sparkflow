@@ -160,7 +160,7 @@ export function ProjectGrid() {
 
   return (
     <section className="relative mx-auto max-w-5xl px-6 pb-24">
-      <div className="mb-6 flex items-end justify-between gap-4">
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
         <div>
           <h2 className="landing-head text-2xl font-semibold text-ink-100">Your apps</h2>
           <p className="mt-1 text-sm text-ink-500">
@@ -171,8 +171,8 @@ export function ProjectGrid() {
                 : "Built and verified on this machine"}
           </p>
         </div>
-        {/* Importing runs on this computer's sparkflow: not offered on a phone. */}
-        {!phone && <ImportNative />}
+        {/* Importing runs on the computer's sparkflow: on a phone it says so in a pop-up. */}
+        <ImportNative phone={phone} />
       </div>
       {phone && (
         <div className="mb-6">
