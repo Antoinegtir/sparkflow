@@ -1,7 +1,7 @@
 "use client";
 
 import clsx from "clsx";
-import { Command, PanelRight, Play } from "lucide-react";
+import { Command, PanelRight, Play, Settings } from "lucide-react";
 import { useState } from "react";
 import type { ProjectState } from "@/lib/shared";
 import type { AppScheme } from "@/lib/web/app-scheme";
@@ -21,6 +21,8 @@ type Props = {
   onTogglePanel: () => void;
   onDeviceSwitching: (name: string | null) => void;
   onDevice: (id: string) => void;
+  /** Opens the app's settings (name, icon, splash, bundle ID…); absent for imported native apps. */
+  onSettings?: () => void;
   /** Width of the right panel when open: the device and Play end at its edge, over the canvas. */
   panelWidth: number;
 };
@@ -81,6 +83,11 @@ export function TopBar(p: Props) {
           className={clsx("hidden cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1.5 text-[12px] text-ink-400 hover:bg-ink-800 hover:text-ink-100 lg:flex", p.panelWidth && "absolute top-1/2 -translate-y-1/2")}>
           <Command size={13} /> Commands <kbd className="rounded border border-[var(--line)] px-1 font-mono text-[10px]">⌘K</kbd>
         </button>
+        {p.onSettings && (
+          <button onClick={p.onSettings} title="App settings" aria-label="App settings" className="grid size-8 cursor-pointer place-items-center rounded-lg text-ink-400 hover:bg-ink-800 hover:text-ink-100">
+            <Settings size={15} />
+          </button>
+        )}
         <button onClick={p.onTogglePanel} aria-label={p.panelOpen ? "Hide the panel" : "Show the panel"} className={clsx("grid size-8 cursor-pointer place-items-center rounded-lg hover:bg-ink-800", p.panelOpen ? "text-ink-100" : "text-ink-500")}>
           <PanelRight size={15} />
         </button>

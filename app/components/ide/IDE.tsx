@@ -18,6 +18,7 @@ import { FileTree } from "./FileTree";
 import { FlowDialog, flowPrompt } from "./FlowDialog";
 import { HeroFocus } from "./HeroFocus";
 import type { LayoutPick } from "./LayoutTree";
+import { AppSettings } from "./AppSettings";
 import { PlayMode } from "./PlayMode";
 import { PromptBar, type Selection } from "./PromptBar";
 import { TopBar } from "./TopBar";
@@ -51,6 +52,7 @@ export function IDE({ id, slug: initialSlug, initialPage }: { id: string; slug: 
   const [resizing, setResizing] = useState(false);
   const [palette, setPalette] = useState(false);
   const [play, setPlay] = useState(false);
+  const [settings, setSettings] = useState(false);
   const [diff, setDiff] = useState<string | null>(null);
   const [flowDraft, setFlowDraft] = useState<{ type: "link" | "unlink"; from: string; to: string } | null>(null);
   const [scheme, setSchemeState] = useState<AppScheme>("light");
@@ -461,6 +463,7 @@ export function IDE({ id, slug: initialSlug, initialPage }: { id: string; slug: 
         onTogglePanel={() => setPanelOpen((o) => !o)}
         onDevice={(d) => void api.setPreviewDevice(d)}
         panelWidth={panelOpen ? panelW : 0}
+        onSettings={state.native ? undefined : () => setSettings(true)}
         onDeviceSwitching={(name) => {
           setSimFrozen(name ? `Starting ${name}…` : null);
           if (!name) window.dispatchEvent(new Event(SIM_CHANGED));
@@ -590,6 +593,7 @@ export function IDE({ id, slug: initialSlug, initialPage }: { id: string; slug: 
       </div>
       {palette && <CommandPalette commands={commands} onClose={() => setPalette(false)} />}
       {play && <PlayMode state={state} scheme={scheme} startPath={focusedScreen?.previewPath ?? "/"} onClose={() => setPlay(false)} onSimButton={simButton} onDevice={(d) => void api.setPreviewDevice(d)} />}
+      {settings && <AppSettings projectId={id} onClose={() => setSettings(false)} />}
       {diff && <DiffViewer projectId={id} sha={diff} onClose={() => setDiff(null)} />}
       {flowDraft && (
         <FlowDialog

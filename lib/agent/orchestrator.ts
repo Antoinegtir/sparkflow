@@ -47,6 +47,18 @@ import { ProjectStore } from "./store";
 import { gitCommit, typecheck, type ToolContext, type ToolName } from "./tools";
 import { BudgetExceededError, UsageMeter } from "./usage";
 
+/** What the app Settings dialog edits (app.json). */
+export type AppSettings = {
+  name: string;
+  version: string;
+  bundleIdentifier: string;
+  androidPackage: string;
+  orientation: "portrait" | "landscape" | "default";
+  appearance: "automatic" | "light" | "dark";
+  splashBackground: string;
+  iconBackground: string;
+};
+
 export class BusyError extends Error {
   constructor() {
     super("The agent is already working on this project.");
@@ -870,6 +882,63 @@ export class Orchestrator {
   async readProjectFileBytes(id: string, rel: string) {
     const rt = await this.runtime(id);
     return (await this.sandbox(rt)).readFileBytes(this.checkRel(rel));
+  }
+
+  /** The app's own settings, from app.json: what the Settings dialog shows. */
+  async appSettings(id: string): Promise<AppSettings> {
+    const rt = await this.runtime(id);
+    if (rt.meta.native) throw new Error("Settings are for apps made with Sparkflow");
+    const expo = JSON.parse(await (await this.sandbox(rt)).readFile("app.json")).expo ?? {};
+    const splash = (expo.plugins ?? []).find((p: unknown) => Array.isArray(p) && p[0] === "expo-splash-screen")?.[1] ?? {};
+    // The template's placeholders give way to the project's own name.
+    const id_ = `com.sparkflow.${rt.meta.name.toLowerCase().replace(/[^a-z0-9]/g, "") || "app"}`;
+    return {
+      name: expo.name && expo.name !== "Sparkflow App" ? expo.name : rt.meta.name,
+      version: expo.version ?? "1.0.0",
+      bundleIdentifier: expo.ios?.bundleIdentifier ?? id_,
+      androidPackage: expo.android?.package ?? id_,
+      orientation: expo.orientation ?? "portrait",
+      appearance: expo.userInterfaceStyle ?? "automatic",
+      splashBackground: splash.backgroundColor ?? "#ffffff",
+      iconBackground: expo.android?.adaptiveIcon?.backgroundColor ?? "#ffffff",
+    };
+  }
+
+  /**
+   * Writes the app's settings into app.json, and a new icon or splash image (made square PNGs at
+   * 1024 px, the icon also as the web favicon), then commits them like any other change.
+   */
+  async updateAppSettings(id: string, patch: AppSettings, images: { icon?: Buffer; splash?: Buffer }) {
+    const rt = await this.runtime(id);
+    if (rt.meta.native) throw new Error("Settings are for apps made with Sparkflow");
+    if (rt.running) throw new BusyError();
+    const sb = await this.sandbox(rt);
+    const json = JSON.parse(await sb.readFile("app.json"));
+    const expo = (json.expo ??= {});
+    expo.name = patch.name;
+    expo.version = patch.version;
+    expo.orientation = patch.orientation;
+    expo.userInterfaceStyle = patch.appearance;
+    expo.ios = { ...expo.ios, bundleIdentifier: patch.bundleIdentifier };
+    expo.android = { ...expo.android, package: patch.androidPackage, adaptiveIcon: { ...expo.android?.adaptiveIcon, backgroundColor: patch.iconBackground } };
+    const plugins: unknown[] = (expo.plugins ??= []);
+    const at = plugins.findIndex((p) => (Array.isArray(p) ? p[0] : p) === "expo-splash-screen");
+    const splash = ["expo-splash-screen", { image: "./assets/splash-icon.png", imageWidth: 200, resizeMode: "contain", backgroundColor: patch.splashBackground }];
+    if (at >= 0) plugins[at] = splash;
+    else plugins.push(splash);
+    await sb.writeFile("app.json", JSON.stringify(json, null, 2) + "\n");
+    const square = (img: Buffer, size: number, fit: "cover" | "contain") =>
+      sharp(img).resize(size, size, { fit, background: { r: 0, g: 0, b: 0, alpha: 0 } }).png().toBuffer();
+    if (images.icon) {
+      await sb.writeFile("assets/icon.png", await square(images.icon, 1024, "cover"));
+      await sb.writeFile("assets/android-icon-foreground.png", await square(images.icon, 1024, "contain"));
+      await sb.writeFile("assets/favicon.png", await square(images.icon, 48, "cover"));
+    }
+    if (images.splash) await sb.writeFile("assets/splash-icon.png", await square(images.splash, 1024, "contain"));
+    if (patch.name !== rt.meta.name) await this.renameProject(id, patch.name);
+    const sha = await gitCommit(sb, "Update app settings");
+    if (sha) rt.emit({ type: "commit", sha, message: "Update app settings", routes: [] });
+    await this.emitTree(rt);
   }
 
   async addAsset(id: string, name: string, bytes: Buffer, dir?: string) {
