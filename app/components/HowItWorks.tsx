@@ -3,6 +3,7 @@
 import clsx from "clsx";
 import { Eye, Hammer, Map as MapIcon, MessageSquareText, MousePointerClick, RefreshCcw, Rocket } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { AsciiField } from "./AsciiField";
 import { brandIcon } from "./BrandIcons";
 import { STEP_EVENT } from "./PhoneSteps";
 
@@ -127,6 +128,11 @@ export function HowItWorks() {
                 </li>
               ))}
             </ol>
+            {/* Fills the space under the summary: an ASCII motif for the step being read. Out of the flow,
+                so the pinned summary keeps its height and stays pinned to the last step. */}
+            <div className="absolute right-0 top-full mt-10">
+              <AsciiField step={Math.max(0, reached)} />
+            </div>
           </div>
         </nav>
         {/* Rail and its scroll-driven fill. */}
