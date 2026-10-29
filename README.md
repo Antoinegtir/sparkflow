@@ -27,11 +27,14 @@
 [![GitHub Stars](https://img.shields.io/github/stars/Antoinegtir/sparkflow?color=0073FF&labelColor=black&style=flat-square)](https://github.com/Antoinegtir/sparkflow/stargazers)
 [![License](https://img.shields.io/badge/license-MIT-white?labelColor=black&style=flat-square)](LICENSE)
 
-[![Muse Spark](https://img.shields.io/badge/Muse%20Spark-0064E0?style=flat-square&logo=meta&logoColor=white&labelColor=black)](https://ai.meta.com)
-[![React Native](https://img.shields.io/badge/React%20Native-61DAFB?style=flat-square&logo=react&logoColor=black&labelColor=black)](https://reactnative.dev)
-[![Expo](https://img.shields.io/badge/Expo-white?style=flat-square&logo=expo&logoColor=black&labelColor=black)](https://expo.dev)
-[![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white&labelColor=black)](https://www.typescriptlang.org)
-[![Next.js](https://img.shields.io/badge/Next.js-white?style=flat-square&logo=nextdotjs&logoColor=black&labelColor=black)](https://nextjs.org)
+<p align="center">
+  <img src="https://img.shields.io/badge/Muse%20Spark-0064E0?style=for-the-badge&logo=meta&logoColor=white" alt="Muse Spark" />
+  <img src="https://img.shields.io/badge/React%20Native-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React Native" />
+  <img src="https://img.shields.io/badge/Expo-000020?style=for-the-badge&logo=expo&logoColor=white" alt="Expo" />
+  <img src="https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/Next.js-000000?style=for-the-badge&logo=nextdotjs&logoColor=white" alt="Next.js" />
+  <img src="https://img.shields.io/badge/fastlane-00F200?style=for-the-badge&logo=fastlane&logoColor=black" alt="fastlane" />
+</p>
 
 </div>
 
@@ -93,6 +96,7 @@
 - **An IDE for the whole app**: every page on a canvas, the code, assets, history with diffs and restore, accessibility scores.
 - **Your apps everywhere**: signed in with GitHub or Google, your apps are saved to your account and listed even when your computer is off.
 - **GitHub, Finder, VS Code**: create the repository with the GitHub CLI and push, or open the project folder in one click.
+- **Ship**: a native Release build with the app's own name and bundle ID, installed on the iOS Simulator or Android emulator; or a fastlane upload to TestFlight and Google Play's internal track, with credentials kept on your computer.
 - **Bring your project**: import an existing Expo app; Sparkflow drives it in place.
 
 ## Quick start
