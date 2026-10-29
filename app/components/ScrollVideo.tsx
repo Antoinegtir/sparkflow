@@ -223,11 +223,11 @@ export function ScrollVideo({ src, className, children }: { src: string; classNa
     // less half of what the phone grew so the taller phone stands up clear of the prompts above.
     // The phone stays pinned for as long as the section lasts: children (on the right) scroll past it,
     // and a spacer at the end (not padding: a sticky box stops at its parent's content) keeps it pinned
-    // until the last step has been read.
+    // until the last step has been read; what comes next is pulled back up over that spacer.
     <div
       ref={section}
       className="pointer-events-none relative"
-      style={{ minHeight: `calc(${SIZE} + 70vh)`, marginTop: `calc(${SIZE} / -2 - 8px + ${GROWTH} / 2)` }}>
+      style={{ minHeight: `calc(${SIZE} + 70vh)`, marginTop: `calc(${SIZE} / -2 - 8px + ${GROWTH} / 2)`, marginBottom: `calc(-1 * ${GROWTH} / 3)` }}>
       {/* Sticky makes its own stacking context: blend it as a whole so the clip's black drops out. */}
       <div className="pointer-events-none sticky flex justify-center mix-blend-screen" style={{ top: `calc(50vh - ${SIZE} / 2)` }}>
         <video
