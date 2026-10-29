@@ -365,19 +365,17 @@ export function CodeEditor({
     const lines = new Map<number, string[]>();
     for (const d of diagnostics)
       lines.set(d.line, [...(lines.get(d.line) ?? []), d.message]);
-    const decorations = [...lines].map(([n, msgs]) => ({
-      range: new monaco.Range(n, 1, n, 1),
-      options: {
-        isWholeLine: true,
-        className: "error-lens-line",
-        linesDecorationsClassName: "error-lens-gutter",
-        after: {
-          content: `   ${msgs.join("  ·  ")}`,
-          inlineClassName: "error-lens-message",
-        },
-        hoverMessage: { value: msgs.join("\n\n") },
-      },
-    }));
+    const model = ed.getModel()!;
+    const decorations = [...lines]
+      .filter(([n]) => n <= model.getLineCount())
+      .flatMap(([n, msgs]) => {
+        const end = model.getLineMaxColumn(n);
+        return [
+          { range: new monaco.Range(n, 1, n, 1), options: { isWholeLine: true, className: "error-lens-line", linesDecorationsClassName: "error-lens-gutter" } },
+          // The message, injected after the line's last character.
+          { range: new monaco.Range(n, end, n, end), options: { showIfCollapsed: true, after: { content: `   ${msgs.join("  ·  ")}`, inlineClassName: "error-lens-message" }, hoverMessage: { value: msgs.join("\n\n") } } },
+        ];
+      });
     lens.current ??= ed.createDecorationsCollection();
     lens.current.set(decorations);
     monaco.editor.setModelMarkers(
