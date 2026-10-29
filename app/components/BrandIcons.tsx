@@ -81,3 +81,33 @@ export function brandIcon(tag: string): ReactNode {
   if (tag === "Bring your project") return <img src="/emoji/party-popper.webp" alt="" width={14} height={14} className={c} />;
   return null;
 }
+
+/** App Store: the white "A" of pencils and brush on its blue tile. */
+export const AppStoreLogo = ({ className }: { className?: string }) =>
+  svg(
+    <>
+      <defs>
+        <linearGradient id="appstore-bg" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#18bffb" />
+          <stop offset="1" stopColor="#2072f3" />
+        </linearGradient>
+      </defs>
+      <rect x="1" y="1" width="22" height="22" rx="5.2" fill="url(#appstore-bg)" />
+      <g stroke="#fff" strokeWidth="1.7" strokeLinecap="round" fill="none">
+        <path d="M9.6 6.2 15.9 17M14.4 6.2 8.1 17M6.4 13.8h8.3M16.6 13.8h1.6M5.8 17.1l-.6 1" />
+      </g>
+    </>,
+    className,
+  );
+
+/** Google Play: its four-colour triangle. */
+export const PlayStoreLogo = ({ className }: { className?: string }) =>
+  svg(
+    <>
+      <path fill="#00d7fe" d="M3.6 2.3a1.5 1.5 0 0 0-.4 1.1v17.2c0 .4.1.8.4 1.1l9.7-9.7z" />
+      <path fill="#ffce00" d="m16.5 15.2-3.2-3.2 3.2-3.2 3.8 2.2c1.1.6 1.1 1.6 0 2.2z" />
+      <path fill="#ff3a44" d="M16.5 15.2 13.3 12l-9.7 9.7c.4.4 1 .4 1.7 0z" />
+      <path fill="#00f076" d="M16.5 8.8 5.3 2.4c-.7-.4-1.3-.3-1.7 0l9.7 9.6z" />
+    </>,
+    className,
+  );

@@ -75,7 +75,7 @@ export function TopBar(p: Props) {
           className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-spark-500 px-2.5 py-1.5 text-[12.5px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-40">
           <Play size={12} className="fill-current" /> Play
         </button>
-        {!native && <ReleaseMenu projectId={s.id} />}
+        {!native && <ReleaseMenu projectId={s.id} onDevice={p.onDevice} onSwitching={p.onDeviceSwitching} />}
       </div>
       <div className="flex items-center gap-1.5">
         {/* Panel open: Commands starts just right of its edge, over the panel. */}

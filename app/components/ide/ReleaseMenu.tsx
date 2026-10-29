@@ -5,7 +5,8 @@ import { Check, ChevronDown, KeyRound, Loader2, Rocket, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { ReleaseJob, StoreReadiness } from "@/lib/web/release";
-import { AndroidLogo, AppleLogo } from "../BrandIcons";
+import { SIM_CHANGED } from "@/lib/web/sim-device";
+import { AndroidLogo, AppleLogo, AppStoreLogo, PlayStoreLogo } from "../BrandIcons";
 
 /**
  * Ship: a native Release build of the app (its own name, icon and bundle ID) installed on the Simulator or
@@ -14,10 +15,42 @@ import { AndroidLogo, AppleLogo } from "../BrandIcons";
  */
 type Readiness = Record<"ios" | "android", StoreReadiness>;
 
+type SimDevice = { udid: string; name: string; booted: boolean; kind: "iphone" | "ipad" | "android" };
+
+/** The device a build installs on, booted (switching the one shown) when it isn't running yet. */
+async function deviceFor(platform: "ios" | "android", onSwitching: (name: string | null) => void): Promise<string> {
+  const list = (await fetch("/api/sim/devices", { cache: "no-store" }).then((r) => r.json())) as SimDevice[];
+  const kinds = platform === "ios" ? ["iphone", "ipad"] : ["android"];
+  const mine = list.filter((d) => kinds.includes(d.kind));
+  // Listed newest runtime first: an iPhone before an iPad.
+  const pick = mine.find((d) => d.booted) ?? mine.find((d) => d.kind !== "ipad") ?? mine[0];
+  if (!pick) throw new Error(platform === "ios" ? "No iOS Simulator on this computer: add one in Xcode › Settings › Platforms" : "No Android emulator: create one in Android Studio's Device Manager");
+  if (pick.booted) {
+    // Running but maybe not the one shown (another platform's was): make it the one shown.
+    const others = list.filter((d) => d.booted && d.udid !== pick.udid);
+    if (!others.length) return pick.udid;
+  }
+  onSwitching(pick.name);
+  try {
+    const res = await fetch("/api/sim/devices", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ udid: pick.udid }) });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok && !/did not boot/i.test(json.error ?? "")) throw new Error(json.error ?? `Couldn't start ${pick.name}`);
+    dispatchEvent(new Event(SIM_CHANGED));
+  } finally {
+    onSwitching(null);
+  }
+  // An AVD gets its adb serial once booted.
+  if (platform === "ios") return pick.udid;
+  const now = (await fetch("/api/sim/devices", { cache: "no-store" }).then((r) => r.json())) as SimDevice[];
+  const serial = now.find((d) => d.kind === "android" && d.booted)?.udid;
+  if (!serial) throw new Error(`${pick.name} is still starting: build again in a moment`);
+  return serial;
+}
+
 /** The IDE opens its right panel on Activity, where a build's log shows. */
 export const SHOW_ACTIVITY = "sparkflow:show-activity";
 const showActivity = () => dispatchEvent(new Event(SHOW_ACTIVITY));
-export function ReleaseMenu({ projectId }: { projectId: string }) {
+export function ReleaseMenu({ projectId, onDevice, onSwitching }: { projectId: string; onDevice: (id: string) => void; onSwitching: (name: string | null) => void }) {
   const [open, setOpen] = useState(false);
   const [creds, setCreds] = useState<"ios" | "android" | true | false>(false);
   const [ready, setReady] = useState<Readiness | null>(null);
@@ -56,10 +89,22 @@ export function ReleaseMenu({ projectId }: { projectId: string }) {
 
   const start = async (action: "build" | "deploy", platform: "ios" | "android") => {
     setError(null);
+    // A build goes to a device of its platform, shown live while it builds: the one running, else the
+    // newest iPhone / the first Android emulator, started now (not after minutes of compiling).
+    let device: string | undefined;
+    if (action === "build") {
+      setOpen(false);
+      device = await deviceFor(platform, onSwitching).catch((e: Error) => {
+        setError(e.message);
+        return undefined;
+      });
+      if (!device) return setOpen(true);
+      onDevice("simulator");
+    }
     const r = await fetch(`/api/projects/${projectId}/release`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ action, platform }),
+      body: JSON.stringify({ action, platform, device }),
     }).catch(() => null);
     const j = await r?.json().catch(() => null);
     if (r?.status === 409 && j?.setup) return setCreds(j.setup);
@@ -99,7 +144,7 @@ export function ReleaseMenu({ projectId }: { projectId: string }) {
                 title={r && !r.ready ? `Missing: ${r.missing.join(", ")}` : undefined}
                 className={item}
               >
-                {pl === "ios" ? <AppleLogo className="size-3.5 text-ink-200" /> : <AndroidLogo className="size-3.5" />}
+                {pl === "ios" ? <AppStoreLogo className="size-4" /> : <PlayStoreLogo className="size-4" />}
                 {pl === "ios" ? "App Store" : "Google Play"}
                 {r && !r.ready ? (
                   <span className="ml-auto rounded-full bg-amber-500/15 px-2 py-0.5 text-[10.5px] text-amber-300">Set up</span>
@@ -201,7 +246,7 @@ function CredentialsDialog({ focus, onClose }: { focus?: "ios" | "android"; onCl
   return (
     <div className="fixed inset-0 z-[60] grid place-items-center bg-black/60 p-4" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
       {saved ? (
-        <form ref={form} onSubmit={save} className="max-h-[90vh] w-full max-w-lg overflow-auto rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-5 shadow-2xl">
+        <form ref={form} onSubmit={save} className="max-h-[90vh] w-full max-w-4xl overflow-auto rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-5 shadow-2xl">
           <div className="flex items-center justify-between">
             <h2 className="text-[15px] font-semibold text-ink-100">Store credentials</h2>
             <button type="button" onClick={onClose} aria-label="Close" className="cursor-pointer text-ink-500 hover:text-ink-100">
@@ -212,61 +257,73 @@ function CredentialsDialog({ focus, onClose }: { focus?: "ios" | "android"; onCl
             Used to upload every app. Saved on this computer only (~/.sparkflow/release.json, readable by you alone), never in your Sparkflow account.
           </p>
 
-          <h3 className="mt-5 flex items-center gap-2 text-[12.5px] font-semibold text-ink-200">
-            <AppleLogo className="size-3.5" /> App Store Connect
-          </h3>
-          <Missing r={saved.readiness?.ios} on={focus === "ios"} />
-          <p className="mt-1 text-[11.5px] text-ink-500">
-            An API key with the App Manager role (App Store Connect › Users and Access › Integrations). The app must already exist in App Store Connect with its bundle ID.
-          </p>
-          <div className="mt-3 grid grid-cols-2 gap-3">
-            <label>
-              <span className={label}>Key ID</span>
-              <input name="keyId" defaultValue={saved.apple.keyId} className={input} autoComplete="off" />
-            </label>
-            <label>
-              <span className={label}>Team ID</span>
-              <input name="teamId" defaultValue={saved.apple.teamId} className={input} autoComplete="off" />
-            </label>
-            <label className="col-span-2">
-              <span className={label}>Issuer ID</span>
-              <input name="issuerId" defaultValue={saved.apple.issuerId} className={input} autoComplete="off" />
-            </label>
-            <label className="col-span-2">
-              <span className={label}>.p8 key file (path on this computer)</span>
-              <input name="keyPath" defaultValue={saved.apple.keyPath} placeholder="~/keys/AuthKey_XXXXXXXXXX.p8" className={input} autoComplete="off" />
-            </label>
-          </div>
-
-          <h3 className="mt-6 flex items-center gap-2 text-[12.5px] font-semibold text-ink-200">
-            <AndroidLogo className="size-3.5" /> Google Play
-          </h3>
-          <Missing r={saved.readiness?.android} on={focus === "android"} />
-          <p className="mt-1 text-[11.5px] text-ink-500">
-            A service account JSON key with release rights, and your upload keystore. Google Play takes the very first .aab of a new app from the Play Console; Sparkflow uploads every one after.
-          </p>
-          <div className="mt-3 grid grid-cols-2 gap-3">
-            <label className="col-span-2">
-              <span className={label}>Service account JSON key (path)</span>
-              <input name="jsonKeyPath" defaultValue={saved.google.jsonKeyPath} placeholder="~/keys/play-service-account.json" className={input} autoComplete="off" />
-            </label>
-            <label className="col-span-2">
-              <span className={label}>Upload keystore (path)</span>
-              <input name="keystorePath" defaultValue={saved.google.keystorePath} placeholder="~/keys/upload.jks" className={input} autoComplete="off" />
-            </label>
-            <label>
-              <span className={label}>Key alias</span>
-              <input name="keyAlias" defaultValue={saved.google.keyAlias} className={input} autoComplete="off" />
-            </label>
-            <span />
-            <label>
-              <span className={label}>Keystore password</span>
-              <input name="storePassword" type="password" placeholder={saved.google.storePasswordSet ? "saved · leave blank to keep" : ""} className={input} autoComplete="new-password" />
-            </label>
-            <label>
-              <span className={label}>Key password</span>
-              <input name="keyPassword" type="password" placeholder={saved.google.keyPasswordSet ? "saved · leave blank to keep" : "same as keystore"} className={input} autoComplete="new-password" />
-            </label>
+          {/* Side by side when there's room: one column per store. */}
+          <div className="mt-5 grid gap-x-8 gap-y-6 md:grid-cols-2">
+            <section>
+              <h3 className="flex items-center gap-2 text-[13px] font-semibold text-ink-200">
+                <AppStoreLogo className="size-5" /> App Store Connect
+              </h3>
+              <Missing r={saved.readiness?.ios} on={focus === "ios"} />
+              <p className="mt-1 text-[11.5px] text-ink-500">
+                An API key with the App Manager role (App Store Connect › Users and Access › Integrations). The app must already exist in App Store Connect with its bundle ID.
+              </p>
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                <label>
+                  <span className={label}>Key ID</span>
+                  <input name="keyId" defaultValue={saved.apple.keyId} className={input} autoComplete="off" />
+                </label>
+                <label>
+                  <span className={label}>Team ID</span>
+                  <input name="teamId" defaultValue={saved.apple.teamId} className={input} autoComplete="off" />
+                </label>
+                <label className="col-span-2">
+                  <span className={label}>Issuer ID</span>
+                  <input name="issuerId" defaultValue={saved.apple.issuerId} className={input} autoComplete="off" />
+                </label>
+                <label className="col-span-2">
+                  <span className={label}>.p8 key file (path on this computer)</span>
+                  <input name="keyPath" defaultValue={saved.apple.keyPath} placeholder="~/keys/AuthKey_XXXXXXXXXX.p8" className={input} autoComplete="off" />
+                </label>
+              </div>
+            </section>
+            <section>
+              <h3 className="flex items-center gap-2 text-[13px] font-semibold text-ink-200">
+                <PlayStoreLogo className="size-5" /> Google Play
+              </h3>
+              <Missing r={saved.readiness?.android} on={focus === "android"} />
+              <p className="mt-1 text-[11.5px] text-ink-500">
+                A service account JSON key with release rights, and your upload keystore. Google Play takes the very first .aab of a new app from the Play Console; Sparkflow uploads every one after.
+              </p>
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                <label className="col-span-2">
+                  <span className={label}>Service account JSON key (path)</span>
+                  <input name="jsonKeyPath" defaultValue={saved.google.jsonKeyPath} placeholder="~/keys/play-service-account.json" className={input} autoComplete="off" />
+                </label>
+                <label className="col-span-2">
+                  <span className={label}>Upload keystore (path)</span>
+                  <input name="keystorePath" defaultValue={saved.google.keystorePath} placeholder="~/keys/upload.jks" className={input} autoComplete="off" />
+                </label>
+                <label>
+                  <span className={label}>Key alias</span>
+                  <input name="keyAlias" defaultValue={saved.google.keyAlias} className={input} autoComplete="off" />
+                </label>
+                <span />
+                <label>
+                  <span className={label}>Keystore password</span>
+                  <input name="storePassword" type="password" placeholder={saved.google.storePasswordSet ? "saved · leave blank to keep" : ""} className={input} autoComplete="new-password" />
+                </label>
+                <label>
+                  <span className={label}>Key password</span>
+                  <input
+                    name="keyPassword"
+                    type="password"
+                    placeholder={saved.google.keyPasswordSet ? "saved · leave blank to keep" : "same as keystore"}
+                    className={input}
+                    autoComplete="new-password"
+                  />
+                </label>
+              </div>
+            </section>
           </div>
 
           <div className="mt-6 flex items-center justify-end gap-3">
@@ -311,7 +368,9 @@ export function ReleaseLog({ projectId }: { projectId: string }) {
   const [open, setOpen] = useState(true);
   const pre = useRef<HTMLPreElement>(null);
   const refresh = useCallback(async () => {
-    const r = await fetch(`/api/projects/${projectId}/release`, { cache: "no-store" }).then((x) => x.json()).catch(() => null);
+    const r = await fetch(`/api/projects/${projectId}/release`, { cache: "no-store" })
+      .then((x) => x.json())
+      .catch(() => null);
     setJob(r?.job ?? null);
   }, [projectId]);
   useEffect(() => void refresh(), [refresh]);
@@ -328,7 +387,13 @@ export function ReleaseLog({ projectId }: { projectId: string }) {
   return (
     <div className="shrink-0 border-b border-[var(--line)] p-2">
       <button onClick={() => setOpen((o) => !o)} className="flex w-full cursor-pointer items-center gap-1.5 px-1 text-left text-[12px]">
-        {job.state === "running" ? <Loader2 size={12} className="animate-spin text-spark-400" /> : job.state === "done" ? <Check size={12} className="text-emerald-400" /> : <X size={12} className="text-red-400" />}
+        {job.state === "running" ? (
+          <Loader2 size={12} className="animate-spin text-spark-400" />
+        ) : job.state === "done" ? (
+          <Check size={12} className="text-emerald-400" />
+        ) : (
+          <X size={12} className="text-red-400" />
+        )}
         <span className={clsx("truncate", job.state === "error" ? "text-red-400" : "text-ink-200")}>
           {what} · {job.state === "error" ? "failed" : job.step}
         </span>
