@@ -82,8 +82,24 @@ function shipLines(w: number, t: number) {
 }
 
 /** An arrow pointer; the spaces inside it hide the ripples behind. */
-// Short and wide like Figma's: a triangle, its tip at the top left.
-const CURSOR = ["|\\", "|  \\", "|.--'"];
+// Figma's pointer, drawn in white over the ripples: its tip at the top left.
+const CURSOR = [
+  ":@*",
+  "@@@@@",
+  "@@   @@@%",
+  "-@#     %@@@:",
+  " @@         @@@@",
+  " #@            =@@@#",
+  "  @@              +@@@@",
+  "  @@         @@@@@@-",
+  "  =@+     @@#",
+  "   @@   #@@",
+  "   #@. @@=",
+  "    @@@@",
+  "    @@#",
+];
+/** Marks a character drawn in white rather than the field's blue. */
+const WHITE = "\u0001";
 const CURSOR_TAG = "[ bigger, in blue ]";
 
 const MOTIFS: Motif[] = [
@@ -168,13 +184,14 @@ const MOTIFS: Motif[] = [
   // spreading from where it points.
   (x, y, t, w, h) => {
     // The tip of the arrow, kept far enough from the right edge for the tag.
-    const room = Math.max(4, w - CURSOR_TAG.length - 6);
+    const room = Math.max(4, w - Math.max(CURSOR_TAG.length + 2, 24) - 2);
     const cx = Math.round(Math.min(room, Math.max(3, w / 2 - 8 + Math.sin(t * 0.5) * (w * 0.12))));
     const cy = Math.round(h / 2 - 3 + Math.cos(t * 0.7) * h * 0.12);
     const dx = x - cx;
     const dy = y - cy;
     const arrow = CURSOR[dy];
-    if (arrow !== undefined && dx >= 0 && dx < arrow.length) return arrow[dx];
+    // Inside the outline it's blank (the ripples stop at its edge); the outline is white.
+    if (arrow !== undefined && dx >= 0 && dx < arrow.length) return arrow[dx] === " " ? " " : WHITE + arrow[dx];
     // The tag under the arrow, like a collaborator's name in Figma.
     if (dy === CURSOR.length && dx >= 2 && dx < 2 + CURSOR_TAG.length) return CURSOR_TAG[dx - 2];
     const r = Math.hypot(dx * ASPECT, dy);
@@ -202,13 +219,18 @@ const MOTIFS: Motif[] = [
   },
 ];
 
+const escape = (c: string) => (c === "<" ? "&lt;" : c === ">" ? "&gt;" : c === "&" ? "&amp;" : c);
+
+/** One frame as HTML: the field's characters, with white ones (a WHITE mark) in a white span. */
 function frame(step: number, t: number, cols: number, rows: number) {
   const f = MOTIFS[Math.max(0, Math.min(MOTIFS.length - 1, step))];
   let out = "";
   for (let y = 0; y < rows; y++) {
     for (let x = 0; x < cols; x++) {
       const v = f(x, y, t, cols, rows);
-      out += typeof v === "string" ? v : RAMP[Math.round(Math.max(0, Math.min(1, v)) * (RAMP.length - 1))];
+      if (typeof v !== "string") out += RAMP[Math.round(Math.max(0, Math.min(1, v)) * (RAMP.length - 1))];
+      else if (v.startsWith(WHITE)) out += `<span class="text-white">${escape(v.slice(1))}</span>`;
+      else out += escape(v);
     }
     out += "\n";
   }
@@ -251,9 +273,9 @@ export function AsciiField({ step }: { step: number }) {
       // About 20 frames a second is enough for text, and cheap.
       if (now - last < 50) return;
       last = now;
-      el.textContent = frame(stepRef.current, (now - start) / 1000, cols, rows);
+      el.innerHTML = frame(stepRef.current, (now - start) / 1000, cols, rows);
     };
-    el.textContent = frame(stepRef.current, 1.2, cols, rows);
+    el.innerHTML = frame(stepRef.current, 1.2, cols, rows);
     if (still) return () => removeEventListener("resize", fit);
     // Only while on screen.
     const io = new IntersectionObserver(([e]) => {
