@@ -117,6 +117,7 @@ export function HeroFocus(p: Props) {
   // reached by tapping its tab (SimulatorView's page sync, like a native project) and any other page
   // by its link, without reloading the app.
   const tabPage = s.route.includes("/(tabs)/");
+  const androidSim = !!simUdid && !/^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(simUdid);
   // The page shown before: leaving a sub-page (pushed page, sheet) for a tab can't be done by tapping
   // the tab bar, which the sub-page covers.
   const prevRoute = useRef<string | null>(null);
@@ -133,7 +134,10 @@ export function HeroFocus(p: Props) {
       openedInDev.add(key);
       // Progress and failures show in DevClientOverlay.
       void openInSimulator(simUdid, p.state.preview, s.previewPath ?? "/", s.route).catch(() => openedInDev.delete(key));
-    } else if (!tabPage) void quiet().catch(() => {});
+    } else if (!tabPage || androidSim) {
+      // Android: its link opens any page at once, where finding the tab to tap means reading the screen (2 s).
+      void quiet().catch(() => {});
+    }
     else if (prev && !prev.includes("/(tabs)/")) {
       // Its link closes what covers the tabs and shows the tab; tapping it then records it as the one shown.
       void quiet()

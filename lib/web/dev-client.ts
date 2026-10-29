@@ -320,7 +320,9 @@ export async function openInDevClient(device: string, url: string, appPath = "/"
   const platform: DevPlatform = android.isAndroidId(device) ? "android" : "ios";
   const metro = metroUrlFor(platform, url);
   const fresh = loaded.get(device) !== metro || !(await isRunning(device));
-  const page = appPath !== "/" ? pageLink(await appScheme(), appPath) : null;
+  // The home page needs a link too on Android when the app is already up on another page (iOS gets
+  // there by its tab, see HeroFocus).
+  const page = appPath !== "/" || (platform === "android" && !fresh) ? pageLink(await appScheme(), appPath) : null;
   const watch = opts.watch ?? 10;
   if (platform === "android") {
     if (fresh) {
