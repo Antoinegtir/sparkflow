@@ -127,14 +127,26 @@ async function reverse(serial: string, url: string) {
   await adb(serial, "reverse", `tcp:${port}`, `tcp:${port}`).catch(() => {});
 }
 
+/**
+ * The dev build loads its bundle from Metro at localhost:<port>, which only reaches this computer through
+ * adb reverse. Reverses go away when adb restarts or Metro moves to another port (sparkflow restarted):
+ * set them again for every running Metro whenever the emulator is opened or watched.
+ */
+export async function reverseMetros(serial: string) {
+  const metros = (globalThis as unknown as { __sparkflowMetro?: Map<string, { port: number; proc: { exitCode: number | null } }> }).__sparkflowMetro;
+  const ports = [...(metros?.values() ?? [])].filter((m) => m.proc.exitCode === null).map((m) => m.port);
+  await Promise.all(ports.map((p) => adb(serial, "reverse", `tcp:${p}`, `tcp:${p}`).catch(() => {})));
+}
+
 export async function openUrl(serial: string, url: string, pkg?: string) {
-  await reverse(serial, url);
+  await Promise.all([reverse(serial, url), reverseMetros(serial)]);
   await shell(serial, "am", "start", "-a", "android.intent.action.VIEW", "-d", `'${url.replace(/'/g, "")}'`, ...(pkg ? [pkg] : []));
 }
 
 export async function launch(serial: string, opts: { bundleId?: string; url?: string }) {
   if (opts.url) return openUrl(serial, opts.url);
   if (!opts.bundleId || !/^[A-Za-z0-9._]+$/.test(opts.bundleId)) throw new Error("Invalid package name");
+  await reverseMetros(serial);
   await shell(serial, "am", "force-stop", opts.bundleId);
   await shell(serial, "monkey", "-p", opts.bundleId, "-c", "android.intent.category.LAUNCHER", "1");
 }
@@ -335,6 +347,7 @@ async function ffmpegPath() {
  * stops after 3 minutes: it starts again while someone watches. Resolves null without ffmpeg.
  */
 export async function videoFrames(serial: string, onFrame: (jpeg: Buffer) => void): Promise<(() => void) | null> {
+  void reverseMetros(serial);
   const [adbBin, ff] = await Promise.all([adbPath(), ffmpegPath()]);
   if (!adbBin || !ff) return null;
   const m = /Physical size:\s*(\d+)x(\d+)/.exec(await shell(serial, "wm", "size"));
