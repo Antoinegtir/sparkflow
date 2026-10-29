@@ -459,6 +459,7 @@ export function IDE({ id, slug: initialSlug, initialPage }: { id: string; slug: 
         onPalette={() => setPalette(true)}
         panelOpen={panelOpen}
         onTogglePanel={() => setPanelOpen((o) => !o)}
+        onDevice={(d) => void api.setPreviewDevice(d)}
         onDeviceSwitching={(name) => {
           setSimFrozen(name ? `Starting ${name}…` : null);
           if (!name) window.dispatchEvent(new Event(SIM_CHANGED));

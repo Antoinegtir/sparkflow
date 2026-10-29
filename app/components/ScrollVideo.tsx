@@ -106,6 +106,8 @@ export function ScrollVideo({ src, className, children }: { src: string; classNa
       cancelAnimationFrame(glideRaf);
     };
     const settle = () => {
+      // Not on phones and tablets: a finger scroll has its own momentum, a glide on top fights it.
+      if (innerWidth < 1024 || matchMedia("(pointer: coarse)").matches) return;
       const y = scrollY;
       // Down: past the slide, with step 1 at 37% of the screen height, same spot as the
       // "How it works" link. Up: back to the top, the phone a thin divider.

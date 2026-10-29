@@ -9,9 +9,16 @@ import {
   type TabNavigationState,
   type TabRouterOptions,
 } from "expo-router/react-navigation";
-import { useContext, useEffect, useState, type ReactNode } from "react";
+import Constants, { ExecutionEnvironment } from "expo-constants";
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { Platform, type ImageSourcePropType } from "react-native";
-import TabView, { BottomTabBarHeightContext } from "react-native-bottom-tabs";
+import * as JsTabs from "./Tabs.web";
+
+// Expo Go doesn't ship react-native-bottom-tabs: there the JavaScript tab bar (the web one) stands in.
+const inExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
+const bottomTabs: typeof import("react-native-bottom-tabs") | null = inExpoGo ? null : require("react-native-bottom-tabs");
+const TabView = bottomTabs?.default as NonNullable<typeof bottomTabs>["default"];
+const BottomTabBarHeightContext = bottomTabs?.BottomTabBarHeightContext ?? createContext<number | undefined>(undefined);
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/constants/theme";
 import type { TabOptions } from "./tabs-options";
@@ -105,13 +112,15 @@ const { Navigator } = (createNavigatorFactory(NativeTabNavigator as any) as any)
  * Material bottom navigation on Android; expo-router/js-tabs on web (Tabs.web.tsx).
  * `glass` only changes the web bar (native bars already look native).
  */
-export const Tabs = withLayoutContext<TabOptions, typeof Navigator, TabNavigationState<ParamListBase>, any>(Navigator) as unknown as ((props: {
+const NativeTabs = withLayoutContext<TabOptions, typeof Navigator, TabNavigationState<ParamListBase>, any>(Navigator) as unknown as ((props: {
   children?: ReactNode;
   glass?: boolean;
 }) => ReactNode) & { Screen: (props: { name: string; options?: TabOptions }) => ReactNode };
+export const Tabs = inExpoGo ? JsTabs.Tabs : NativeTabs;
 
 /** Bottom space a Screen keeps clear of the native tab bar; undefined outside native tabs. */
 export function useNativeTabBarInset() {
+  if (inExpoGo) return JsTabs.useNativeTabBarInset(); // eslint-disable-line react-hooks/rules-of-hooks
   const height = useContext(BottomTabBarHeightContext);
   const insets = useSafeAreaInsets();
   if (height === undefined) return undefined;

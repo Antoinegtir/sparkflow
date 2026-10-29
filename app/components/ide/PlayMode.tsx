@@ -301,9 +301,13 @@ export function PlayMode({ state, scheme, startPath, onClose, onSimButton, onDev
                     {platform === "android" ? "Emulator" : "Simulator"} · {liveHere.name}
                   </span>
                 </button>
-              ) : (
-                // None running for this platform: pick one to boot; it then shows up as the live device.
-                !native && <DevicePicker platform={platform} label={`Boot ${platform === "android" ? "an emulator" : "a Simulator"}`} />
+              ) : null}
+              {/* Boot one (none running yet) or another of this platform: it becomes the live device. */}
+              {(!native || !liveHere) && (
+                <DevicePicker
+                  platform={platform}
+                  label={liveHere ? "Boot another" : `Boot ${platform === "android" ? "an emulator" : "a Simulator"}`}
+                />
               )}
               {previews.length > 0 && (
                 <>

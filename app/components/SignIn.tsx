@@ -130,7 +130,8 @@ export function SignIn() {
           )}
         </button>
       ) : (
-        <button type="button" disabled={user === undefined} onClick={() => setOpen((o) => !o)} className="cursor-pointer rounded-lg px-3 py-1.5 text-[13px] text-ink-200 transition hover:bg-white/5 hover:text-ink-100">
+        // On a phone, Start building is the one way in (it asks to sign in first).
+        <button type="button" disabled={user === undefined} onClick={() => setOpen((o) => !o)} className="hidden cursor-pointer rounded-lg px-3 py-1.5 text-[13px] text-ink-200 transition hover:bg-white/5 hover:text-ink-100 md:inline-flex">
           Sign in
         </button>
       )}

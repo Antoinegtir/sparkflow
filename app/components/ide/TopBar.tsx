@@ -1,57 +1,12 @@
 "use client";
 
 import clsx from "clsx";
-import { ChevronDown, Command, PanelRight, Play, Smartphone } from "lucide-react";
-import { QRCodeSVG } from "qrcode.react";
-import { useEffect, useRef, useState } from "react";
+import { Command, PanelRight, Play } from "lucide-react";
+import { useState } from "react";
 import type { ProjectState } from "@/lib/shared";
 import type { AppScheme } from "@/lib/web/app-scheme";
 import { Logo } from "../Logo";
-import { DevicePicker } from "./DevicePicker";
-
-function OpenOnPhone({ state }: { state: ProjectState }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, [open]);
-  const url = state.preview?.expoGoUrl;
-  return (
-    <div ref={ref} className="relative">
-      <button onClick={() => setOpen((o) => !o)} className="flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1.5 text-[12.5px] text-ink-300 hover:bg-ink-800 hover:text-ink-100">
-        <Smartphone size={14} /> <span className="hidden lg:inline">Open on phone</span> <ChevronDown size={12} />
-      </button>
-      {open && (
-        <div className="absolute right-0 z-50 mt-1 w-64 rounded-xl border border-[var(--line)] bg-[var(--panel)] p-4 shadow-2xl">
-          {url ? (
-            <>
-              <div className="mx-auto w-fit rounded-lg bg-white p-2">
-                {/* An https link: every phone camera reads it (an exp:// one only with Expo Go installed). */}
-                <QRCodeSVG value={`https://sparkflow-ai.web.app/open?u=${encodeURIComponent(url)}`} size={180} />
-              </div>
-              <p className="mt-3 text-[12px] text-ink-300">Scan with your phone's camera: it opens the app in Expo Go (same Wi‑Fi).</p>
-              {/* Expo Go only opens a computer's project when both are signed in to the same Expo account. */}
-              <p className="mt-2 text-[11.5px] leading-snug text-ink-500">
-                First time: sign in to Expo Go on the phone, and with the same account here: <span className="font-mono text-ink-300">npx expo login</span>
-              </p>
-              <p className="mt-1 truncate font-mono text-[11px] text-ink-500">{url}</p>
-            </>
-          ) : (
-            <p className="text-[12px] text-ink-400">No Expo Go tunnel for this preview.</p>
-          )}
-          {state.preview?.webUrl && (
-            <a href={state.preview.webUrl} target="_blank" rel="noreferrer" className="mt-3 block text-[12px] text-spark-400 hover:underline">
-              Open the web preview ↗
-            </a>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
+import { RunOn } from "./RunOn";
 
 type Props = {
   state: ProjectState;
@@ -65,6 +20,7 @@ type Props = {
   panelOpen: boolean;
   onTogglePanel: () => void;
   onDeviceSwitching: (name: string | null) => void;
+  onDevice: (id: string) => void;
 };
 
 export function TopBar(p: Props) {
@@ -106,14 +62,13 @@ export function TopBar(p: Props) {
         {!p.connected && <span className="animate-pulse-soft text-[11px] text-amber-400">reconnecting…</span>}
       </div>
       <div className="flex items-center gap-1.5">
-        {(native || s.previewDevice === "simulator") && <DevicePicker bundleId={s.native?.bundleId} onSwitching={p.onDeviceSwitching} />}
+        <RunOn state={s} onDevice={p.onDevice} onSwitching={p.onDeviceSwitching} />
         <button
           onClick={p.onPlay}
           disabled={!s.preview && !native}
           className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-spark-500 px-2.5 py-1.5 text-[12.5px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-40">
           <Play size={12} className="fill-current" /> Play
         </button>
-        {!native && <OpenOnPhone state={s} />}
         <button onClick={p.onPalette} className="hidden cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1.5 text-[12px] text-ink-400 hover:bg-ink-800 hover:text-ink-100 lg:flex">
           <Command size={13} /> Commands <kbd className="rounded border border-[var(--line)] px-1 font-mono text-[10px]">⌘K</kbd>
         </button>

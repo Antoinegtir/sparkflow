@@ -1,4 +1,4 @@
-import { LiquidGlassView, isLiquidGlassSupported } from "@callstack/liquid-glass";
+import Constants, { ExecutionEnvironment } from "expo-constants";
 import { cssInterop } from "nativewind";
 import { useState, type ReactNode } from "react";
 import { Platform, StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
@@ -6,11 +6,17 @@ import { useIsDark } from "@/constants/theme";
 import { cn } from "@/lib/cn";
 import { SurfaceContext } from "./surface";
 
+// Expo Go doesn't ship @callstack/liquid-glass (loading it there throws "NativeLiquidGlassModule could
+// not be found"): the app then runs with the blurred surface below instead.
+const lg: typeof import("@callstack/liquid-glass") | null =
+  Constants.executionEnvironment === ExecutionEnvironment.StoreClient ? null : require("@callstack/liquid-glass");
+const LiquidGlassView = (lg?.LiquidGlassView ?? View) as NonNullable<typeof lg>["LiquidGlassView"];
+
 // Native views NativeWind doesn't know: without this their className (padding, radius) is dropped.
-cssInterop(LiquidGlassView, { className: "style" });
+if (lg) cssInterop(lg.LiquidGlassView, { className: "style" });
 
 /** True on iOS 26+, where Glass is Apple's real Liquid Glass. */
-export const liquidGlass = Platform.OS === "ios" && isLiquidGlassSupported;
+export const liquidGlass = Platform.OS === "ios" && !!lg?.isLiquidGlassSupported;
 
 /**
  * Apple's Liquid Glass (iOS 26, @callstack/liquid-glass): a refracting, light-catching surface over the
