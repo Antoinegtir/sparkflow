@@ -312,6 +312,20 @@ export function HeroFocus(p: Props) {
     return () => clearTimeout(t);
   }, [src]);
   const loading = !native && !iframeReady && !gaveUp;
+  // A file saved by hand from the code view: Expo's build-error sheet doesn't always go away once the
+  // error is fixed, so reload the preview when Metro has had a moment to rebuild.
+  const lastCommit = p.state.commits.at(-1);
+  const handEdit = lastCommit?.message.startsWith("Edit ") ? lastCommit.sha : null;
+  const seenEdit = useRef(handEdit);
+  useEffect(() => {
+    if (!handEdit || handEdit === seenEdit.current) return;
+    seenEdit.current = handEdit;
+    const t = setTimeout(() => {
+      const f = iframe.current;
+      if (f) f.src = f.src;
+    }, 1200);
+    return () => clearTimeout(t);
+  }, [handEdit]);
 
   const older = p.compare != null ? s.history.find((v) => v.version === p.compare) : undefined;
   const nativePage = useMemo(() => {
