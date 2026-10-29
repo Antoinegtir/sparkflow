@@ -159,7 +159,7 @@ function CodeView({ projectId, state, file, line, onFile }: { projectId: string;
   const lines = content?.split("\n") ?? [];
   return (
     <div className="flex h-full flex-col">
-      <div className="shrink-0 border-b border-[var(--line)] p-2">
+      <div className="flex shrink-0 items-center gap-1.5 border-b border-[var(--line)] p-2">
         <select
           value={file ?? ""}
           onChange={(e) => onFile(e.target.value || null)}
@@ -172,6 +172,19 @@ function CodeView({ projectId, state, file, line, onFile }: { projectId: string;
             </option>
           ))}
         </select>
+        <button
+          onClick={async () => {
+            // VS Code opens the project folder on this computer (through its vscode:// links).
+            const r = await fetch(`/api/projects/${projectId}/folder`).then((x) => x.json()).catch(() => null);
+            if (r?.path) location.href = `vscode://file${encodeURI(r.path)}/`;
+          }}
+          title="Open the project in VS Code"
+          aria-label="Open the project in VS Code"
+          className="grid size-7 shrink-0 cursor-pointer place-items-center rounded-md border border-[var(--line)] hover:bg-ink-800">
+          <svg viewBox="0 0 24 24" className="size-4" aria-hidden>
+            <path fill="#0065A9" d="M23.15 2.59 18.21.21a1.49 1.49 0 0 0-1.7.29L7.04 9.13 2.93 6.01a1 1 0 0 0-1.27.06L.33 7.28a1 1 0 0 0 0 1.48L3.9 12 .33 15.24a1 1 0 0 0 0 1.48l1.33 1.21a1 1 0 0 0 1.27.06l4.11-3.12 9.47 8.63a1.49 1.49 0 0 0 1.7.29l4.94-2.38A1.5 1.5 0 0 0 24 20.06V3.94a1.5 1.5 0 0 0-.85-1.35ZM18 17.45 10.82 12 18 6.55Z" />
+          </svg>
+        </button>
       </div>
       <div ref={scroller} className="min-h-0 flex-1 overflow-auto">
         {!file && <p className="p-4 text-[12px] text-ink-500">Read-only view of the project&apos;s code. Pick a file, or click an element in the Layout tab.</p>}

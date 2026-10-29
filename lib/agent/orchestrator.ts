@@ -884,6 +884,12 @@ export class Orchestrator {
     return (await this.sandbox(rt)).readFileBytes(this.checkRel(rel));
   }
 
+  /** The project's folder on this computer (for opening it in an editor); null for a remote sandbox. */
+  async projectFolder(id: string) {
+    const rt = await this.runtime(id);
+    return ((await this.sandbox(rt)) as { dir?: string }).dir ?? null;
+  }
+
   /** The app's own settings, from app.json: what the Settings dialog shows. */
   async appSettings(id: string): Promise<AppSettings> {
     const rt = await this.runtime(id);
