@@ -363,7 +363,7 @@ function Ship() {
       {phase === 1 && (
         // The real app installing on the iPhone, like on iOS: the icon fills in, then appears.
         <div className="hiw-pop flex w-full flex-col items-center gap-1.5 text-neutral-900 [&_.text-ink-200]:text-neutral-900 [&_.text-sm]:text-[10.5px] [&_.text-sm]:font-semibold">
-          <InstallIcon replay={0} label="Habitly" />
+          <InstallIcon replay={0} label="MyApp" />
           <p className="text-[8.5px] text-neutral-500">Release build · on the iPhone</p>
         </div>
       )}
