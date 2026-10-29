@@ -81,6 +81,10 @@ function shipLines(w: number, t: number) {
   return out;
 }
 
+/** An arrow pointer, tip at the top left; the spaces inside it hide the ripples behind. */
+const CURSOR = ["|\\", "| \\", "|  \\", "|   \\", "|    \\", "|  .-'", "| /", "|/"];
+const CURSOR_TAG = "[ bigger, in blue ]";
+
 const MOTIFS: Motif[] = [
   // 01 Describe: a message bubble drawn in ASCII, the prompt typed into it, then typed again.
   (x, y, t, w, h) => {
@@ -159,11 +163,20 @@ const MOTIFS: Motif[] = [
     const r = Math.hypot(dx, dy);
     return (0.5 + 0.5 * Math.sin(Math.atan2(dy, dx) * 3 + r * 0.9 - t * 3)) * Math.exp(-r / (h * 0.55));
   },
-  // 06 Point and talk: ripples spreading from a click that moves around.
+  // 06 Point and talk: a Figma-like cursor with its name tag (what was said) moving around, ripples
+  // spreading from where it points.
   (x, y, t, w, h) => {
-    const cx = w / 2 + Math.sin(t * 0.5) * 14;
-    const cy = h / 2 + Math.cos(t * 0.7) * h * 0.2;
-    const r = Math.hypot((x - cx) * ASPECT, y - cy);
+    // The tip of the arrow, kept far enough from the right edge for the tag.
+    const room = Math.max(4, w - CURSOR_TAG.length - 6);
+    const cx = Math.round(Math.min(room, Math.max(3, w / 2 - 8 + Math.sin(t * 0.5) * (w * 0.12))));
+    const cy = Math.round(h / 2 - 3 + Math.cos(t * 0.7) * h * 0.12);
+    const dx = x - cx;
+    const dy = y - cy;
+    const arrow = CURSOR[dy];
+    if (arrow !== undefined && dx >= 0 && dx < arrow.length) return arrow[dx];
+    // The tag under the arrow, like a collaborator's name in Figma.
+    if (dy === CURSOR.length && dx >= 2 && dx < 2 + CURSOR_TAG.length) return CURSOR_TAG[dx - 2];
+    const r = Math.hypot(dx * ASPECT, dy);
     return Math.max(0, Math.sin(r * 1.3 - t * 5)) * Math.exp(-r / (h * 0.45));
   },
   // 07 Ship: a terminal shipping the app, step by step: the build, the signing, both stores filling up.
