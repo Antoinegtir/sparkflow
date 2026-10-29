@@ -37,9 +37,10 @@ export function useProject(id: string) {
       if (!res.ok) return setError(json.error ?? "Project not found");
       setState(json);
       // Through the tunnel (hosted site) a streamed body doesn't get through: poll every second.
-      // Straight to this computer's `sparkflow`, the live stream works.
-      if (getBackend() && !isDirect()) {
-        let since: number = json.lastSeq;
+      // Straight to this computer's `sparkflow`, the live stream works, unless the browser refuses
+      // a stream to localhost (it then never opens): polling takes over.
+      let since: number = json.lastSeq;
+      const startPolling = () => {
         const poll = async () => {
           if (cancelled) return;
           try {
@@ -57,13 +58,24 @@ export function useProject(id: string) {
           timer = setTimeout(poll, 1000);
         };
         void poll();
-        return;
-      }
+      };
+      if (getBackend() && !isDirect()) return startPolling();
+      let opened = false;
       es = new EventSource(`/api/projects/${id}/events?since=${json.lastSeq}`);
-      es.onopen = () => setConnected(true);
-      es.onerror = () => setConnected(false);
+      es.onopen = () => {
+        opened = true;
+        setConnected(true);
+      };
+      es.onerror = () => {
+        // A dropped stream retries by itself; one the browser gave up on (closed) hands over to polling.
+        if (opened && es?.readyState !== EventSource.CLOSED) return setConnected(false);
+        es?.close();
+        es = undefined;
+        startPolling();
+      };
       es.addEventListener("agent", (m) => {
         const ev = JSON.parse((m as MessageEvent).data) as StoredEvent;
+        since = ev.seq;
         setState((s) => (s ? applyEvent(s, ev) : s));
       });
     })().catch((err) => setError(String(err)));
