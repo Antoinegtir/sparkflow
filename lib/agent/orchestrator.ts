@@ -434,6 +434,21 @@ export class Orchestrator {
     if (!rt.running) this.runExclusive(rt, () => this.buildDemo(rt));
   }
 
+  /**
+   * The Wander demo, asked for from My apps: recreated (and built again) when it's gone, even after it was
+   * seeded once, e.g. after you emptied the apps folder. Returns its id.
+   */
+  async ensureDemo() {
+    const list = await this.store.list();
+    const demo = list.find(isDemoProject);
+    if (demo) return demo.id;
+    const id = list.some((p) => p.id === "wander") ? `wander-${Date.now().toString(36)}` : "wander";
+    await this.store.create({ id, name: DEMO_NAME, prompt: DEMO_PROMPT, createdAt: Date.now(), inputs: { image: false, audio: false } });
+    const rt = await this.runtime(id);
+    if (!rt.running) this.runExclusive(rt, () => this.buildDemo(rt));
+    return id;
+  }
+
   /** A seeding error outside the build (creating the project): logged on the demo project when there is one. */
   private async seedFailed(err: unknown) {
     console.error("[sparkflow] demo app seeding failed", err);

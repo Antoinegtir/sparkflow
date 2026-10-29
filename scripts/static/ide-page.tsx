@@ -10,7 +10,9 @@ import type { ProjectSummary } from "@/lib/shared";
 import { backendReady, getBackend } from "@/lib/web/backend";
 
 type Found = { id: string; slug: string; page: string[] };
-type State = { kind: "loading" } | { kind: "offline" } | { kind: "missing" } | { kind: "found"; found: Found };
+type State = { kind: "loading" } | { kind: "offline" } | { kind: "missing" } | { kind: "demo" } | { kind: "found"; found: Found };
+
+let demoAsked = false;
 
 export default function IdeShell() {
   const [state, setState] = useState<State>({ kind: "loading" });
@@ -30,7 +32,14 @@ export default function IdeShell() {
       .then((r) => (r.ok ? (r.json() as Promise<ProjectSummary[]>) : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then((list) => {
         const p = list.find((x) => x.slug === key) ?? list.find((x) => x.id === key);
-        setState(p ? { kind: "found", found: { id: p.id, slug: p.slug, page } } : { kind: "missing" });
+        if (p) return setState({ kind: "found", found: { id: p.id, slug: p.slug, page } });
+        // The Wander demo, gone from this computer (apps folder emptied, demo deleted): set it up again.
+        if (key === "wander" && !demoAsked) {
+          demoAsked = true;
+          setState({ kind: "demo" });
+          return fetch("/api/demo", { method: "POST" }).then((r) => (r.ok ? open() : setState({ kind: "missing" })), () => setState({ kind: "missing" }));
+        }
+        setState({ kind: "missing" });
       })
       .catch(() => setState({ kind: "offline" }));
   }, []);
@@ -49,6 +58,8 @@ export default function IdeShell() {
             Back to Sparkflow
           </a>
         </div>
+      ) : state.kind === "demo" ? (
+        "Setting up the Wander demo on your computer…"
       ) : (
         "Connecting to your computer…"
       )}
