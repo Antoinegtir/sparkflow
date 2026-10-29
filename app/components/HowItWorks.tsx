@@ -67,6 +67,8 @@ export function HowItWorks() {
   const root = useRef<HTMLDivElement>(null);
   const [fill, setFill] = useState(0);
   const [reached, setReached] = useState(-1);
+  // The rail runs from the first step's dot to the last one's, not past it.
+  const [rail, setRail] = useState({ top: 96, height: 0 });
   // The pinned phone follows the step being read.
   useEffect(() => {
     dispatchEvent(new CustomEvent(STEP_EVENT, { detail: Math.max(0, reached) }));
@@ -80,8 +82,12 @@ export function HowItWorks() {
       raf = requestAnimationFrame(() => {
         const r = el.getBoundingClientRect();
         const mid = innerHeight * 0.45;
-        setFill(Math.min(1, Math.max(0, (mid - r.top) / r.height)));
         const dots = [...el.querySelectorAll<HTMLElement>("[data-step]")];
+        // Dot centres (31px dots at the top of each step), relative to the timeline.
+        const first = dots[0].getBoundingClientRect().top - r.top + 15;
+        const last = dots[dots.length - 1].getBoundingClientRect().top - r.top + 15;
+        setRail((o) => (o.top === first && o.height === last - first ? o : { top: first, height: last - first }));
+        setFill(Math.min(1, Math.max(0, (mid - r.top - first + 15) / (last - first))));
         setReached(dots.reduce((n, d, i) => (d.getBoundingClientRect().top < mid ? i : n), -1));
       });
     };
@@ -124,10 +130,10 @@ export function HowItWorks() {
           </div>
         </nav>
         {/* Rail and its scroll-driven fill. */}
-        <div className="absolute bottom-0 left-[15px] top-24 w-px bg-ink-700" />
+        <div className="absolute left-[15px] w-px bg-ink-700" style={{ top: rail.top, height: rail.height }} />
         <div
-          className="absolute left-[15px] top-24 w-px bg-gradient-to-b from-spark-400 to-spark-500 transition-[height] duration-150"
-          style={{ height: `calc((100% - 6rem) * ${fill})` }}
+          className="absolute left-[15px] w-px bg-gradient-to-b from-spark-400 to-spark-500 transition-[height] duration-150"
+          style={{ top: rail.top, height: rail.height * fill }}
         />
         <ol className="flex flex-col gap-14">
           {STEPS.map(({ icon: Icon, kicker, title, body, tags }, i) => {

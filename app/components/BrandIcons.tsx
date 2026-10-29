@@ -47,7 +47,7 @@ export function brandIcon(tag: string): ReactNode {
   const c = "size-3.5 shrink-0";
   if (/^(Muse Spark|SAM)/.test(tag)) return <MetaLogo className={c} />;
   if (tag === "React Native") return <ReactLogo className={c} />;
-  if (/^Expo/.test(tag)) return <ExpoLogo className={`${c} text-ink-200`} />;
+  if (/^Expo( Go)?$/.test(tag)) return <ExpoLogo className={`${c} text-ink-200`} />;
   if (/^(iOS|iPhone)/.test(tag)) return <AppleLogo className={`${c} text-ink-200`} />;
   if (/^Android/.test(tag)) return <AndroidLogo className={c} />;
   return null;
