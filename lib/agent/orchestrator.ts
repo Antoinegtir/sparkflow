@@ -48,6 +48,7 @@ import { ProjectRuntime } from "./runtime";
 import { applyDemoOverlay, DEMO_NAME, DEMO_PROMPT, demoAction, isDemoProject, isSeeded, loadDemoPlan, markSeeded } from "./seed";
 import { ProjectStore } from "./store";
 import { lang, type LangRequest } from "./lang";
+import type { ReleaseTarget } from "@/lib/web/release";
 import { gitCommit, typecheck, type ToolContext, type ToolName } from "./tools";
 import { BudgetExceededError, UsageMeter } from "./usage";
 
@@ -951,6 +952,17 @@ export class Orchestrator {
   async readProjectFileBytes(id: string, rel: string) {
     const rt = await this.runtime(id);
     return (await this.sandbox(rt)).readFileBytes(this.checkRel(rel));
+  }
+
+  /** What a native Release build of the app needs: its folder and identity (name, bundle ID, version). */
+  async releaseTarget(id: string): Promise<ReleaseTarget> {
+    const rt = await this.runtime(id);
+    if (rt.meta.native) throw new Error("Native builds are for apps made with Sparkflow: build an imported project from Xcode or Android Studio");
+    if (rt.running) throw new BusyError();
+    const dir = ((await this.sandbox(rt)) as { dir?: string }).dir;
+    if (!dir) throw new Error("Native builds need the app on this computer");
+    const s = await this.appSettings(id);
+    return { id, dir, name: s.name, bundleId: s.bundleIdentifier, androidPackage: s.androidPackage, version: s.version };
   }
 
   /** The project's folder on this computer (for opening it in an editor); null for a remote sandbox. */
