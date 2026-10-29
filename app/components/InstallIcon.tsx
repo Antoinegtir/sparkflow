@@ -39,8 +39,8 @@ function useInstall() {
   return { s, play };
 }
 
-/** The Sparkflow app icon "installing" like on iOS; replays whenever `replay` changes. */
-export function InstallIcon({ replay, label }: { replay: number; label: string }) {
+/** An app icon "installing" like on iOS (Sparkflow's unless `icon` says otherwise); replays whenever `replay` changes. */
+export function InstallIcon({ replay, label, icon }: { replay: number; label: string; icon?: React.ReactNode }) {
   const { s, play } = useInstall();
   const root = useRef<HTMLSpanElement>(null);
   // First run once the tile scrolls into view, then on every replay (hover).
@@ -65,8 +65,10 @@ export function InstallIcon({ replay, label }: { replay: number; label: string }
       <span className="install-icon relative grid size-16 place-items-center overflow-hidden rounded-[15px] border border-white/20 bg-gradient-to-b from-[#1c1f26] to-[#050608] shadow-[inset_0_1px_0_rgba(255,255,255,.35),inset_0_-2px_6px_rgba(0,0,0,.6),0_10px_24px_-8px_rgba(0,0,0,.9)]">
         {s.loaded ? (
           <>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.png" alt="" draggable={false} className="absolute inset-0 size-full object-cover" />
+            {icon ?? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src="/logo.png" alt="" draggable={false} className="absolute inset-0 size-full object-cover" />
+            )}
             <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_70%_at_30%_0%,rgba(255,255,255,.28),transparent_55%)]" />
           </>
         ) : (

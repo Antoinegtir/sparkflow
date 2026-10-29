@@ -284,29 +284,78 @@ function MiniApp({ highlight, onTap, done, big }: { highlight?: number; onTap?: 
   );
 }
 
-const LOOK = [700, 400, 650, 650, 650, 1800];
+// Phases: the app runs on each platform, the screenshot (a flash), the scan, each criterion checked on
+// the element it's about, then contrast and touch targets, then all clear.
+const LOOK = [1100, 500, 900, 750, 750, 750, 900, 1600];
+const LOOK_CHECKS = [
+  { label: "Header reads “Today”", box: "left-[4%] top-[5%] h-[18%] w-[40%]" },
+  { label: "Three habit rows", box: "left-[4%] top-[34%] h-[52%] w-[92%]" },
+  { label: "A progress bar", box: "left-[4%] top-[25%] h-[8%] w-[92%]" },
+];
 function Look() {
   const phase = useScene(LOOK);
   const [done, setDone] = useState([true, false, false]);
-  const checks = ["Header reads “Today”", "Three habit rows", "Progress bar"];
+  // Which criterion is being checked (2..4 → 0..2), and how many are through.
+  const checking = phase >= 3 && phase <= 5 ? phase - 3 : -1;
+  const through = phase < 3 ? 0 : Math.min(3, phase - 2);
   return (
-    <div className="relative h-full">
-      <MiniApp done={done} onTap={(i) => setDone((d) => d.map((x, j) => (j === i ? !x : x)))} />
-      {/* The screenshot: a flash, then the scan runs down the page. */}
-      <div className={clsx("pointer-events-none absolute inset-0 bg-white transition-opacity duration-200", phase === 1 ? "opacity-80" : "opacity-0")} />
-      {phase >= 2 && <div className="hiw-scan pointer-events-none absolute inset-x-0 h-8 bg-gradient-to-b from-transparent via-sky-400/25 to-transparent" />}
-      <div className="absolute left-2.5 top-1 flex items-center gap-1 text-[8px] text-neutral-500">
-        <Camera size={9} /> {phase === 0 ? "iOS Simulator" : "Screenshot taken"}
+    <div className="flex h-full flex-col gap-2 px-2.5 pb-2 pt-4">
+      {/* Where it runs: the three platforms light up one after the other. */}
+      <div className="flex items-center justify-between">
+        <span className="flex items-center gap-1 whitespace-nowrap text-[8.5px] font-medium text-neutral-600">
+          <Camera size={10} /> {phase === 0 ? "Running" : "Captured"}
+        </span>
+        {/* Keyed by the loop: they pop in again, one after the other, each time round. */}
+        <div key={phase === 0 ? "run" : "shot"} className="flex gap-1">
+          {["iOS", "Android", "Web"].map((p, i) => (
+            <span key={p} className={clsx("rounded-full bg-spark-500/15 px-1.5 py-0.5 text-[7.5px] font-medium text-spark-500", phase === 0 && "hiw-pop")} style={phase === 0 ? { animationDelay: `${i * 280}ms` } : undefined}>
+              {p}
+            </span>
+          ))}
+        </div>
       </div>
-      <div className="absolute inset-x-2.5 bottom-3 space-y-1">
-        {checks.map((c, i) => {
-          const state = phase < 2 ? "wait" : phase - 2 > i ? "ok" : phase - 2 === i ? "busy" : "wait";
-          return (
-            <div key={c} className={clsx("flex items-center gap-1.5 rounded-md bg-white/90 px-2 py-1 text-[9px] shadow-sm backdrop-blur transition-opacity", state === "wait" ? "opacity-40" : "opacity-100", state === "ok" ? "text-emerald-600" : "text-neutral-600")}>
-              {state === "busy" ? <Loader2 size={9} className="animate-spin" /> : state === "ok" ? <Check size={9} /> : <span className="size-[9px] rounded-full border border-neutral-300" />} {c}
-            </div>
-          );
-        })}
+      {/* The screenshot, framed like a viewfinder, with what each criterion looks at outlined. */}
+      <div className="relative mx-auto h-[158px] w-[88%] overflow-hidden rounded-xl border border-black/10 bg-white shadow-md">
+        <div className="origin-top-left scale-[0.84]" style={{ width: `${100 / 0.84}%` }}>
+          <MiniApp done={done} onTap={(i) => setDone((d) => d.map((x, j) => (j === i ? !x : x)))} />
+        </div>
+        <div className={clsx("pointer-events-none absolute inset-0 bg-white transition-opacity duration-150", phase === 1 ? "opacity-90" : "opacity-0")} />
+        {phase === 2 && <div className="hiw-scan pointer-events-none absolute inset-x-0 h-8 bg-gradient-to-b from-transparent via-sky-400/30 to-transparent" />}
+        {LOOK_CHECKS.map((c, i) => (
+          <span key={c.label} className={clsx("pointer-events-none absolute rounded-md border-2 transition-all duration-300", c.box, checking === i ? "border-spark-500 bg-spark-500/10 opacity-100" : i < through ? "border-emerald-500/50 opacity-100" : "border-transparent opacity-0")}>
+            <span className={clsx("absolute -right-1.5 -top-1.5 grid size-3.5 place-items-center rounded-full text-[7px] font-bold text-white", i < through && checking !== i ? "bg-emerald-500" : "bg-spark-500")}>{i + 1}</span>
+          </span>
+        ))}
+        {/* Viewfinder corners. */}
+        {["left-1 top-1 border-l-2 border-t-2", "right-1 top-1 border-r-2 border-t-2", "bottom-1 left-1 border-b-2 border-l-2", "bottom-1 right-1 border-b-2 border-r-2"].map((c) => (
+          <span key={c} className={clsx("pointer-events-none absolute size-3 rounded-[3px] border-neutral-900/50", c)} />
+        ))}
+      </div>
+      {/* What Muse Spark checks on it. */}
+      <div className="rounded-lg border border-black/10 bg-black/[0.03] px-2 py-1.5">
+        <p className="mb-1 flex items-center gap-1 text-[7.5px] font-semibold uppercase tracking-wide text-neutral-500">
+          <Sparkles size={8} className="text-spark-500" /> Muse Spark checks
+        </p>
+        <div className="space-y-[3px]">
+          {[...LOOK_CHECKS.map((c) => c.label), "Contrast and touch targets"].map((label, i) => {
+            const state = i < 3 ? (checking === i ? "busy" : i < through ? "ok" : "wait") : phase === 6 ? "busy" : phase === 7 ? "ok" : "wait";
+            return (
+              <div key={label} className={clsx("flex items-center gap-1.5 whitespace-nowrap text-[8.5px] transition-colors", state === "ok" ? "text-neutral-800" : state === "busy" ? "text-spark-500" : "text-neutral-400")}>
+                {state === "busy" ? (
+                  <Loader2 size={10} className="shrink-0 animate-spin" />
+                ) : state === "ok" ? (
+                  <span className="grid size-2.5 shrink-0 place-items-center rounded-full bg-emerald-500 text-white">
+                    <Check size={7} strokeWidth={3} />
+                  </span>
+                ) : (
+                  <span className="size-2.5 shrink-0 rounded-full border border-neutral-300" />
+                )}
+                {i < 3 && <span className="font-mono text-[7.5px] text-neutral-400">{i + 1}</span>}
+                {label}
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
@@ -444,7 +493,16 @@ function Ship() {
       {phase === 1 && (
         // The real app installing on the iPhone, like on iOS: the icon fills in, then appears.
         <div className="hiw-pop flex w-full flex-col items-center gap-1.5 text-neutral-900 [&_.text-ink-200]:text-neutral-900 [&_.text-sm]:text-[10.5px] [&_.text-sm]:font-semibold">
-          <InstallIcon replay={0} label="MyApp" />
+          <InstallIcon
+            replay={0}
+            label="MyApp"
+            // The habit app being installed: its own icon, a green check on a dark tile.
+            icon={
+              <span className="absolute inset-0 grid place-items-center bg-gradient-to-b from-[#1c1f26] to-[#050608]">
+                <Check size={26} strokeWidth={2.5} className="text-emerald-400" />
+              </span>
+            }
+          />
           <p className="text-[8.5px] text-neutral-500">Release build · on the iPhone</p>
         </div>
       )}
