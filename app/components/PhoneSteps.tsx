@@ -18,7 +18,7 @@ function Describe() {
     return () => clearInterval(t);
   }, []);
   return (
-    <div className="flex h-full flex-col justify-end gap-3 p-3">
+    <div className="flex h-full flex-col justify-end gap-3 py-3">
       <div className="ml-auto max-w-[85%] rounded-2xl rounded-br-md bg-spark-500 px-3 py-2 text-[11px] leading-snug text-white">
         {text.slice(0, n)}
         <span className="ml-px inline-block h-3 w-px translate-y-0.5 animate-pulse bg-white" />
@@ -39,7 +39,7 @@ function Describe() {
 function Plan() {
   const screens = ["Today", "Stats", "Habit", "Settings"];
   return (
-    <div className="grid h-full grid-cols-2 content-center gap-2 p-3">
+    <div className="grid h-full grid-cols-2 content-center gap-2 py-3">
       {screens.map((s, i) => (
         <div key={s} className="hiw-pop rounded-xl border border-black/10 bg-black/5 p-2" style={{ animationDelay: `${i * 180}ms` }}>
           <div className="text-[10px] font-semibold text-neutral-900">{s}</div>
@@ -58,7 +58,7 @@ function Plan() {
 function Build() {
   const lines = ["<Screen>", '  <Header title="Today" />', "  <ProgressBar value={done} />", "  {habits.map((h) => (", "    <HabitRow habit={h} />", "  ))}", "</Screen>"];
   return (
-    <div className="flex h-full flex-col justify-center p-3 font-mono text-[9px] leading-relaxed">
+    <div className="flex h-full flex-col justify-center py-3 font-mono text-[9px] leading-relaxed">
       {lines.map((l, i) => (
         <div key={i} className="hiw-type truncate whitespace-pre text-sky-700" style={{ animationDelay: `${i * 260}ms` }}>
           <span className="mr-2 text-neutral-400">{i + 1}</span>
@@ -75,7 +75,7 @@ function Build() {
 /** A tiny Today screen; `done` toggles on tap, which the visitor can try. */
 function MiniApp({ highlight, onTap, done }: { highlight?: number; onTap?: (i: number) => void; done: boolean[] }) {
   return (
-    <div className="p-3">
+    <div className="py-3">
       <div className="text-[13px] font-bold text-neutral-900">Today</div>
       <div className="text-[8.5px] text-neutral-500">{done.filter(Boolean).length} of 3 done</div>
       <div className="mt-2 h-1 overflow-hidden rounded bg-black/10">
@@ -109,7 +109,7 @@ function Look() {
     <div className="relative h-full">
       <MiniApp done={done} onTap={(i) => setDone((d) => d.map((x, j) => (j === i ? !x : x)))} />
       <div className="hiw-scan pointer-events-none absolute inset-x-0 h-8 bg-gradient-to-b from-transparent via-sky-400/25 to-transparent" />
-      <div className="absolute inset-x-3 bottom-3 space-y-1">
+      <div className="absolute inset-x-0 bottom-3 space-y-1">
         {checks.map((c, i) => (
           <div key={c} className="hiw-pop flex items-center gap-1.5 rounded-md bg-white/85 shadow-sm px-2 py-1 text-[9px] text-emerald-600 backdrop-blur" style={{ animationDelay: `${600 + i * 400}ms` }}>
             <Check size={9} /> {c}
@@ -127,7 +127,7 @@ function Fix() {
     return () => clearInterval(t);
   }, []);
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-3 p-3 text-center">
+    <div className="flex h-full flex-col items-center justify-center gap-3 py-3 text-center">
       <div className={clsx("grid place-items-center rounded-lg bg-spark-500 text-[10px] text-white transition-all duration-500", fixed ? "size-11" : "size-7")}>+</div>
       <div className={clsx("flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[9.5px] transition-colors duration-500", fixed ? "bg-emerald-500/15 text-emerald-600" : "bg-red-500/15 text-red-600")}>
         {fixed ? <Check size={10} /> : <X size={10} />}
@@ -144,7 +144,7 @@ function Point() {
     <div className="relative h-full">
       <MiniApp done={[true, false, false]} highlight={1} />
       <MousePointer2 size={14} className="hiw-cursor absolute fill-white text-black" />
-      <div className="absolute inset-x-3 bottom-3">
+      <div className="absolute inset-x-0 bottom-3">
         <div className="mb-1.5 rounded-xl bg-black/8 px-2.5 py-1.5 text-[9.5px] text-neutral-600">“Make this row bigger, in blue”</div>
         <button
           type="button"
@@ -159,7 +159,7 @@ function Point() {
 
 function Ship() {
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-3 p-4 text-center">
+    <div className="flex h-full flex-col items-center justify-center gap-3 py-4 text-center">
       <div className="rounded-xl border border-black/10 bg-white p-2">
         <QRCodeSVG value="https://expo.dev" size={92} />
       </div>
@@ -185,7 +185,7 @@ export function PhoneSteps() {
   const Screen = SCREENS[step];
   return (
     <div className="relative flex h-full flex-col text-left">
-      <div key={step} className="hiw-pop min-h-0 flex-1 overflow-hidden px-1.5 pt-6">
+      <div key={step} className="hiw-pop min-h-0 flex-1 overflow-hidden pt-6">
         <Screen />
       </div>
       <div className="flex shrink-0 justify-center gap-1.5 pb-7 pt-2">
