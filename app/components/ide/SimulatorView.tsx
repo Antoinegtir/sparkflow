@@ -302,8 +302,9 @@ export function SimulatorView({
     last.current = Date.now();
     const p = toPoints(e.clientX, e.clientY);
     const el: El = await fetch(`/api/sim/${udid}/element?x=${Math.round(p.x)}&y=${Math.round(p.y)}`).then((r) => r.json()).catch(() => null);
-    // Images and custom views come back as big containers: fall back to a box around the pointer.
-    if (!el || (el.frame.width * el.frame.height) / (p.w * p.h) > 0.35) {
+    // Unnamed big containers: fall back to a box around the pointer. A big image or a labelled element is itself.
+    const named = !!el && (!!el.label || el.type === "Image" || el.type === "Button");
+    if (!el || (!named && (el.frame.width * el.frame.height) / (p.w * p.h) > 0.35)) {
       const w = 180;
       const h = 150;
       const box = { x: Math.max(0, Math.min(p.w - w, p.x - w / 2)), y: Math.max(0, Math.min(p.h - h, p.y - h / 2)), width: w, height: h };

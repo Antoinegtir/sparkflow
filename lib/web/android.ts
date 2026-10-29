@@ -224,7 +224,40 @@ export function bottomTabs(els: AxElement[], screenHeight: number) {
 const flatten = (els: AxElement[]): AxElement[] => els.flatMap((e) => [e, ...flatten(e.children ?? [])]);
 
 /** The tree, or the smallest labelled element under a point (like idb's describe-point). */
+/** The last tree read per device: pointing around (one request every 120 ms) reuses it for a moment. */
+const recentTree = new Map<string, { at: number; tree: Promise<AxElement[]> }>();
+
 export async function accessibilityInfo(serial: string, point?: { x: number; y: number }): Promise<AxElement[]> {
+  if (!point) return readTree(serial);
+  // A read takes about 2 s: the tree counts as fresh for 3 s after it arrives.
+  const kept = recentTree.get(serial);
+  let tree = kept && Date.now() - kept.at < 3000 ? kept.tree : null;
+  if (!tree) {
+    const entry = { at: Infinity, tree: readTree(serial) };
+    recentTree.set(serial, entry);
+    void entry.tree.then(
+      () => (entry.at = Date.now()),
+      () => recentTree.delete(serial),
+    );
+    tree = entry.tree;
+  }
+  const all = flatten(await tree);
+  const screen = Math.max(...all.map((e) => (e.frame ? e.frame.width * e.frame.height : 0)), 1);
+  const area = (e: AxElement) => (e.frame!.width || 1) * (e.frame!.height || 1);
+  const hits = all.filter((e) => {
+    const f = e.frame;
+    return f && point.x >= f.x && point.x <= f.x + f.width && point.y >= f.y && point.y <= f.y + f.height && area(e) < screen * 0.98;
+  });
+  // React Native views rarely carry a label on Android: the smallest thing that means something is
+  // what the pointer is on (a text, a button, an image, a card), not the nearest labelled container.
+  const meaningful = (e: AxElement) => !!e.AXLabel || e.type === "Button" || /Image/.test(e.type ?? "");
+  const best = hits.filter(meaningful).sort((a, b) => area(a) - area(b))[0] ?? hits.filter((e) => area(e) < screen * 0.35).sort((a, b) => area(a) - area(b))[0];
+  if (!best) return [];
+  // An image says so, rather than its Android class.
+  return [/Image/.test(best.type ?? "") && !best.AXLabel ? { ...best, type: "Image" } : best];
+}
+
+async function readTree(serial: string): Promise<AxElement[]> {
   let xml = (await adb(serial, "exec-out", "uiautomator", "dump", "/dev/tty").catch(() => Buffer.from(""))).toString("utf8");
   // Recent Android images kill a dump to /dev/tty ("Killed"): dump to a file and read it back.
   if (!xml.includes("<hierarchy")) {
@@ -232,15 +265,7 @@ export async function accessibilityInfo(serial: string, point?: { x: number; y: 
     xml = (await adb(serial, "exec-out", "cat", "/sdcard/sparkflow-ui.xml").catch(() => Buffer.from(""))).toString("utf8");
   }
   const end = xml.lastIndexOf("</hierarchy>");
-  const tree = parseHierarchy(end >= 0 ? xml.slice(0, end) : xml, await scale(serial));
-  if (!point) return tree;
-  const hits = flatten(tree).filter((e) => {
-    const f = e.frame;
-    return f && point.x >= f.x && point.x <= f.x + f.width && point.y >= f.y && point.y <= f.y + f.height;
-  });
-  const area = (e: AxElement) => (e.frame!.width || 1) * (e.frame!.height || 1);
-  const best = hits.filter((e) => e.AXLabel).sort((a, b) => area(a) - area(b))[0] ?? hits.sort((a, b) => area(a) - area(b))[0];
-  return best ? [best] : [];
+  return parseHierarchy(end >= 0 ? xml.slice(0, end) : xml, await scale(serial));
 }
 
 /** Live finger without a HID stream: the gesture is replayed on lift, as a tap or a swipe at its real speed. */
