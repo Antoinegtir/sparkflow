@@ -42,6 +42,31 @@ export const AndroidLogo = ({ className }: { className?: string }) =>
     className,
   );
 
+export const TypeScriptLogo = ({ className }: { className?: string }) =>
+  svg(
+    <>
+      <rect x="2" y="2" width="20" height="20" rx="2.5" fill="#3178c6" />
+      <path fill="#fff" d="M6 12.4h5.4v1.5H9.5V19H7.9v-5.1H6zM16.3 11.9c1.2 0 2 .4 2.6 1.1l-1 1c-.4-.4-.9-.7-1.5-.7-.6 0-.9.3-.9.6 0 .4.3.6 1.3.9 1.5.5 2.3 1.1 2.3 2.4 0 1.4-1.1 2.3-2.8 2.3-1.3 0-2.4-.5-3-1.3l1-1c.5.6 1.2.9 1.9.9.7 0 1.1-.3 1.1-.7 0-.4-.3-.6-1.3-.9-1.4-.4-2.3-1.1-2.3-2.3 0-1.3 1.1-2.3 2.6-2.3z" />
+    </>,
+    className,
+  );
+
+export const GitLogo = ({ className }: { className?: string }) =>
+  svg(
+    <>
+      <rect x="4.2" y="4.2" width="15.6" height="15.6" rx="2.2" transform="rotate(45 12 12)" fill="#f05032" />
+      <g stroke="#fff" strokeWidth="1.4" strokeLinecap="round" fill="none">
+        <path d="M9.6 7.4 14.4 12.2M10.6 8.5v7.3" />
+      </g>
+      <g fill="#fff">
+        <circle cx="10.6" cy="8.5" r="1.3" />
+        <circle cx="10.6" cy="15.8" r="1.3" />
+        <circle cx="14.6" cy="12.4" r="1.3" />
+      </g>
+    </>,
+    className,
+  );
+
 /** The mark for a "How it works" tag, when it names one of these tools. */
 export function brandIcon(tag: string): ReactNode {
   const c = "size-3.5 shrink-0";
@@ -49,6 +74,8 @@ export function brandIcon(tag: string): ReactNode {
   if (tag === "React Native") return <ReactLogo className={c} />;
   if (/^Expo( Go)?$/.test(tag)) return <ExpoLogo className={`${c} text-ink-200`} />;
   if (/^(iOS|iPhone)/.test(tag)) return <AppleLogo className={`${c} text-ink-200`} />;
+  if (tag === "TypeScript") return <TypeScriptLogo className={c} />;
+  if (tag === "git") return <GitLogo className={c} />;
   if (/^Android/.test(tag)) return <AndroidLogo className={c} />;
   return null;
 }
