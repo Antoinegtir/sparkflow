@@ -5,7 +5,7 @@ import os from "node:os";
 import { isMac } from "@/lib/web/platform";
 import path from "node:path";
 import type { ExecResult, InspectJob, InspectTargetResult, Preview, Sandbox, SandboxDriver } from "./types";
-import { childEnv, dataDir, findFreePort, IGNORED_DIRS, lanIp, LineBuffer, repoRoot, templateDir } from "./util";
+import { childEnv, dataDir, stateDir, findFreePort, IGNORED_DIRS, lanIp, LineBuffer, repoRoot, templateDir } from "./util";
 
 const MAX_OUTPUT = 256 * 1024;
 
@@ -77,7 +77,7 @@ if (!g.__sparkflowExitHook) {
 
 /** Runs the Playwright inspector as a child process (keeps Playwright out of the Next.js bundle). */
 export async function runInspector(job: InspectJob & { baseUrl: string }): Promise<InspectTargetResult[]> {
-  const dir = path.join(dataDir(), "inspect", `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`);
+  const dir = path.join(stateDir(), "inspect", `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`);
   await mkdir(dir, { recursive: true });
   try {
     await writeFile(path.join(dir, "job.json"), JSON.stringify(job));
@@ -226,7 +226,7 @@ function ensureTemplateDeps() {
 
 export class LocalDriver implements SandboxDriver {
   name = "local" as const;
-  root = path.join(dataDir(), "sandboxes");
+  root = dataDir();
 
   private opening = new Map<string, Promise<Sandbox>>();
 

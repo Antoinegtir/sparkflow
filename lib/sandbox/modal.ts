@@ -6,7 +6,7 @@ import path from "node:path";
 import { ModalClient, type App, type Image, type Sandbox as ModalSandbox, type Volume } from "modal";
 import { execIn, walk } from "./local";
 import type { ExecResult, InspectJob, InspectTargetResult, Preview, Sandbox, SandboxDriver } from "./types";
-import { dataDir, LineBuffer, repoRoot, templateDir } from "./util";
+import { LineBuffer, stateDir, repoRoot, templateDir } from "./util";
 
 const PLAYWRIGHT = "1.64.1";
 const APP = () => process.env.MODAL_APP_NAME ?? "sparkflow";
@@ -129,7 +129,7 @@ export class ModalDriver {
       const inspector = path.join(repoRoot(), "lib", "sandbox", "runtime", "inspect.mjs");
       hash.update(await readFile(inspector)).update(PLAYWRIGHT);
       const key = hash.digest("hex").slice(0, 16);
-      const cacheFile = path.join(dataDir(), "modal-image.json");
+      const cacheFile = path.join(stateDir(), "modal-image.json");
       const cached = existsSync(cacheFile) ? JSON.parse(await readFile(cacheFile, "utf8")) : null;
       if (cached?.key === key) return this.client.images.fromId(cached.imageId);
 
@@ -142,8 +142,8 @@ export class ModalDriver {
         ]);
       const builder = await this.client.sandboxes.create(await this.getApp(), base, { cpu: 4, memoryMiB: 8192, timeoutMs: 3600_000 });
       try {
-        const tar = path.join(dataDir(), "template.tgz");
-        await mkdir(dataDir(), { recursive: true });
+        const tar = path.join(stateDir(), "template.tgz");
+        await mkdir(stateDir(), { recursive: true });
         await execIn(templateDir(), `tar --exclude=node_modules --exclude=.expo -czf ${q(tar)} .`, 300);
         await builder.filesystem.copyFromLocal(tar, "/tmp/template.tgz");
         await builder.filesystem.copyFromLocal(inspector, "/opt/sparkflow/inspect.mjs");

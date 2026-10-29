@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readdirSync, readlinkSync, renameSync, rmdirSync, rmSync, unlinkSync } from "node:fs";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
@@ -17,7 +17,38 @@ export function repoRoot() {
   }
 }
 
+/** The apps folder: each app's code in its own folder (~/Documents/apps/wander). */
 export const dataDir = () => process.env.SPARKFLOW_DATA_DIR ?? path.join(repoRoot(), ".sparkflow");
+/** What Sparkflow keeps about the apps (history, screenshots), hidden in the apps folder. */
+export const stateDir = () => path.join(dataDir(), ".sparkflow");
+
+/**
+ * Apps folders from before 0.3.28 kept the code in sandboxes/<id>, behind links named after the
+ * apps, and Sparkflow's files next to it: the code moves up to <id>, the rest into .sparkflow/.
+ * Run before anything opens a project.
+ */
+export function migrateDataDir() {
+  const root = dataDir();
+  const old = path.join(root, "sandboxes");
+  if (!existsSync(old)) return;
+  const state = stateDir();
+  mkdirSync(state, { recursive: true });
+  for (const name of ["projects", "inspect", ".seeded-wander", "modal-image.json", "template.tgz"]) {
+    const from = path.join(root, name);
+    if (existsSync(from) && !existsSync(path.join(state, name))) renameSync(from, path.join(state, name));
+  }
+  const links = readdirSync(root).filter((e) => lstatSync(path.join(root, e)).isSymbolicLink() && readlinkSync(path.join(root, e)).startsWith(old + path.sep));
+  for (const e of links) unlinkSync(path.join(root, e));
+  for (const id of readdirSync(old).filter((e) => lstatSync(path.join(old, e)).isDirectory())) {
+    if (!existsSync(path.join(root, id))) renameSync(path.join(old, id), path.join(root, id));
+  }
+  rmSync(path.join(old, ".DS_Store"), { force: true });
+  try {
+    rmdirSync(old);
+  } catch {
+    // An app whose name was taken stays there.
+  }
+}
 export const templateDir = () => path.join(repoRoot(), "templates", "expo-base");
 
 /** Env for child processes, without the Next.js / npm variables that would confuse Expo. */

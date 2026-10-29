@@ -26,7 +26,7 @@ import { PREVIEW_DEVICES } from "../web/devices";
 import { createDriver } from "../sandbox";
 import { FolderSandbox, listSourceFiles } from "../sandbox/local";
 import type { InspectTargetResult, Sandbox, SandboxDriver } from "../sandbox/types";
-import { dataDir, expandHome } from "../sandbox/util";
+import { dataDir, expandHome, migrateDataDir } from "../sandbox/util";
 import { isMac } from "../web/platform";
 import { loadEnv } from "./env";
 import { createProvider } from "./llm";
@@ -103,6 +103,7 @@ export class Orchestrator {
   private runtimes = new Map<string, Promise<ProjectRuntime>>();
 
   constructor() {
+    migrateDataDir();
     this.provider = createProvider();
     this.driverP = createDriver();
     this.seedDemo().catch((err) => this.seedFailed(err));
@@ -952,24 +953,25 @@ export class Orchestrator {
 
   private linked = new Map<string, string>();
   /**
-   * The apps folder shows each app under its own name: a link (~/Documents/apps/wander) to its code,
-   * which stays in sandboxes/<id> (moving it would break a running Metro and its git history). The
-   * link follows renames; a name already taken gets a number (wander-2).
+   * The apps folder shows each app under its own name. Its code is in <id> (~/Documents/apps/wander);
+   * an app whose name isn't its id (renamed, or named after it was created) also gets a link under
+   * its name, as moving the folder would break a running Metro. The link follows renames; a name
+   * already taken gets a number (habitly-2).
    */
   private async linkFolder(id: string, name: string): Promise<string | null> {
     const root = dataDir();
-    const target = path.join(root, "sandboxes", id);
+    const target = path.join(root, id);
     if (!existsSync(target)) return null;
     const base = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "app";
     const known = this.linked.get(id);
     if (known && path.basename(known).replace(/-\d+$/, "") === base && existsSync(known)) return known;
-    const reserved = new Set(["projects", "sandboxes", "inspect", "cache", "logs"]);
-    let mine: string | null = null;
+    const reserved = new Set([".sparkflow", "cache", "logs"]);
+    let mine: string | null = base === id ? target : null;
     for (const entry of await readdir(root)) {
       const p = path.join(root, entry);
       if (!(await lstat(p)).isSymbolicLink() || (await readlink(p)) !== target) continue;
       // Its link under the old name goes when the app is renamed.
-      if (entry.replace(/-\d+$/, "") === base) mine = p;
+      if (!mine && entry.replace(/-\d+$/, "") === base) mine = p;
       else await unlink(p).catch(() => {});
     }
     if (!mine) {
@@ -988,7 +990,7 @@ export class Orchestrator {
 
   /** The app's iOS bundle ID (what its cover is stored under in the account). */
   private async bundleIdOf(id: string, name: string): Promise<string> {
-    const own = await readFile(path.join(dataDir(), "sandboxes", id, "app.json"), "utf8")
+    const own = await readFile(path.join(dataDir(), id, "app.json"), "utf8")
       .then((t) => JSON.parse(t).expo?.ios?.bundleIdentifier as string | undefined)
       .catch(() => undefined);
     return own && own !== "dev.sparkflow.app" ? own : defaultBundleId(name);

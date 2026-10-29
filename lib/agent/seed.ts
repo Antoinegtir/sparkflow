@@ -3,7 +3,7 @@ import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { AppPlanSchema, type AppPlan } from "../shared";
 import type { Sandbox } from "../sandbox/types";
-import { dataDir, repoRoot } from "../sandbox/util";
+import { repoRoot, stateDir } from "../sandbox/util";
 
 /**
  * The demo app every user finds in My apps: a hand-written app (templates/demo) laid over the Expo template,
@@ -14,7 +14,7 @@ export const DEMO_PROMPT = "Wander, a travel app: explore destinations, plan tri
 const FLAG = ".seeded-wander";
 
 export const demoDir = () => path.join(repoRoot(), "templates", "demo");
-const flagFile = () => path.join(dataDir(), FLAG);
+const flagFile = () => path.join(stateDir(), FLAG);
 
 /** templates/demo/plan.json, validated. */
 export async function loadDemoPlan(dir = demoDir()): Promise<AppPlan> {
@@ -89,6 +89,6 @@ export async function demoAction(projects: { id: string; name: string; prompt: s
 
 /** Written once the demo app was built and captured: it is never seeded again. */
 export async function markSeeded() {
-  await mkdir(dataDir(), { recursive: true });
+  await mkdir(stateDir(), { recursive: true });
   await writeFile(flagFile(), `${new Date().toISOString()}\n`);
 }

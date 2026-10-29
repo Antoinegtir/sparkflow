@@ -1,14 +1,14 @@
 import { appendFile, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { MediaInput, ProjectMeta, StoredEvent } from "../shared";
-import { dataDir } from "../sandbox/util";
+import { stateDir } from "../sandbox/util";
 
 const ID = /^[a-z0-9-]+$/;
 const safeShot = (name: string) => name.replace(/[^a-zA-Z0-9_.-]/g, "_");
 
 /** Projects on disk: .sparkflow/projects/<id>/{meta.json, events.jsonl, shots/, inputs/}. Swappable for a database behind the same methods. */
 export class ProjectStore {
-  root = path.join(dataDir(), "projects");
+  root = path.join(stateDir(), "projects");
 
   dir(id: string) {
     if (!ID.test(id)) throw new Error("Project not found");
