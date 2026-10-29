@@ -1,6 +1,6 @@
 rules_version = '2';
 
-// Each signed-in user reads and writes only their own saved apps (lib/web/cloud-apps.ts).
+// Each signed-in user reads and writes only their own saved apps (lib/web/cloud-apps.ts) and preferences.
 service cloud.firestore {
   match /databases/{database}/documents {
     match /users/{uid}/apps/{appId} {
@@ -9,7 +9,18 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly(['slug', 'name', 'status', 'screenCount', 'createdAt', 'native', 'previewDevice', 'cover', 'coverKey', 'updatedAt'])
         && request.resource.data.name is string && request.resource.data.name.size() <= 80
         && request.resource.data.slug is string && request.resource.data.slug.size() <= 80
-        && (!('cover' in request.resource.data) || (request.resource.data.cover is string && request.resource.data.cover.size() < 300000));
+        // The cover is a link to Cloud Storage (storage.rules), not the image itself.
+        && (!('cover' in request.resource.data) || (request.resource.data.cover is string && request.resource.data.cover.size() < 2000));
+    }
+    // Their preferences (lib/web/user-prefs.ts).
+    match /users/{uid}/settings/prefs {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['idPrefix', 'developerName', 'repoPrivate', 'orientation', 'updatedAt'])
+        && request.resource.data.idPrefix is string && request.resource.data.idPrefix.size() <= 60
+        && request.resource.data.developerName is string && request.resource.data.developerName.size() <= 80
+        && request.resource.data.repoPrivate is bool
+        && request.resource.data.orientation in ['portrait', 'landscape', 'default'];
     }
   }
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { collection, deleteDoc, doc, getDocs, getFirestore, setDoc } from "firebase/firestore";
+import { deleteObject, getDownloadURL, getStorage, ref, uploadBytes } from "firebase/storage";
 import type { ProjectSummary } from "@/lib/shared";
 import { firebaseApp } from "./auth";
 import { apiFetch } from "./backend";
@@ -8,10 +9,11 @@ import { apiFetch } from "./backend";
 /**
  * The apps of a signed-in user, saved to their account (Firestore users/{uid}/apps/{projectId}) whenever
  * the site reaches their computer, so My apps still lists them when `sparkflow` isn't running. Only what
- * the card shows is kept: name, status, size and a small JPEG of the cover.
+ * the card shows is kept: name, status, size, and the link to a small JPEG of the cover, which is in
+ * Cloud Storage (users/{uid}/covers/{projectId}.jpg), not in the document.
  */
 export type SavedApp = Pick<ProjectSummary, "id" | "slug" | "name" | "status" | "screenCount" | "createdAt" | "native" | "previewDevice"> & {
-  /** data: URL of the cover, about 240 px wide. */
+  /** Download URL of the cover (Cloud Storage), about 240 px wide. */
   cover?: string;
   /** The cover URL it was made from: unchanged covers aren't encoded again. */
   coverKey?: string;
@@ -25,8 +27,25 @@ export async function loadSavedApps(uid: string): Promise<SavedApp[]> {
   return snap.docs.map((d) => ({ ...(d.data() as Omit<SavedApp, "id">), id: d.id })).sort((a, b) => b.createdAt - a.createdAt);
 }
 
-/** A small JPEG data URL of a cover served by the computer (it can't be loaded from the site later). */
-async function thumbnail(coverUrl: string): Promise<string | undefined> {
+const coverRef = (uid: string, id: string) => ref(getStorage(firebaseApp()), `users/${uid}/covers/${id}.jpg`);
+
+/**
+ * A small JPEG of a cover served by the computer (it can't be loaded from the site later), uploaded to
+ * Cloud Storage; its download URL, or undefined if it couldn't be made or stored.
+ */
+async function storeCover(uid: string, id: string, coverUrl: string): Promise<string | undefined> {
+  const jpeg = await thumbnail(coverUrl);
+  if (!jpeg) return undefined;
+  try {
+    const r = coverRef(uid, id);
+    await uploadBytes(r, jpeg, { contentType: "image/jpeg", cacheControl: "public, max-age=31536000" });
+    return await getDownloadURL(r);
+  } catch {
+    return undefined;
+  }
+}
+
+async function thumbnail(coverUrl: string): Promise<Blob | undefined> {
   const res = await apiFetch(coverUrl).catch(() => null);
   if (!res?.ok) return undefined;
   const bmp = await createImageBitmap(await res.blob()).catch(() => null);
@@ -36,7 +55,7 @@ async function thumbnail(coverUrl: string): Promise<string | undefined> {
   const canvas = Object.assign(document.createElement("canvas"), { width: w, height: h });
   canvas.getContext("2d")!.drawImage(bmp, 0, 0, w, h);
   bmp.close();
-  return canvas.toDataURL("image/jpeg", 0.72);
+  return new Promise((done) => canvas.toBlob((b) => done(b ?? undefined), "image/jpeg", 0.72));
 }
 
 /** Mirrors the computer's apps into the account: new and changed ones written, deleted ones removed. */
@@ -45,7 +64,9 @@ export async function saveApps(uid: string, projects: ProjectSummary[]) {
   for (const p of projects) {
     const old = saved.get(p.id);
     saved.delete(p.id);
-    const cover = p.coverUrl && old?.coverKey === p.coverUrl ? old.cover : p.coverUrl ? await thumbnail(p.coverUrl) : undefined;
+    // Unchanged covers are kept; old ones stored inline (data: URLs) move to Cloud Storage.
+    const kept = p.coverUrl && old?.coverKey === p.coverUrl && old.cover && !old.cover.startsWith("data:") ? old.cover : undefined;
+    const cover = kept ?? (p.coverUrl ? await storeCover(uid, p.id, p.coverUrl) : undefined);
     const next: Omit<SavedApp, "id"> = {
       slug: p.slug,
       name: p.name,
@@ -60,5 +81,8 @@ export async function saveApps(uid: string, projects: ProjectSummary[]) {
     const same = old && JSON.stringify({ ...old, id: undefined, updatedAt: 0 }) === JSON.stringify({ ...next, updatedAt: 0 });
     if (!same) await setDoc(doc(apps(uid), p.id), next);
   }
-  for (const id of saved.keys()) await deleteDoc(doc(apps(uid), id));
+  for (const id of saved.keys()) {
+    await deleteDoc(doc(apps(uid), id));
+    await deleteObject(coverRef(uid, id)).catch(() => {});
+  }
 }

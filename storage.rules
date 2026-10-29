@@ -1,0 +1,15 @@
+rules_version = '2';
+
+// Each signed-in user reads and writes only the covers of their own saved apps (lib/web/cloud-apps.ts):
+// small JPEGs.
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /users/{uid}/covers/{file} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow delete: if request.auth != null && request.auth.uid == uid;
+      allow create, update: if request.auth != null && request.auth.uid == uid
+        && request.resource.size < 1024 * 1024
+        && request.resource.contentType == 'image/jpeg';
+    }
+  }
+}

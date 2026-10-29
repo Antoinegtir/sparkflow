@@ -4,6 +4,7 @@ import clsx from "clsx";
 import { ArrowUpRight, Loader2, UploadCloud } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useAccount } from "@/lib/web/user-prefs";
 
 type Status = { remote: string | null; url: string | null; ghUser: string | null; unpushed: number | null };
 
@@ -13,52 +14,17 @@ export const GitHubMark = ({ className = "size-3.5" }: { className?: string }) =
   </svg>
 );
 
-/**
- * The project on GitHub: create a repository for it (with the GitHub CLI signed in on this computer)
- * or connect an existing one, then push. Every change Sparkflow makes is already a commit.
- */
+/** The GitHub button of the Code tab: the GitHub panel in a popover. */
 export function GitHubSetup({ projectId, appName }: { projectId: string; appName: string }) {
   const [at, setAt] = useState<{ right: number; top: number } | null>(null);
-  const [status, setStatus] = useState<Status | null>(null);
-  const [name, setName] = useState(appName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "app");
-  const [priv, setPriv] = useState(true);
-  const [url, setUrl] = useState("");
-  const [busy, setBusy] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { prefs } = useAccount();
   const box = useRef<HTMLDivElement>(null);
-
-  const load = () =>
-    fetch(`/api/projects/${projectId}/github`)
-      .then((r) => r.json())
-      .then((s: Status) => setStatus(s))
-      .catch(() => setError("Couldn't reach sparkflow"));
   useEffect(() => {
     if (!at) return;
-    setError(null);
-    void load();
     const close = (e: MouseEvent) => !box.current?.contains(e.target as Node) && !(e.target as Element).closest?.('[aria-label="GitHub"]') && setAt(null);
     document.addEventListener("mousedown", close);
     return () => document.removeEventListener("mousedown", close);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [at]);
-
-  async function act(label: string, body: object) {
-    setBusy(label);
-    setError(null);
-    try {
-      const r = await fetch(`/api/projects/${projectId}/github`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
-      const j = await r.json();
-      if (!r.ok) return setError(j.error ?? "Failed");
-      setStatus(j);
-    } catch {
-      setError("Couldn't reach sparkflow");
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  const input = "w-full rounded-md border border-[var(--line)] bg-ink-950 px-2 py-1.5 text-[12.5px] text-ink-100 outline-none focus:border-spark-500/60";
-  const primary = "flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-md bg-spark-500 px-3 py-1.5 text-[12.5px] font-medium text-white disabled:opacity-50";
   return (
     <>
       <button
@@ -78,6 +44,53 @@ export function GitHubSetup({ projectId, appName }: { projectId: string; appName
             <p className="mb-2 flex items-center gap-1.5 text-[13px] font-semibold text-ink-100">
               <GitHubMark /> GitHub
             </p>
+            <GitHubPanel projectId={projectId} appName={appName} defaultPrivate={prefs.repoPrivate} />
+          </div>,
+          document.body,
+        )}
+    </>
+  );
+}
+
+/**
+ * The project on GitHub: create a repository for it (with the GitHub CLI signed in on this computer)
+ * or connect an existing one, then push. Every change Sparkflow makes is already a commit.
+ */
+export function GitHubPanel({ projectId, appName, defaultPrivate = true }: { projectId: string; appName: string; defaultPrivate?: boolean }) {
+  const [status, setStatus] = useState<Status | null>(null);
+  const [name, setName] = useState(appName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "app");
+  const [priv, setPriv] = useState(defaultPrivate);
+  useEffect(() => setPriv(defaultPrivate), [defaultPrivate]);
+  const [url, setUrl] = useState("");
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch(`/api/projects/${projectId}/github`)
+      .then((r) => r.json())
+      .then((s: Status) => setStatus(s))
+      .catch(() => setError("Couldn't reach sparkflow"));
+  }, [projectId]);
+
+  async function act(label: string, body: object) {
+    setBusy(label);
+    setError(null);
+    try {
+      const r = await fetch(`/api/projects/${projectId}/github`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+      const j = await r.json();
+      if (!r.ok) return setError(j.error ?? "Failed");
+      setStatus(j);
+    } catch {
+      setError("Couldn't reach sparkflow");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const input = "w-full rounded-md border border-[var(--line)] bg-ink-950 px-2 py-1.5 text-[12.5px] text-ink-100 outline-none focus:border-spark-500/60";
+  const primary = "flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-md bg-spark-500 px-3 py-1.5 text-[12.5px] font-medium text-white disabled:opacity-50";
+  return (
+    <div>
             {!status ? (
               <p className="flex items-center gap-2 py-2 text-[12px] text-ink-500">
                 <Loader2 size={12} className="animate-spin" /> Checking…
@@ -125,9 +138,6 @@ export function GitHubSetup({ projectId, appName }: { projectId: string; appName
               </div>
             )}
             {error && <p className="mt-2 text-[11.5px] leading-snug text-red-400">{error}</p>}
-          </div>,
-          document.body,
-        )}
-    </>
+    </div>
   );
 }
