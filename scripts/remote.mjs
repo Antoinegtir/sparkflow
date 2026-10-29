@@ -137,7 +137,6 @@ let frame = 0;
 let shimmer = 0;
 let ready = null; // { url, link } once everything is up
 let warning = "";
-let drawn = 0;
 /** The open tab's whereabouts, polled from the server. */
 let report = null;
 let presenceTimer;
@@ -260,15 +259,16 @@ function draw() {
   ];
   if (ready) {
     if (sc.head) panel.push(sc.head, ...sc.lines.filter(Boolean), "");
-    panel.push(`${blue(linkTo(ready.link, "Open sparkflow-ai.web.app ↗"))}  ${dim(new URL(ready.url).host)}`, "");
+    panel.push(blue(linkTo(ready.link, "Open sparkflow-ai.web.app ↗")), "");
   }
   // One entry per screen line, so the redraw knows how far to go back up.
   if (warning) panel.push(...`${yellow("!")} ${warning}`.split("\n"), "");
   panel.push(dim(`Logs  ${short(logPath)}`), dim("Stop  Ctrl+C"));
 
-  // The spark sits on the left when there is room for it, the panel centred beside it.
+  // The spark sits on the left when the window has room for it, the panel centred beside it.
+  const height = process.stdout.rows || 24;
   let lines;
-  if (width >= LOGO_W + 52) {
+  if (width >= LOGO_W + 52 && height >= LOGO.length + 2) {
     const rows = Math.max(LOGO.length, panel.length);
     const top = Math.floor((rows - panel.length) / 2);
     const logoTop = Math.floor((rows - LOGO.length) / 2);
@@ -281,14 +281,25 @@ function draw() {
   } else {
     lines = ["", ...panel.map((l) => (l ? `  ${l}` : l)), ""];
   }
-  // Redraw in place: back up over the previous frame, then clear to the end of the screen. Every
-  // line is cut to the terminal's width: a line that wraps takes two rows, and the redraw would
-  // then back up too little and push the screen down a row each frame.
-  process.stdout.write((drawn ? `\x1b[${drawn}F` : "") + "\x1b[0J" + lines.map((l) => fit(l, width)).join("\n") + "\n");
-  drawn = lines.length;
+  // The screen has a terminal page of its own (alternate screen): each frame is drawn from the top
+  // corner, centred vertically, every line cut to the width and the frame to the height, so a
+  // resize never leaves pieces of the previous one behind.
+  lines = lines.slice(0, height);
+  const pad = Math.max(0, Math.floor((height - lines.length) / 2));
+  last = lines.map((l) => fit(l, width));
+  process.stdout.write("\x1b[H" + "\x1b[K\n".repeat(pad) + last.join("\x1b[K\n") + "\x1b[K\x1b[J");
 }
+/** The last frame, printed back on the normal screen when sparkflow stops. */
+let last = [];
 const timer = setInterval(draw, 80);
-if (tty) process.stdout.write("\x1b[?25l"); // hide the cursor while the spinner runs
+// Its own screen page, without the cursor; redrawn at once when the window is resized.
+if (tty) {
+  process.stdout.write("\x1b[?1049h\x1b[?25l");
+  process.stdout.on("resize", () => {
+    process.stdout.write("\x1b[2J");
+    draw();
+  });
+}
 
 const children = [];
 let stopping = false;
@@ -301,8 +312,8 @@ function stop(code = 0) {
   rmSync(`${connection}.claimed`, { force: true });
   for (const ch of children) ch.kill("SIGTERM");
   draw();
-  // Give the terminal back as it was: cursor, background, title.
-  if (tty) process.stdout.write("\x1b[?25h" + (tintable ? "\x1b]111\x07" : "") + "\x1b]0;\x07");
+  // Give the terminal back as it was (page, cursor, background, title), with the last frame on it.
+  if (tty) process.stdout.write("\x1b[?1049l\x1b[?25h" + (tintable ? "\x1b]111\x07" : "") + "\x1b]0;\x07" + last.join("\n").replace(/^\n+/, "\n") + "\n");
   // No status screen (output piped, a service): the failure as plain lines.
   else if (code) console.error(steps.filter((x) => x.state === "fail").map((x) => `${x.label}: ${x.detail}`).concat(warning ? [warning.replace(/\x1b\[[0-9;]*m/g, "")] : []).join("\n"));
   process.exit(code);
@@ -547,13 +558,13 @@ const watch = async (chunk) => {
   // A dropped connection that cloudflared is bringing back: show it, then the host again.
   if (seen && tunnelStep.state !== "fail") {
     if (/ERR .*(connection|Serve tunnel)/i.test(text)) tunnelStep.detail = "reconnecting…";
-    else if (/Registered tunnel connection/i.test(text)) tunnelStep.detail = new URL(ready?.url ?? "https://x").host;
+    else if (/Registered tunnel connection/i.test(text)) tunnelStep.detail = "connected";
   }
   const url = chunk.toString().match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/)?.[0];
   if (!url || seen || tunnelStep.state === "fail") return;
   seen = true;
   tunnelStep.state = "ok";
-  tunnelStep.detail = new URL(url).host;
+  tunnelStep.detail = "connected";
   reachStep.state = "run";
   reachStep.detail = "waiting for the address to go live…";
   if (await reachable(url)) {
