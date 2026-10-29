@@ -151,7 +151,7 @@ fi
 rm -rf "$TMP_TOOLS"
 
 # ---------- Release ----------
-bold "Downloading"
+bold "Looking for the release"
 if [ -n "$WANTED" ]; then
   TAG="$WANTED"
   case "$TAG" in v*) ;; *) TAG="v$TAG" ;; esac
@@ -159,6 +159,16 @@ else
   TAG="$( (curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" 2>/dev/null || true) | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -1)"
   [ -n "$TAG" ] || die "No Sparkflow release is published yet (https://github.com/$REPO/releases): try again in a few minutes"
 fi
+
+# Already on that version (and fully installed): nothing to download. SPARKFLOW_REINSTALL=1 forces it.
+INSTALLED="$(node -p "'v' + require('$HOME_DIR/current/package.json').version" 2>/dev/null || true)"
+if [ "$INSTALLED" = "$TAG" ] && [ -d "$HOME_DIR/current/.next-server" ] && [ -z "${SPARKFLOW_REINSTALL:-}" ]; then
+  ok "Sparkflow $TAG is already installed, nothing to update"
+  exit 0
+fi
+ok "$TAG${INSTALLED:+ (you have $INSTALLED)}"
+
+bold "Downloading"
 ASSET="sparkflow-$TAG.tar.gz"
 URL="${SPARKFLOW_TARBALL_URL:-https://github.com/$REPO/releases/download/$TAG}"
 
