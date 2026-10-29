@@ -110,6 +110,8 @@ export function HowItWorks() {
         {/* The title and a summary of the steps, on the other side of the phone. */}
         <nav className="hiw-summary">
           <div className="sticky top-[calc(50vh-180px)] text-right">
+            {/* Just as wide as its text: the ASCII field sits right beside it, on the left. */}
+            <div className="relative ml-auto w-max">
             <p className="landing-head mb-8 text-3xl font-semibold text-ink-100">How it works</p>
             <ol className="flex flex-col gap-3">
               {STEPS.map(({ kicker, title }, i) => (
@@ -128,10 +130,11 @@ export function HowItWorks() {
                 </li>
               ))}
             </ol>
-            {/* Fills the space under the summary: an ASCII motif for the step being read. Out of the flow,
-                so the pinned summary keeps its height and stays pinned to the last step. */}
-            <div className="absolute right-0 top-full mt-10">
+            {/* Fills the dark space left of the summary: an ASCII motif for the step being read. Out of
+                the flow, so the pinned summary keeps its size. */}
+            <div className="absolute right-full top-1/2 mr-8 -translate-y-1/2">
               <AsciiField step={Math.max(0, reached)} />
+            </div>
             </div>
           </div>
         </nav>
