@@ -58,28 +58,6 @@ function bubble(w: number, h: number): Bubble {
   return b;
 }
 
-/** The terminal's lines at time t (a 10 s loop), each as wide as the window's inside. */
-function shipLines(w: number, t: number) {
-  const inner = Math.max(18, Math.min(w - 2, 34)) - 4;
-  const k = t % 10;
-  const dots = (label: string, status: string) => `${label} ${".".repeat(Math.max(1, inner - label.length - status.length - 2))} ${status}`;
-  const bar = (label: string, from: number, to: number) => {
-    const p = Math.max(0, Math.min(1, (k - from) / (to - from)));
-    const pct = p >= 1 ? " ok" : `${Math.round(p * 100)}%`.padStart(3);
-    const n = inner - label.length - pct.length - 3;
-    const done = Math.round(p * n);
-    return `${label} [${"#".repeat(done)}${".".repeat(n - done)}]${pct}`;
-  };
-  const cmd = "$ sparkflow ship";
-  const out = [cmd.slice(0, Math.floor(k * 16))];
-  if (k > 1.4) out.push(dots("Release build", k > 2.4 ? "ok" : "..."));
-  if (k > 2.6) out.push(dots("Signing", k > 3.4 ? "ok" : "..."));
-  if (k > 3.6) out.push(bar("TestFlight ", 3.6, 6.4));
-  if (k > 4.2) out.push(bar("Google Play", 4.2, 7.2));
-  if (k > 7.6) out.push("Shipped to both stores.");
-  while (out.length < 6) out.push("");
-  return out;
-}
 
 /** An arrow pointer; the spaces inside it hide the ripples behind. */
 // Figma's pointer, drawn in white over the ripples: its tip at the top left.
@@ -99,6 +77,23 @@ const CURSOR = [
 /** Marks a character drawn in white rather than the field's blue. */
 const WHITE = "\u0001";
 const CURSOR_TAG = "[ bigger, in blue ]";
+
+/** A rocket, nose up; the spaces inside it hide the stars behind. */
+const ROCKET = [
+  "     /\\",
+  "    /  \\",
+  "   /    \\",
+  "   |    |",
+  "   | () |",
+  "   |    |",
+  "   |    |",
+  "  /|    |\\",
+  " / |    | \\",
+  "/__|____|__\\",
+  "    \\__/",
+];
+const ROCKET_W = 12;
+const FLAME_ROWS = 3;
 
 const MOTIFS: Motif[] = [
   // 01 Describe: a message bubble drawn in ASCII, the prompt typed into it, then typed again.
@@ -196,25 +191,33 @@ const MOTIFS: Motif[] = [
     const r = Math.hypot(dx * ASPECT, dy);
     return Math.max(0, Math.sin(r * 1.3 - t * 5)) * Math.exp(-r / (h * 0.45));
   },
-  // 07 Ship: a terminal shipping the app, step by step: the build, the signing, both stores filling up.
+  // 07 Ship: a rocket taking off in white, its flame flickering, stars streaming past in blue.
   (x, y, t, w, h) => {
-    const lines = shipLines(w, t);
-    const width = Math.max(18, Math.min(w - 2, 34));
-    const left = Math.floor((w - width) / 2);
-    const top = Math.floor(h / 2 - (lines.length + 4) / 2) - 2;
-    const right = left + width - 1;
-    const bottom = top + lines.length + 3;
-    if (y < top || y > bottom || x < left || x > right) return " ";
-    if (y === top || y === bottom) {
-      if (x === left || x === right) return y === top ? "." : "'";
-      // The window's title in the top edge.
-      const title = "-- ship ";
-      const i = x - left - 1;
-      return y === top && i < title.length ? title[i] : "-";
+    const rh = ROCKET.length + FLAME_ROWS;
+    // Rises from below the field to above it, then again.
+    const p = (t * 0.11) % 1;
+    const top = Math.round(h + 2 - p * (h + rh + 4));
+    const left = Math.round(w / 2 - ROCKET_W / 2);
+    const dy = y - top;
+    const dx = x - left;
+    const row = ROCKET[dy];
+    if (row !== undefined) {
+      const first = row.search(/\S/);
+      // Inside the hull it's blank; the hull itself is white.
+      if (dx >= first && dx < row.length) return row[dx] === " " ? " " : WHITE + row[dx];
+    } else if (dy >= ROCKET.length && dy < rh) {
+      // The flame: narrower and dimmer row by row, flickering.
+      const f = dy - ROCKET.length;
+      const half = 2 - f * 0.6;
+      const c = dx - ROCKET_W / 2 + 0.5;
+      if (Math.abs(c) <= half) {
+        const k = hash(Math.floor(t * 14) + f * 3, x);
+        return WHITE + (f === 0 ? (k > 0.5 ? "#" : "%") : f === 1 ? (k > 0.5 ? "*" : "+") : k > 0.5 ? ":" : ".");
+      }
     }
-    if (x === left || x === right) return "|";
-    const line = lines[y - top - 2];
-    return line?.[x - left - 2] ?? " ";
+    // Stars streaming down past it.
+    const r = Math.floor(y - t * (3 + hash(x, 7) * 5));
+    return hash(x, r) > 0.94 ? 0.3 + hash(r, x) * 0.6 : 0;
   },
 ];
 
