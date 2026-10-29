@@ -144,7 +144,7 @@ export function ConnectOnboarding() {
     <div
       data-ide
       data-landing="aurora"
-      className="relative grid min-h-screen place-items-center overflow-hidden bg-ink-950 px-4 py-16 text-ink-100"
+      className="relative grid h-dvh place-items-center overflow-hidden bg-ink-950 px-4 py-4 text-ink-100"
       // The landing's dot color ([data-ide] would make them heavier).
       style={{ "--dot": "rgba(255, 255, 255, 0.07)" } as React.CSSProperties}>
       {/* The landing's dot grid and magnifier: flat dots hollowed out where the lens canvas redraws them. */}
@@ -168,8 +168,8 @@ export function ConnectOnboarding() {
       </div>
 
       <div className="relative w-full max-w-[520px]">
-        <div className="mb-8 flex flex-col items-center text-center">
-          <span className="mb-5 grid size-14 place-items-center overflow-hidden rounded-2xl border border-white/15 bg-black shadow-[0_20px_60px_-20px_rgba(59,130,246,.6)]">
+        <div className="mb-5 flex flex-col items-center text-center">
+          <span className="mb-3 grid size-12 place-items-center overflow-hidden rounded-2xl border border-white/15 bg-black shadow-[0_20px_60px_-20px_rgba(59,130,246,.6)]">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/logo.png" alt="" className="size-full object-cover" />
           </span>
@@ -179,8 +179,8 @@ export function ConnectOnboarding() {
           </p>
         </div>
 
-        <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)]/90 p-6 shadow-2xl backdrop-blur">
-          <ol className="space-y-7">
+        <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)]/90 p-5 shadow-2xl backdrop-blur">
+          <ol className="space-y-5">
             <li className={step}>
               <span className={clsx(num, "border-[var(--line)] text-ink-300")}>1</span>
               <p className="mb-1 text-[14px] font-medium">Get the simulators</p>
@@ -244,7 +244,7 @@ export function ConnectOnboarding() {
           </ol>
         </div>
 
-        <p className="mt-5 flex items-start justify-center gap-2 text-center text-[12px] leading-relaxed text-ink-500">
+        <p className="mt-3 flex items-start justify-center gap-2 text-center text-[12px] leading-relaxed text-ink-500">
           <Lock size={12} className="mt-0.5 shrink-0" />
           If your browser asks to access devices on your local network, allow it: that's how this page finds sparkflow.
         </p>
