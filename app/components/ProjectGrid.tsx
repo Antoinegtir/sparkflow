@@ -32,7 +32,7 @@ function Cover({ src, device, native, building, faded, skin }: { src?: string; d
   // An app shown in the Android emulator: that emulator's own frame.
   if (skin && device === "simulator")
     return (
-      <div className={clsx("relative translate-y-10 transition group-hover:translate-y-7 max-sm:[zoom:.6]", faded && "opacity-80 group-hover:opacity-100")}>
+      <div className={clsx("relative translate-y-10 transition group-hover:translate-y-7 max-sm:translate-y-0 max-sm:group-hover:translate-y-0 max-sm:[zoom:.6]", faded && "opacity-80 group-hover:opacity-100")}>
         <SkinFrame skin={skin} style={{ width: COVER_W, height: Math.round((COVER_W * skin.height) / skin.width) }}>
           {src ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -44,7 +44,7 @@ function Cover({ src, device, native, building, faded, skin }: { src?: string; d
       </div>
     );
   return (
-    <div className={clsx("relative translate-y-10 transition group-hover:translate-y-7 max-sm:[zoom:.6]", faded && "opacity-80 group-hover:opacity-100")}>
+    <div className={clsx("relative translate-y-10 transition group-hover:translate-y-7 max-sm:translate-y-0 max-sm:group-hover:translate-y-0 max-sm:[zoom:.6]", faded && "opacity-80 group-hover:opacity-100")}>
       <DeviceMockup device={d} width={d.ipad ? COVER_W * 1.5 : COVER_W} dark={false} bare={native && !!src}>
         {src ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -223,7 +223,7 @@ export function ProjectGrid() {
                 }}
                 onDeleted={() => setProjects((ps) => ps?.filter((x) => x.id !== p.id) ?? null)}
               />
-              <div className="relative grid flex-1 place-items-center overflow-hidden bg-[radial-gradient(circle_at_50%_30%,color-mix(in_oklab,var(--color-spark-500)_22%,transparent),transparent_70%)] pt-4">
+              <div className="relative grid flex-1 place-items-center overflow-hidden max-sm:items-start bg-[radial-gradient(circle_at_50%_30%,color-mix(in_oklab,var(--color-spark-500)_22%,transparent),transparent_70%)] pt-4">
                 {/* Same dot grid as the New app card, behind the device. */}
                 <span
                   className="pointer-events-none absolute inset-0 opacity-60 transition group-hover:opacity-100"
@@ -276,7 +276,7 @@ export function ProjectGrid() {
         {saved?.map((p) => (
           // Saved to the account: opening it shows how to start sparkflow, then the app.
           <Link key={p.id} href={appHref(`/${p.slug}`)} className="group relative flex aspect-[4/5] flex-col overflow-hidden rounded-2xl border border-ink-700 bg-ink-900 shadow-[0_20px_50px_-30px_rgba(0,0,0,.8)] transition hover:-translate-y-1 hover:border-ink-600 hover:shadow-[0_30px_60px_-30px_var(--landing-glow)]">
-            <div className="relative grid flex-1 place-items-center overflow-hidden bg-[radial-gradient(circle_at_50%_30%,color-mix(in_oklab,var(--color-spark-500)_22%,transparent),transparent_70%)] pt-4">
+            <div className="relative grid flex-1 place-items-center overflow-hidden max-sm:items-start bg-[radial-gradient(circle_at_50%_30%,color-mix(in_oklab,var(--color-spark-500)_22%,transparent),transparent_70%)] pt-4">
               <Cover src={p.cover ?? (isDemo(p) ? "/demo/wander-cover.jpg" : undefined)} device={p.previewDevice} native={p.native} faded skin={skin} />
             </div>
             <div className="relative border-t border-ink-800 bg-ink-900 px-2 py-2 sm:px-3.5 sm:py-3">
@@ -303,8 +303,8 @@ export function ProjectGrid() {
               openOnBackend("/wander", router.push);
             }}
             className="group relative flex aspect-[4/5] cursor-pointer flex-col overflow-hidden rounded-2xl border border-ink-700 bg-ink-900 text-left shadow-[0_20px_50px_-30px_rgba(0,0,0,.8)] transition hover:-translate-y-1 hover:border-spark-500/60 hover:shadow-[0_30px_60px_-30px_var(--landing-glow)]">
-            <div className="relative grid flex-1 place-items-center overflow-hidden bg-[radial-gradient(circle_at_50%_30%,color-mix(in_oklab,var(--color-spark-500)_22%,transparent),transparent_70%)] pt-4">
-              <div className="relative translate-y-10 transition group-hover:translate-y-7 max-sm:[zoom:.6]">
+            <div className="relative grid flex-1 place-items-center overflow-hidden max-sm:items-start bg-[radial-gradient(circle_at_50%_30%,color-mix(in_oklab,var(--color-spark-500)_22%,transparent),transparent_70%)] pt-4">
+              <div className="relative translate-y-10 transition group-hover:translate-y-7 max-sm:translate-y-0 max-sm:group-hover:translate-y-0 max-sm:[zoom:.6]">
                 <DeviceMockup device={deviceById("iphone")} width={COVER_W} dark={false}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src="/demo/wander-cover.jpg" alt="" className="absolute inset-0 h-full w-full object-cover object-top" />
