@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ProjectSummary } from "@/lib/shared";
 import { timeAgo } from "@/lib/web/media";
+import { ImportNative } from "./ImportNative";
 import { InstallIcon } from "./InstallIcon";
 import { ProjectCardMenu } from "./ProjectCardMenu";
 import { deviceById, DeviceMockup } from "./ide/ui";
@@ -170,6 +171,8 @@ export function ProjectGrid() {
                 : "Built and verified on this machine"}
           </p>
         </div>
+        {/* Importing runs on this computer's sparkflow: not offered on a phone. */}
+        {!phone && <ImportNative />}
       </div>
       {phone && (
         <div className="mb-6">
