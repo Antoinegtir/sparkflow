@@ -290,8 +290,8 @@ const LOOK = [1100, 500, 900, 750, 750, 750, 900, 1600];
 // Outlines measured on the scaled app: its title, its rows, its progress bar (in % of the frame).
 const LOOK_CHECKS = [
   { label: "Header reads “Today”", box: "left-[3%] top-[4%] h-[16%] w-[42%]" },
-  { label: "Three habit rows", box: "left-[3%] top-[35%] h-[59%] w-[94%]" },
-  { label: "A progress bar", box: "left-[3%] top-[26%] h-[8%] w-[94%]" },
+  { label: "Three habit rows", box: "left-[3%] top-[36%] h-[58%] w-[94%]" },
+  { label: "A progress bar", box: "left-[3%] top-[27%] h-[6%] w-[94%]" },
 ];
 function Look() {
   const phase = useScene(LOOK);
@@ -318,15 +318,19 @@ function Look() {
       {/* The screenshot, framed like a viewfinder, with what each criterion looks at outlined. */}
       <div className="relative mx-auto w-[84%] rounded-xl border border-black/10 bg-white p-2 shadow-md">
         {/* The app, scaled down whole; the outlines are placed on it, so they land on its elements. */}
-        <div className="relative h-[124px] overflow-hidden">
+        <div className="relative h-[124px]">
           <div className="origin-top-left scale-[0.72]" style={{ width: `${100 / 0.72}%` }}>
             <MiniApp done={done} onTap={(i) => setDone((d) => d.map((x, j) => (j === i ? !x : x)))} />
           </div>
           <div className={clsx("pointer-events-none absolute inset-0 bg-white transition-opacity duration-150", phase === 1 ? "opacity-90" : "opacity-0")} />
-          {phase === 2 && <div className="hiw-scan pointer-events-none absolute inset-x-0 h-8 bg-gradient-to-b from-transparent via-sky-400/30 to-transparent" />}
+          {phase === 2 && (
+            <div className="pointer-events-none absolute inset-0 overflow-hidden">
+              <div className="hiw-scan absolute inset-x-0 h-8 bg-gradient-to-b from-transparent via-sky-400/30 to-transparent" />
+            </div>
+          )}
           {LOOK_CHECKS.map((c, i) => (
             <span key={c.label} className={clsx("pointer-events-none absolute rounded-md border-2 transition-all duration-300", c.box, checking === i ? "border-spark-500 bg-spark-500/10 opacity-100" : i < through ? "border-emerald-500/50 opacity-100" : "border-transparent opacity-0")}>
-              <span className={clsx("absolute -right-1.5 -top-1.5 grid size-3.5 place-items-center rounded-full text-[7px] font-bold text-white", i < through && checking !== i ? "bg-emerald-500" : "bg-spark-500")}>{i + 1}</span>
+              <span className={clsx("absolute -right-2 top-1/2 grid size-3.5 -translate-y-1/2 place-items-center rounded-full text-[7px] font-bold text-white", i < through && checking !== i ? "bg-emerald-500" : "bg-spark-500")}>{i + 1}</span>
             </span>
           ))}
         </div>
