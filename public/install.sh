@@ -148,6 +148,17 @@ elif has brew; then
 else
   warn "watchman not found (optional, faster reloads)"
 fi
+
+# GitHub CLI: puts an app's history on GitHub from the Code tab (creates the repository, pushes).
+if ! has gh && has brew; then
+  warn "GitHub CLI missing: installing it (to put your apps on GitHub)"
+  brew install gh >/dev/null 2>&1 || true
+fi
+if has gh; then
+  if gh auth status >/dev/null 2>&1; then ok "GitHub CLI (signed in)"; else warn "GitHub CLI installed: sign in once to create repositories from Sparkflow: gh auth login"; fi
+else
+  warn "GitHub CLI not found (optional, to put your apps on GitHub): brew install gh"
+fi
 rm -rf "$TMP_TOOLS"
 
 # ---------- Release ----------

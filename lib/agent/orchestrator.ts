@@ -1,4 +1,6 @@
-import { readFile } from "node:fs/promises";
+import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
+import { lstat, readdir, readFile, readlink, symlink, unlink } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import sharp from "sharp";
@@ -24,7 +26,7 @@ import { PREVIEW_DEVICES } from "../web/devices";
 import { createDriver } from "../sandbox";
 import { FolderSandbox, listSourceFiles } from "../sandbox/local";
 import type { InspectTargetResult, Sandbox, SandboxDriver } from "../sandbox/types";
-import { expandHome } from "../sandbox/util";
+import { dataDir, expandHome } from "../sandbox/util";
 import { loadEnv } from "./env";
 import { createProvider } from "./llm";
 import type { LLMProvider } from "./llm/types";
@@ -219,6 +221,7 @@ export class Orchestrator {
         const rt = await this.runtime(m.id).catch(() => null);
         const s = rt?.state;
         const cover = s?.order.map((r) => s.screens[r]).find((x) => x?.screenshotUrl)?.screenshotUrl;
+        if (!m.native) void this.linkFolder(m.id, s?.name ?? m.name).catch(() => {});
         return {
           id: m.id,
           name: s?.name ?? m.name,
@@ -887,7 +890,94 @@ export class Orchestrator {
   /** The project's folder on this computer (for opening it in an editor); null for a remote sandbox. */
   async projectFolder(id: string) {
     const rt = await this.runtime(id);
-    return ((await this.sandbox(rt)) as { dir?: string }).dir ?? null;
+    const dir = ((await this.sandbox(rt)) as { dir?: string }).dir ?? null;
+    // Its readable name in the apps folder (~/Documents/apps/wander) when there is one.
+    return (!rt.meta.native && (await this.linkFolder(id, rt.state.name ?? rt.meta.name).catch(() => null))) || dir;
+  }
+
+  /** Shows the project's folder in Finder (or the Linux file manager). */
+  async revealProject(id: string) {
+    const dir = await this.projectFolder(id);
+    if (!dir) throw new Error("This project has no folder on this computer");
+    spawn(process.platform === "darwin" ? "open" : "xdg-open", [dir], { detached: true, stdio: "ignore" }).unref();
+  }
+
+  /**
+   * GitHub for the project's git history (every change Sparkflow makes is a commit): its remote, and
+   * whether the GitHub CLI can create a repository for it.
+   */
+  async githubStatus(id: string) {
+    const sb = await this.sandbox(await this.runtime(id));
+    const remote = (await sb.exec("git remote get-url origin", { timeoutSec: 10 })).stdout.trim() || null;
+    const user = (await sb.exec("gh api user -q .login", { timeoutSec: 15 })).stdout.trim() || null;
+    const ahead = remote ? Number((await sb.exec("git rev-list --count @{u}..HEAD", { timeoutSec: 10 })).stdout.trim()) : NaN;
+    return { remote, url: remote ? webUrlOf(remote) : null, ghUser: user, unpushed: Number.isFinite(ahead) ? ahead : null };
+  }
+
+  /** Creates a GitHub repository for the project (GitHub CLI), or connects one by URL, then pushes. */
+  async githubConnect(id: string, how: { create: { name: string; private: boolean } } | { url: string }) {
+    const rt = await this.runtime(id);
+    if (rt.running) throw new BusyError();
+    const sb = await this.sandbox(rt);
+    const run = async (cmd: string, timeoutSec = 120) => {
+      const r = await sb.exec(cmd, { timeoutSec });
+      if (r.code !== 0) throw new Error((r.stderr || r.stdout).trim().split("\n").pop() || `Failed: ${cmd}`);
+      return r.stdout.trim();
+    };
+    if ("create" in how) {
+      if (!/^[\w.-]{1,100}$/.test(how.create.name)) throw new Error("Repository names use letters, digits, - _ and .");
+      await run(`gh repo create ${q(how.create.name)} ${how.create.private ? "--private" : "--public"} --source=. --remote=origin --push`, 180);
+    } else {
+      if (!/^(https:\/\/github\.com\/|git@github\.com:)[\w.-]+\/[\w.-]+?(\.git)?$/.test(how.url)) throw new Error("A GitHub repository URL, like https://github.com/you/app");
+      const has = (await sb.exec("git remote get-url origin")).code === 0;
+      await run(`git remote ${has ? "set-url" : "add"} origin ${q(how.url)}`);
+      await run("git push -u origin HEAD:main", 180);
+    }
+    return this.githubStatus(id);
+  }
+
+  /** Sends the project's new commits to GitHub. */
+  async githubPush(id: string) {
+    const sb = await this.sandbox(await this.runtime(id));
+    const r = await sb.exec("git push -u origin HEAD:main", { timeoutSec: 180 });
+    if (r.code !== 0) throw new Error((r.stderr || r.stdout).trim().split("\n").pop() || "Push failed");
+    return this.githubStatus(id);
+  }
+
+  private linked = new Map<string, string>();
+  /**
+   * The apps folder shows each app under its own name: a link (~/Documents/apps/wander) to its code,
+   * which stays in sandboxes/<id> (moving it would break a running Metro and its git history). The
+   * link follows renames; a name already taken gets a number (wander-2).
+   */
+  private async linkFolder(id: string, name: string): Promise<string | null> {
+    const root = dataDir();
+    const target = path.join(root, "sandboxes", id);
+    if (!existsSync(target)) return null;
+    const base = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "app";
+    const known = this.linked.get(id);
+    if (known && path.basename(known).replace(/-\d+$/, "") === base && existsSync(known)) return known;
+    const reserved = new Set(["projects", "sandboxes", "inspect", "cache", "logs"]);
+    let mine: string | null = null;
+    for (const entry of await readdir(root)) {
+      const p = path.join(root, entry);
+      if (!(await lstat(p)).isSymbolicLink() || (await readlink(p)) !== target) continue;
+      // Its link under the old name goes when the app is renamed.
+      if (entry.replace(/-\d+$/, "") === base) mine = p;
+      else await unlink(p).catch(() => {});
+    }
+    if (!mine) {
+      for (let n = 1; ; n++) {
+        const entry = n === 1 ? base : `${base}-${n}`;
+        // lstat, not existsSync: a dangling link still takes the name.
+        if (reserved.has(entry) || (await lstat(path.join(root, entry)).catch(() => null))) continue;
+        mine = path.join(root, entry);
+        await symlink(target, mine);
+        break;
+      }
+    }
+    this.linked.set(id, mine);
+    return mine;
   }
 
   /** The app's own settings, from app.json: what the Settings dialog shows. */
@@ -901,8 +991,9 @@ export class Orchestrator {
     return {
       name: expo.name && expo.name !== "Sparkflow App" ? expo.name : rt.meta.name,
       version: expo.version ?? "1.0.0",
-      bundleIdentifier: expo.ios?.bundleIdentifier ?? id_,
-      androidPackage: expo.android?.package ?? id_,
+      // dev.sparkflow.app is the template's (Sparkflow Dev's): an app of its own gets com.sparkflow.<name>.
+      bundleIdentifier: expo.ios?.bundleIdentifier && expo.ios.bundleIdentifier !== "dev.sparkflow.app" ? expo.ios.bundleIdentifier : id_,
+      androidPackage: expo.android?.package && expo.android.package !== "dev.sparkflow.app" ? expo.android.package : id_,
       orientation: expo.orientation ?? "portrait",
       appearance: expo.userInterfaceStyle ?? "automatic",
       splashBackground: splash.backgroundColor ?? "#ffffff",
@@ -1234,3 +1325,12 @@ export function getOrchestrator() {
 }
 
 export type { MediaInput, Verdict, InspectTargetResult };
+
+/** A shell argument, quoted. */
+const q = (s: string) => `'${s.replace(/'/g, "'\\''")}'`;
+
+/** A git remote as its GitHub page. */
+function webUrlOf(remote: string) {
+  const m = /github\.com[:/]([\w.-]+)\/([\w.-]+?)(\.git)?$/.exec(remote);
+  return m ? `https://github.com/${m[1]}/${m[2]}` : null;
+}

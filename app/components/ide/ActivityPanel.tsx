@@ -1,10 +1,12 @@
 "use client";
 
 import clsx from "clsx";
+import { FolderOpen } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { NavEdge, ProjectState } from "@/lib/shared";
 import { highlightLine } from "@/lib/web/highlight";
 import { FlowPanel } from "./FlowPanel";
+import { GitHubSetup } from "./GitHubSetup";
 import { LayoutTree, type LayoutPick } from "./LayoutTree";
 
 export type PanelTab = "layout" | "code" | "activity";
@@ -185,6 +187,14 @@ function CodeView({ projectId, state, file, line, onFile }: { projectId: string;
             <path fill="#0065A9" d="M23.15 2.59 18.21.21a1.49 1.49 0 0 0-1.7.29L7.04 9.13 2.93 6.01a1 1 0 0 0-1.27.06L.33 7.28a1 1 0 0 0 0 1.48L3.9 12 .33 15.24a1 1 0 0 0 0 1.48l1.33 1.21a1 1 0 0 0 1.27.06l4.11-3.12 9.47 8.63a1.49 1.49 0 0 0 1.7.29l4.94-2.38A1.5 1.5 0 0 0 24 20.06V3.94a1.5 1.5 0 0 0-.85-1.35ZM18 17.45 10.82 12 18 6.55Z" />
           </svg>
         </button>
+        <button
+          onClick={() => void fetch(`/api/projects/${projectId}/reveal`, { method: "POST" })}
+          title="Show the project in Finder"
+          aria-label="Show the project in Finder"
+          className="grid size-7 shrink-0 cursor-pointer place-items-center rounded-md border border-[var(--line)] text-ink-200 hover:bg-ink-800">
+          <FolderOpen size={14} />
+        </button>
+        {!state.native && <GitHubSetup projectId={projectId} appName={state.name} />}
       </div>
       <div ref={scroller} className="min-h-0 flex-1 overflow-auto">
         {!file && <p className="p-4 text-[12px] text-ink-500">Read-only view of the project&apos;s code. Pick a file, or click an element in the Layout tab.</p>}

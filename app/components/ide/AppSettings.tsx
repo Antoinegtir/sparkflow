@@ -118,17 +118,18 @@ export function AppSettings({ projectId, onClose }: { projectId: string; onClose
               <div>
                 <span className={label}>iOS bundle ID</span>
                 <input className={clsx(input, "font-mono")} value={s.bundleIdentifier} onChange={(e) => set("bundleIdentifier", e.target.value)} placeholder="com.company.app" />
+                <StoreCheck id={s.bundleIdentifier} store="ios" />
               </div>
               <div>
                 <span className={label}>Android package</span>
                 <input className={clsx(input, "font-mono")} value={s.androidPackage} onChange={(e) => set("androidPackage", e.target.value)} placeholder="com.company.app" />
+                <StoreCheck id={s.androidPackage} store="android" />
               </div>
             </div>
             <p className="-mt-3 text-[11.5px] leading-snug text-ink-500">Used when you publish the app. In Sparkflow Dev and Expo Go the app keeps running as it does now.</p>
 
             <div className="grid grid-cols-2 gap-3">
               <Choice label="Orientation" value={s.orientation} options={[["portrait", "Portrait"], ["landscape", "Landscape"], ["default", "Both"]]} onChange={(v) => set("orientation", v)} />
-              <Choice label="Appearance" value={s.appearance} options={[["automatic", "Auto"], ["light", "Light"], ["dark", "Dark"]]} onChange={(v) => set("appearance", v)} />
             </div>
           </div>
         )}
@@ -146,6 +147,37 @@ export function AppSettings({ projectId, onClose }: { projectId: string; onClose
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * Whether the ID is already used on the App Store (bundle ID) or Google Play (package), looked up
+ * on the stores a moment after typing stops.
+ */
+function StoreCheck({ id, store }: { id: string; store: "ios" | "android" }) {
+  const [state, setState] = useState<"checking" | "taken" | "free" | "unknown" | null>(null);
+  useEffect(() => {
+    if (!/^[A-Za-z][\w-]*(\.[A-Za-z][\w-]*)+$/.test(id)) return setState(null);
+    setState("checking");
+    let alive = true;
+    const t = setTimeout(() => {
+      fetch(`/api/bundle-check?id=${encodeURIComponent(id)}`)
+        .then((r) => r.json())
+        .then((j) => alive && setState(j[store] ?? "unknown"))
+        .catch(() => alive && setState("unknown"));
+    }, 500);
+    return () => {
+      alive = false;
+      clearTimeout(t);
+    };
+  }, [id, store]);
+  if (!state) return null;
+  const where = store === "ios" ? "the App Store" : "Google Play";
+  return (
+    <p className={clsx("mt-1 flex items-center gap-1 text-[11px]", state === "taken" ? "text-amber-400" : state === "free" ? "text-emerald-400" : "text-ink-500")}>
+      {state === "checking" && <Loader2 size={11} className="animate-spin" />}
+      {state === "checking" ? `Checking ${where}…` : state === "taken" ? `Already used on ${where}` : state === "free" ? `Not used on ${where}` : `Couldn't check ${where}`}
+    </p>
   );
 }
 

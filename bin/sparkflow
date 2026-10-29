@@ -78,6 +78,11 @@ doctor() {
     warn "Not macOS: the iOS Simulator features are unavailable"
   fi
   android_checks
+  if command -v gh >/dev/null; then
+    gh auth status >/dev/null 2>&1 && ok "GitHub CLI (signed in)" || warn "GitHub CLI not signed in (to create repositories): gh auth login"
+  else
+    warn "GitHub CLI not found (optional, to put your apps on GitHub): brew install gh"
+  fi
   command -v watchman >/dev/null && ok "watchman" || warn "watchman not found (optional, faster reloads): brew install watchman"
   [ -f "$HOME_DIR/.env" ] && grep -q '^MODEL_API_KEY=.' "$HOME_DIR/.env" && ok "Muse Spark API key set (on this computer only)" || warn "No Muse Spark API key: demo mode (sparkflow key to add one)"
   ok "Apps in $(data_dir | sed "s|^$HOME|~|") (sparkflow folder to change)"

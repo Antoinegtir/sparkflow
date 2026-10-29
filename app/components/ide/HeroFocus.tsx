@@ -143,6 +143,26 @@ export function HeroFocus(p: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [webSim, simUdid, s.route, p.state.preview?.webUrl]);
 
+  // Sparkflow Dev back on its own home screen (the server list: the app lost its Metro, or was closed):
+  // open the app again by itself, at most every 20 s.
+  const reopened = useRef(0);
+  useEffect(() => {
+    if (!webSim || !simUdid || !p.state.preview || p.simFrozen) return;
+    const preview = p.state.preview;
+    const t = setInterval(async () => {
+      if (Date.now() - reopened.current < 20000 || document.hidden) return;
+      const q = new URLSearchParams([["text", "Fetch development servers"], ["text", "Development Build"]]);
+      const home = await fetch(`/api/sim/${simUdid}/find?${q}`)
+        .then((r) => r.json())
+        .catch(() => null);
+      if (!home?.count || home.count < 2) return;
+      reopened.current = Date.now();
+      void openInSimulator(simUdid, preview, s.previewPath ?? "/", s.route, { quiet: true }).catch(() => {});
+    }, 5000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [webSim, simUdid, p.state.preview?.webUrl, p.simFrozen, s.route]);
+
   // Target rect: height clamp(h − 190, 380..800), aspect of the simulator (native) or 390×844.
   // Web projects: the page is previewed in the project's device, picked in the tool rail.
   const deviceId = p.state.previewDevice ?? "iphone";
