@@ -309,42 +309,78 @@ const MOTIFS: Motif[] = [
 const escape = (c: string) => (c === "<" ? "&lt;" : c === ">" ? "&gt;" : c === "&" ? "&amp;" : c);
 
 /** One frame as HTML: the field's characters, with white ones (a WHITE mark) in a white span. */
-const GLITCH = "!<>-_\\/[]{}=+*^?#%@01";
-const TRANSITION = 0.7;
+const TRANSITION = 1.1;
 
-function cell(f: Motif, x: number, y: number, t: number, cols: number, rows: number) {
-  const v = f(x, y, t, cols, rows);
-  if (typeof v !== "string") return RAMP[Math.round(Math.max(0, Math.min(1, v)) * (RAMP.length - 1))];
-  if (v.startsWith(WHITE)) return `<span class="text-white">${escape(v.slice(1))}</span>`;
-  return escape(v);
+/** A step's frame as characters, row after row; a white one is prefixed with WHITE. */
+function chars(step: number, t: number, cols: number, rows: number) {
+  const f = MOTIFS[Math.max(0, Math.min(MOTIFS.length - 1, step))];
+  const out: string[] = [];
+  for (let y = 0; y < rows; y++)
+    for (let x = 0; x < cols; x++) {
+      const v = f(x, y, t, cols, rows);
+      out.push(typeof v !== "string" ? RAMP[Math.round(Math.max(0, Math.min(1, v)) * (RAMP.length - 1))] : v);
+    }
+  return out;
 }
 
-/**
- * One frame of the field. While `p` (0..1) runs, the previous step's motif is wiped away by a ragged
- * diagonal front of random glyphs, the new motif behind it.
- */
-function frame(step: number, t: number, cols: number, rows: number, from = step, p = 1) {
-  const pick = (s: number) => MOTIFS[Math.max(0, Math.min(MOTIFS.length - 1, s))];
-  const f = pick(step);
-  const g = pick(from);
-  const span = cols + rows;
-  const front = p * (span + 12) - 6;
+function html(grid: string[], cols: number) {
   let out = "";
-  for (let y = 0; y < rows; y++) {
-    for (let x = 0; x < cols; x++) {
-      if (p >= 1) {
-        out += cell(f, x, y, t, cols, rows);
-        continue;
-      }
-      // A ragged front: each cell crosses it at its own moment.
-      const d = x + y + (hash(x, y) - 0.5) * 8 - front;
-      if (d < -3) out += cell(f, x, y, t, cols, rows);
-      else if (d > 3) out += cell(g, x, y, t, cols, rows);
-      else out += escape(GLITCH[Math.floor(hash(x + Math.floor(t * 20), y) * GLITCH.length)]);
-    }
-    out += "\n";
+  grid.forEach((c, i) => {
+    out += c.startsWith(WHITE) ? `<span class="text-white">${escape(c.slice(1))}</span>` : escape(c);
+    if (i % cols === cols - 1) out += "\n";
+  });
+  return out;
+}
+
+/** A character flying from where it was in the old motif to its place in the new one. */
+type Flight = { x0: number; y0: number; x1: number; y1: number; from: string; to: string; delay: number };
+
+/**
+ * The hero transition: every character drawn by the old motif flies to a spot of the new one (matched in
+ * reading order, so shapes keep their sense), turning into its new character on the way. Spare ones fade
+ * out where they land; missing ones appear in place.
+ */
+function flights(a: string[], b: string[], cols: number): Flight[] {
+  const on = (g: string[]) => g.flatMap((c, i) => (c !== " " ? [i] : []));
+  const A = on(a);
+  const B = on(b);
+  const n = Math.max(A.length, B.length);
+  const out: Flight[] = [];
+  for (let k = 0; k < n; k++) {
+    // Spread the smaller set over the larger one, so both are covered evenly: one old character can
+    // split into several new ones, or several merge into one.
+    const i = A.length ? A[Math.floor((k * A.length) / n)] : B[k];
+    const j = B.length ? B[Math.floor((k * B.length) / n)] : -1;
+    out.push({
+      x0: i % cols,
+      y0: Math.floor(i / cols),
+      x1: j < 0 ? i % cols : j % cols,
+      y1: j < 0 ? Math.floor(i / cols) : Math.floor(j / cols),
+      from: A.length ? a[i] : b[j],
+      to: j < 0 ? " " : b[j],
+      delay: hash(i % 97, k % 89) * 0.35,
+    });
   }
   return out;
+}
+
+const ease = (p: number) => (p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2);
+
+function transit(fs: Flight[], p: number, cols: number, rows: number) {
+  const grid = Array<string>(cols * rows).fill(" ");
+  for (const f of fs) {
+    const q = ease(Math.max(0, Math.min(1, (p - f.delay) / (1 - 0.35))));
+    // An arc: they lift a little off the straight line on the way.
+    const x = Math.round(f.x0 + (f.x1 - f.x0) * q + Math.sin(q * Math.PI) * (f.y1 - f.y0) * 0.15);
+    const y = Math.round(f.y0 + (f.y1 - f.y0) * q);
+    if (x < 0 || y < 0 || x >= cols || y >= rows) continue;
+    grid[y * cols + x] = q < 0.6 ? f.from : f.to;
+  }
+  return grid;
+}
+
+function frame(step: number, t: number, cols: number, rows: number) {
+  return html(chars(step, t, cols, rows), cols);
 }
 
 export function AsciiField({ step }: { step: number }) {
@@ -361,7 +397,7 @@ export function AsciiField({ step }: { step: number }) {
     let last = 0;
     const start = performance.now();
     let shown = stepRef.current;
-    let from = shown;
+    let fs: Flight[] | null = null;
     let changed = -TRANSITION;
     // As many columns as fit between the screen's left edge and the field's right edge (it's anchored
     // there, beside the summary), and as many rows as 80% of the screen's height, from one character's size.
@@ -387,13 +423,15 @@ export function AsciiField({ step }: { step: number }) {
       if (now - last < 50) return;
       last = now;
       const t = (now - start) / 1000;
-      // A new step: the field switches over with a transition.
+      // A new step: the old motif's characters fly over to the new one.
       if (stepRef.current !== shown) {
-        from = shown;
+        const old = chars(shown, t, cols, rows);
         shown = stepRef.current;
+        fs = flights(old, chars(shown, t + TRANSITION, cols, rows), cols);
         changed = t;
       }
-      el.innerHTML = frame(shown, t, cols, rows, from, Math.min(1, (t - changed) / TRANSITION));
+      const p = (t - changed) / TRANSITION;
+      el.innerHTML = p < 1 && fs ? html(transit(fs, p, cols, rows), cols) : frame(shown, t, cols, rows);
     };
     el.innerHTML = frame(stepRef.current, 1.2, cols, rows);
     if (still) return () => removeEventListener("resize", fit);
