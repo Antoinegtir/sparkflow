@@ -41,8 +41,9 @@ export const GET = handle(async (req: Request, { params }: RouteCtx) => {
   }
   if (!file) return Response.json({ file: null, component: null, components: [], screens: [] });
   const source = await o.readProjectFile(id, file);
-  const { components, screens } = parseJsx(source, file);
-  // Generated pages: the page component is the first capitalized one in the file.
-  if (!component && !state.native) component = components.find((c) => /^[A-Z]/.test(c.name))?.name ?? null;
+  const { components, screens, defaultName } = parseJsx(source, file);
+  // Generated pages: the page component is the file's default export, else its first capitalized one
+  // (a helper like TripCard can come before the page).
+  if (!component && !state.native) component = components.find((c) => c.name === defaultName)?.name ?? components.find((c) => /^[A-Z]/.test(c.name))?.name ?? null;
   return Response.json({ file, component, components, screens });
 });

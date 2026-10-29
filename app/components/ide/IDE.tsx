@@ -155,7 +155,6 @@ export function IDE({ id, slug: initialSlug, initialPage }: { id: string; slug: 
       setClosing(false);
       setFromUrl(false);
       setCompare(null);
-      if (route !== focused) setSelections([]);
       setFocused(route);
       setTab((t) => (t === "activity" ? t : "layout"));
     },
@@ -165,6 +164,10 @@ export function IDE({ id, slug: initialSlug, initialPage }: { id: string; slug: 
     setInspect(false);
     setClosing(true);
   }, []);
+
+  // Picks belong to the page they were made on: leaving it (from the explorer, the preview or a tap in
+  // the Simulator) drops them, so they never outline something on another page.
+  useEffect(() => setSelections([]), [focused]);
 
   // Focusing a web page opens its file in Code.
   useEffect(() => {

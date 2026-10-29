@@ -310,7 +310,8 @@ export function HeroFocus(p: Props) {
                 inspect={p.inspect}
                 onPick={(pk: SimPick) => p.onSelect({ testId: pk.testId, text: pk.text, area: pk.area })}
                 highlights={p.layoutHover ? { find: p.layoutHover.find, each: p.layoutHover.each } : null}
-                selected={p.selections.map((x) => ({ area: x.area, find: x.find ?? (x.text ? { ids: x.testId ? [x.testId] : [], texts: [x.text] } : undefined) }))}
+                // Picked areas already have their numbered outline (below): the Simulator outlines the rest.
+                selected={p.selections.filter((x) => !x.area).map((x) => ({ find: x.find ?? (x.text ? { ids: x.testId ? [x.testId] : [], texts: [x.text] } : undefined) }))}
               />
               {/* A generated app opening in Sparkflow Dev: build / open progress, or the error. */}
               {webSim && <DevClientOverlay name={p.state.name} />}

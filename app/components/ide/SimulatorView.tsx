@@ -19,8 +19,8 @@ type El = { type: string; label: string | null; id: string | null; frame: { x: n
  * Where an element is on the Simulator's screen (see /api/sim/[udid]/find). Not found: its nearest
  * parent that is, up to the whole screen, so a pick always outlines something.
  */
-async function findOnScreen(udid: string, f: SimFind | undefined): Promise<{ union: Area; frames: Area[] } | null> {
-  if (!f) return null;
+async function findOnScreen(udid: string, f: SimFind | undefined, wholeFallback = true, first = true): Promise<{ union: Area; frames: Area[] } | null> {
+  if (!f || (f.whole && !first && !wholeFallback)) return null;
   if (f.whole || f.ids.length || f.texts.length) {
     const q = new URLSearchParams([...f.ids.map((v) => ["id", v]), ...f.texts.map((v) => ["text", v]), ...(f.whole ? [["whole", "1"]] : [])]);
     const found = await fetch(`/api/sim/${udid}/find?${q}`)
@@ -28,7 +28,7 @@ async function findOnScreen(udid: string, f: SimFind | undefined): Promise<{ uni
       .catch(() => null);
     if (found?.union) return found;
   }
-  return findOnScreen(udid, f.fallback);
+  return findOnScreen(udid, f.fallback, wholeFallback, false);
 }
 
 export function SimulatorView({
@@ -316,7 +316,8 @@ export function SimulatorView({
   useEffect(() => {
     if (!udid || !highlights) return setBoxes([]);
     let alive = true;
-    void findOnScreen(udid, highlights.find).then((j) => alive && setBoxes(j ? (highlights.each ? j.frames : [j.union]) : []));
+    // A hover that finds nothing better than the whole screen outlines nothing.
+    void findOnScreen(udid, highlights.find, false).then((j) => alive && setBoxes(j ? (highlights.each ? j.frames : [j.union]) : []));
     return () => {
       alive = false;
     };

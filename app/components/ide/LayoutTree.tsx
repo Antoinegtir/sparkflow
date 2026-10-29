@@ -6,6 +6,8 @@ import { createContext, useContext, useEffect, useState } from "react";
 
 /** Keys of the elements currently picked into the prompt; their rows stay highlighted. */
 const Selected = createContext<Set<string>>(new Set());
+/** The file's own components by name: <TripCard /> is found by what TripCard draws. */
+const Locals = createContext<Record<string, JsxNode[]>>({});
 import type { ProjectState } from "@/lib/shared";
 import type { JsxComponent, JsxNode } from "@/lib/web/jsx-tree";
 
@@ -35,9 +37,10 @@ export type SimFind = { ids: string[]; texts: string[]; whole?: boolean; fallbac
 const MAX_FIND = 40;
 const isEmptyFind = (f: SimFind) => !f.whole && !f.ids.length && !f.texts.length;
 
-export function findOf(n: JsxNode, hintsBy: Record<string, string[]>, whole: boolean): SimFind {
+export function findOf(n: JsxNode, hintsBy: Record<string, string[]>, whole: boolean, locals: Record<string, JsxNode[]> = {}): SimFind {
   const ids = new Set<string>();
   const texts = new Set<string>();
+  const opened = new Set<string>();
   const walk = (x: JsxNode, hints: Record<string, string[]>) => {
     if (x.kind === "text") {
       const m = x.text.match(/^\{(.+)\}$/);
@@ -48,6 +51,14 @@ export function findOf(n: JsxNode, hintsBy: Record<string, string[]>, whole: boo
     if (x.kind === "element") {
       const id = x.attrs.testID;
       if (id && !id.startsWith("{")) ids.add(id.replace(/^["'`]|["'`]$/g, ""));
+      // A testID built per item (`trips-card-${trip.id}`, "trips-card-" + id): every item, by its fixed start.
+      const start = id?.match(/^\{\s*`([^`$]{3,})\$\{/)?.[1] ?? id?.match(/^\{\s*["']([^"']{3,})["']\s*\+/)?.[1];
+      if (start) ids.add(`${start}*`);
+      // One of this file's components: what it draws (once, so recursive ones end).
+      if (locals[x.label] && !opened.has(x.label)) {
+        opened.add(x.label);
+        locals[x.label].forEach((c) => walk(c, hints));
+      }
       for (const a of [...LITERAL_ATTRS, "accessibilityLabel"]) if (x.attrs[a] && !x.attrs[a].startsWith("{")) texts.add(x.attrs[a]);
       // The kit's Avatar shows the initials of its name.
       if (x.label === "Avatar" && x.attrs.name && !x.attrs.name.startsWith("{"))
@@ -150,6 +161,7 @@ export function LayoutTree({
 
   return (
     <Selected.Provider value={selectedKeys}>
+    <Locals.Provider value={Object.fromEntries(layout.components.map((c) => [c.name, c.tree]))}>
     <div className="h-full overflow-auto pb-24">
       <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[var(--line)] bg-[var(--panel)] px-3 py-2">
         <span className="truncate font-mono text-[11px] text-ink-400">{layout.file}</span>
@@ -161,6 +173,7 @@ export function LayoutTree({
           : layout.components.map((c) => <ComponentBlock key={c.name} c={c} file={layout.file!} isPage={c.name === layout.component} onHover={onHover} onPick={onPick} onJump={onJump} />)}
       </div>
     </div>
+    </Locals.Provider>
     </Selected.Provider>
   );
 }
@@ -212,7 +225,8 @@ function Row({
   const textOnly = node.kind === "element" && kids.length > 0 && kids.every((k) => k.kind === "text");
   const inline = textOnly ? kids.map((k) => (k.kind === "text" ? k.text : "")).join(" ") : null;
 
-  const own = findOf(node, hintsBy, root || (node.kind === "element" && (node.label === "Screen" || /-screen$/.test(node.attrs.testID ?? ""))));
+  const locals = useContext(Locals);
+  const own = findOf(node, hintsBy, root || (node.kind === "element" && (node.label === "Screen" || /-screen$/.test(node.attrs.testID ?? ""))), locals);
   // Not on screen by itself (nothing to find, or nothing found): the nearest parent that is.
   const findable = isEmptyFind(own) ? inherited : { ...own, ...(inherited ? { fallback: inherited } : {}) };
   const container = node.kind === "element" && !textOnly && kids.some((k) => k.kind !== "text");

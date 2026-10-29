@@ -24,8 +24,10 @@ export const GET = handle(async (req: Request, { params }: RouteCtx<{ udid: stri
   const frames = all
     .filter((e) => {
       if (!e.frame || e.frame.width >= 1000) return false;
-      // A kit component's parts carry ids derived from its own: profile-scheme → profile-scheme-light.
-      if (e.AXUniqueId && (ids.has(e.AXUniqueId) || [...ids].some((id) => e.AXUniqueId!.startsWith(`${id}-`)))) return true;
+      // A kit component's parts carry ids derived from its own (profile-scheme → profile-scheme-light);
+      // "trips-card-*" stands for every id built from that start (trips-card-t1, trips-card-t2…).
+      const uid = e.AXUniqueId;
+      if (uid && [...ids].some((id) => (id.endsWith("*") ? uid.startsWith(id.slice(0, -1)) : uid === id || uid.startsWith(`${id}-`)))) return true;
       const l = (e.AXLabel ?? "").toLowerCase().trim();
       return !!l && texts.some((t) => l === t || (t.length >= 5 && l.includes(t)));
     })

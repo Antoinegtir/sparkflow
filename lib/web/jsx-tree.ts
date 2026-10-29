@@ -142,7 +142,11 @@ export function parseJsx(source: string, fileName: string) {
   };
 
   const components: JsxComponent[] = [];
+  // The file's default export (`export default function Trips`, `export default Trips`): a page's own component.
+  let defaultName: string | null = null;
   for (const st of sf.statements) {
+    if (ts.isExportAssignment(st) && ts.isIdentifier(st.expression)) defaultName = st.expression.text;
+    if (ts.isFunctionDeclaration(st) && st.name && st.modifiers?.some((m) => m.kind === ts.SyntaxKind.DefaultKeyword)) defaultName = st.name.text;
     if (ts.isFunctionDeclaration(st) && st.name) {
       const tree = bodyJsx(st.body);
       if (tree.length) components.push({ name: st.name.text, line: lineOf(st), tree });
@@ -162,5 +166,5 @@ export function parseJsx(source: string, fileName: string) {
   const screens: ScreenDecl[] = [];
   const re = /<(\w+)\.Screen\b[^>]*?\bname=["'{]+([^"'}]+)["'}]+[^>]*?\bcomponent=\{(\w+)\}/g;
   for (const m of source.matchAll(re)) screens.push({ name: m[2], component: m[3], line: source.slice(0, m.index).split("\n").length });
-  return { components, screens };
+  return { components, screens, defaultName };
 }
