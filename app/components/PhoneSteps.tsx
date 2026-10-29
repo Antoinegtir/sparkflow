@@ -1,7 +1,7 @@
 "use client";
 
 import clsx from "clsx";
-import { ArrowRight, Camera, Check, FileImage, Loader2, Mic, MousePointer2, RotateCcw, Sparkles, X } from "lucide-react";
+import { Camera, Check, FileImage, Loader2, Mic, MousePointer2, RotateCcw, Sparkles, X } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useEffect, useState } from "react";
 import { AppStoreLogo, PlayStoreLogo } from "./BrandIcons";
@@ -117,47 +117,88 @@ function Describe() {
   );
 }
 
-// ---- 02 · Plan: screens, the links between them, then what each must show ----
+// ---- 02 · Plan: four screens, each its own layout, the links between them, then what one must show ----
 
-const PLAN = [1600, 1300, 2600];
+/** A screen of the plan as a tiny wireframe: its name and a sketch of what it holds. */
+function PlanCard({ name, children, delay, lit }: { name: string; children: React.ReactNode; delay: number; lit?: boolean }) {
+  return (
+    <div className={clsx("hiw-pop rounded-lg border bg-white p-1.5 shadow-sm transition-colors duration-500", lit ? "border-spark-400 ring-2 ring-spark-400/25" : "border-black/10")} style={{ animationDelay: `${delay}ms` }}>
+      <div className="mb-1 flex items-center justify-between">
+        <span className="text-[8.5px] font-semibold text-neutral-900">{name}</span>
+        <span className="h-1 w-1 rounded-full bg-black/15" />
+      </div>
+      <div className="h-[34px]">{children}</div>
+    </div>
+  );
+}
+
+const bar = "rounded-sm bg-black/12";
+const PLAN = [1500, 1200, 3200];
 function Plan() {
   const phase = useScene(PLAN);
-  const screens = ["Today", "Stats", "Habit", "Settings"];
-  const criteria = ["Three habit rows, a check on each", "A bar chart of the week", "A streak count on every habit"];
+  const criteria = ["Three habit rows, a check on each", "A progress bar for the day", "A streak count on every habit"];
   return (
-    <div className="flex h-full flex-col justify-center gap-2 px-2.5 py-3">
-      <div className="relative grid grid-cols-2 gap-2">
-        {screens.map((s, i) => (
-          <div key={s} className="hiw-pop rounded-xl border border-black/10 bg-black/5 p-2" style={{ animationDelay: `${i * 160}ms` }}>
-            <div className="text-[10px] font-semibold text-neutral-900">{s}</div>
-            <div className="mt-1.5 space-y-1">
-              <div className="h-1 w-3/4 rounded bg-black/20" />
-              <div className="h-1 w-1/2 rounded bg-black/15" />
-              <div className="h-3.5 rounded bg-spark-500/30" />
+    <div className="flex h-full flex-col justify-center gap-2.5 px-2.5 py-3">
+      <div className="flex items-baseline justify-between px-0.5">
+        <span className="text-[11px] font-bold text-neutral-900">Plan</span>
+        <span className="text-[8px] text-neutral-500">4 screens · tabs</span>
+      </div>
+      <div className="relative grid grid-cols-2 gap-x-3 gap-y-3">
+        <PlanCard name="Today" delay={0} lit={phase === 2}>
+          <div className="space-y-[3px]">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="flex items-center gap-1">
+                <span className={clsx("size-[7px] rounded-full border", i === 0 ? "border-spark-500 bg-spark-500" : "border-black/25")} />
+                <span className={clsx(bar, "h-[5px] flex-1")} />
+              </div>
+            ))}
+          </div>
+        </PlanCard>
+        <PlanCard name="Stats" delay={140}>
+          <div className="flex h-full items-end gap-[3px] px-0.5 pb-0.5">
+            {[40, 65, 30, 85, 55, 100, 70].map((h, i) => (
+              <span key={i} className="flex-1 rounded-t-[2px] bg-spark-400/70" style={{ height: `${h}%` }} />
+            ))}
+          </div>
+        </PlanCard>
+        <PlanCard name="Habit" delay={280}>
+          <div className="flex h-full items-center gap-1.5">
+            <span className="text-[15px] font-bold leading-none text-spark-500">12</span>
+            <div className="flex-1 space-y-[3px]">
+              <span className={clsx(bar, "block h-[4px] w-full")} />
+              <span className={clsx(bar, "block h-[4px] w-2/3")} />
             </div>
           </div>
-        ))}
-        {/* Navigation: Today leads to Stats and to a Habit. */}
-        {phase >= 1 && (
-          <>
-            <span className="hiw-pop absolute left-1/2 top-[22%] grid size-4 -translate-x-1/2 place-items-center rounded-full bg-spark-500 text-white shadow">
-              <ArrowRight size={9} />
-            </span>
-            <span className="hiw-pop absolute left-[22%] top-1/2 grid size-4 -translate-y-1/2 rotate-90 place-items-center rounded-full bg-spark-500 text-white shadow" style={{ animationDelay: "150ms" }}>
-              <ArrowRight size={9} />
-            </span>
-          </>
-        )}
-      </div>
-      <div className="mt-1 space-y-1">
-        {criteria.map((c, i) => (
-          <div key={c} className={clsx("flex items-center gap-1.5 text-[9px] transition-opacity duration-300", phase === 2 ? "opacity-100" : "opacity-0")} style={{ transitionDelay: `${i * 300}ms` }}>
-            <span className="grid size-3 shrink-0 place-items-center rounded-full bg-spark-500/15 text-spark-500">
-              <Check size={8} />
-            </span>
-            <span className="truncate text-neutral-700">{c}</span>
+        </PlanCard>
+        <PlanCard name="Settings" delay={420}>
+          <div className="space-y-[4px]">
+            {[true, false, true].map((on, i) => (
+              <div key={i} className="flex items-center gap-1">
+                <span className={clsx(bar, "h-[4px] flex-1")} />
+                <span className={clsx("flex h-[7px] w-[12px] items-center rounded-full p-[1px]", on ? "justify-end bg-emerald-400" : "bg-black/15")}>
+                  <span className="size-[5px] rounded-full bg-white" />
+                </span>
+              </div>
+            ))}
           </div>
-        ))}
+        </PlanCard>
+        {/* Navigation: Today opens Stats and a Habit; drawn in once the screens are there. */}
+        <span className={clsx("pointer-events-none absolute left-1/2 top-[24%] h-[2px] w-3 -translate-x-1/2 origin-left rounded-full bg-spark-500 transition-transform duration-500", phase >= 1 ? "scale-x-100" : "scale-x-0")} />
+        <span className={clsx("pointer-events-none absolute left-[24%] top-1/2 h-3 w-[2px] -translate-y-1/2 origin-top rounded-full bg-spark-500 transition-transform duration-500 delay-200", phase >= 1 ? "scale-y-100" : "scale-y-0")} />
+      </div>
+      {/* What Today must show: checked on its screenshot later. */}
+      <div className={clsx("rounded-lg border border-black/10 bg-black/[0.03] p-2 transition-opacity duration-300", phase === 2 ? "opacity-100" : "opacity-0")}>
+        <p className="mb-1 text-[8px] font-semibold uppercase tracking-wide text-neutral-500">Today must show</p>
+        <div className="space-y-1">
+          {criteria.map((c, i) => (
+            <div key={c} className={clsx("flex items-start gap-1.5 text-[9px] leading-snug text-neutral-700 transition-all duration-300", phase === 2 ? "translate-y-0 opacity-100" : "translate-y-1 opacity-0")} style={{ transitionDelay: `${200 + i * 250}ms` }}>
+              <span className="mt-[1px] grid size-3 shrink-0 place-items-center rounded-full bg-spark-500 text-white">
+                <Check size={7} strokeWidth={3} />
+              </span>
+              {c}
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -268,30 +309,67 @@ function Look() {
   );
 }
 
-// ---- 05 · Fix: a failure, sent back, fixed, verified ----
+// ---- 05 · Fix: the check fails on the screen, the fix is sent back, the screen passes ----
 
-const FIX = [1700, 1500, 1100, 1900];
+const FIX = [1600, 1700, 1300, 2000];
 function Fix() {
   const phase = useScene(FIX);
   const fixed = phase >= 2;
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-3 px-2.5 py-3 text-center">
-      <span className="rounded-full bg-black/6 px-2 py-0.5 font-mono text-[8.5px] text-neutral-500">Attempt {fixed ? 2 : 1}</span>
-      <div className={clsx("relative grid place-items-center rounded-lg bg-spark-500 text-[11px] font-semibold text-white transition-all duration-700", fixed ? "size-11" : "size-7")}>
-        +{phase === 0 && <span className="absolute -inset-1.5 animate-pulse rounded-xl border-2 border-dashed border-red-400" />}
+    <div className="relative flex h-full flex-col px-2.5 py-3">
+      <div className="flex items-center justify-between">
+        <span className="text-[13px] font-bold text-neutral-900">Today</span>
+        <span className={clsx("rounded-full px-1.5 py-0.5 font-mono text-[7.5px] transition-colors", phase === 3 ? "bg-emerald-500/15 text-emerald-700" : "bg-black/6 text-neutral-500")}>attempt {fixed ? 2 : 1}</span>
       </div>
-      <div className={clsx("flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[9.5px] transition-colors duration-500", phase === 3 ? "bg-emerald-500/15 text-emerald-600" : fixed ? "bg-black/6 text-neutral-500" : "bg-red-500/15 text-red-600")}>
-        {phase === 3 ? <Check size={10} /> : fixed ? <Loader2 size={10} className="animate-spin" /> : <X size={10} />}
-        {phase === 3 ? "Touch target 44×44" : fixed ? "Checking again…" : "Touch target 28×28 (needs 44)"}
+      <div className="mt-2 space-y-1.5">
+        {HABITS.map((h) => (
+          <div key={h} className="rounded-lg bg-black/6 px-2 py-1.5 text-[10px] text-neutral-800">
+            {h}
+          </div>
+        ))}
       </div>
-      <p className="flex h-3 items-center gap-1 text-[9px] text-neutral-500">
-        {phase === 1 && (
-          <span className="hiw-pop flex items-center gap-1">
-            <RotateCcw size={9} /> Sent back to the Builder with the screenshot
-          </span>
+      {/* The add button, measured by the check: too small, then the right size. */}
+      <div className="relative ml-auto mr-1 mt-3 grid size-11 place-items-center">
+        <span className={clsx("grid place-items-center rounded-full bg-spark-500 text-white shadow-md transition-all duration-700", fixed ? "size-11 text-[16px]" : "size-7 text-[12px]")}>+</span>
+        <span
+          className={clsx(
+            "absolute rounded-full border-[1.5px] border-dashed transition-all duration-700",
+            fixed ? "inset-0 border-emerald-500" : "inset-2 border-red-500",
+            phase === 1 || phase === 2 ? "opacity-0" : "opacity-100",
+          )}
+        />
+        <span className={clsx("absolute -left-9 top-1/2 -translate-y-1/2 rounded px-1 font-mono text-[7.5px] text-white transition-colors", fixed ? "bg-emerald-500" : "bg-red-500", phase === 1 || phase === 2 ? "opacity-0" : "opacity-100")}>
+          {fixed ? "44×44" : "28×28"}
+        </span>
+      </div>
+      {/* What the check says, and what the Builder changes. */}
+      <div className="mt-auto">
+        {phase === 0 && (
+          <div className="hiw-pop flex items-start gap-1.5 rounded-lg border border-red-200 bg-red-50 px-2 py-1.5 text-[9px] leading-snug text-red-700">
+            <X size={10} className="mt-[1px] shrink-0" />
+            <span>
+              <b className="font-semibold">Touch target too small.</b> The add button is 28×28, it needs 44×44.
+            </span>
+          </div>
         )}
-        {phase === 3 && <span className="hiw-pop">Verified, on to the next screen</span>}
-      </p>
+        {(phase === 1 || phase === 2) && (
+          <div className="hiw-pop overflow-hidden rounded-lg border border-black/10 bg-[#0b0d12] font-mono text-[8px] leading-relaxed">
+            <div className="flex items-center gap-1 border-b border-white/10 px-2 py-1 text-[7.5px] text-ink-400">
+              <RotateCcw size={8} /> Builder · AddButton.tsx
+            </div>
+            <div className="bg-red-500/15 px-2 text-red-300">- {"<Fab size={28} />"}</div>
+            <div className={clsx("bg-emerald-500/15 px-2 text-emerald-300 transition-opacity duration-300", phase === 2 ? "opacity-100" : "opacity-0")}>+ {"<Fab size={44} />"}</div>
+          </div>
+        )}
+        {phase === 3 && (
+          <div className="hiw-pop flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-[9px] text-emerald-700">
+            <Check size={10} className="shrink-0" />
+            <span>
+              <b className="font-semibold">Verified.</b> On to the next screen.
+            </span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
