@@ -5,6 +5,7 @@ import { ArrowRight, Camera, Check, FileImage, Loader2, Mic, MousePointer2, Rota
 import { QRCodeSVG } from "qrcode.react";
 import { useEffect, useState } from "react";
 import { AppStoreLogo, PlayStoreLogo } from "./BrandIcons";
+import { InstallIcon } from "./InstallIcon";
 
 /** HowItWorks announces the step reaching the middle of the screen; the pinned phone shows it. */
 export const STEP_EVENT = "sparkflow:hiw-step";
@@ -59,12 +60,25 @@ function Describe() {
       </div>
       {phase >= 1 && (
         <div className="hiw-pop ml-auto flex items-center gap-2 rounded-xl border border-black/10 bg-white p-1.5 shadow-sm">
-          {/* A paper sketch: three boxes and a chart drawn in pencil. */}
-          <div className="grid size-9 place-items-center rounded-md bg-[#f6f1e7]">
-            <svg viewBox="0 0 36 36" className="size-8" aria-hidden>
-              <g fill="none" stroke="#6b6253" strokeWidth="1.2" strokeLinecap="round">
-                <path d="M6 7h24M6 13h18M6 19h20" />
-                <path d="M7 31v-5M12 31v-8M17 31v-3M22 31v-9M27 31v-6" />
+          {/* A photo of a paper sketch: a phone screen drawn in pencil on ruled paper, a little askew. */}
+          <div className="h-12 w-9 shrink-0 -rotate-3 overflow-hidden rounded-[3px] bg-[#f7f2e6] shadow-[0_1px_3px_rgba(0,0,0,.18)]">
+            <svg viewBox="0 0 30 40" className="h-full w-full" aria-hidden>
+              {/* Ruled lines and the margin. */}
+              <g stroke="#9ec1e0" strokeWidth=".35" opacity=".7">
+                {[6, 11, 16, 21, 26, 31, 36].map((y) => (
+                  <path key={y} d={`M0 ${y}h30`} />
+                ))}
+              </g>
+              <path d="M4 0v40" stroke="#e8a3a3" strokeWidth=".35" />
+              <g fill="none" stroke="#4a4438" strokeWidth=".8" strokeLinecap="round" strokeLinejoin="round">
+                {/* The phone, its title, three habit rows with a check circle each, a bar chart. */}
+                <path d="M8.4 3.2c4.6-.3 9.2-.2 13.6.1.6 2.6.6 30.5.2 33.4-4.3.4-9.4.4-13.9.1-.5-3.3-.4-30.9.1-33.6z" />
+                <path d="M10.5 6.8h5.2" strokeWidth="1.1" />
+                <path d="M10.2 10.3h9.6v3.1h-9.6zM10.3 15.2h9.5v3h-9.4zM10.2 20h9.6v3.1h-9.6z" />
+                <circle cx="18.3" cy="11.8" r=".8" />
+                <circle cx="18.3" cy="16.7" r=".8" />
+                <circle cx="18.3" cy="21.5" r=".8" />
+                <path d="M11 32.5v-3M13.4 32.5v-5M15.8 32.5v-2.2M18.2 32.5v-4.2M10.4 32.6h9" />
               </g>
             </svg>
           </div>
@@ -332,7 +346,7 @@ function Point() {
 
 // ---- 07 · Ship: on your phone, a real build, the stores ----
 
-const SHIP = [2400, 2200, 2400];
+const SHIP = [2400, 3400, 2400];
 function Ship() {
   const phase = useScene(SHIP);
   return (
@@ -347,17 +361,10 @@ function Ship() {
         </div>
       )}
       {phase === 1 && (
-        <div className="hiw-pop flex w-full flex-col items-center gap-2">
-          <div className="grid size-12 place-items-center rounded-[13px] bg-gradient-to-b from-[#1c1f26] to-[#050608] shadow-md">
-            <Check size={18} className="text-emerald-400" />
-          </div>
-          <p className="text-[10.5px] font-semibold text-neutral-900">Habitly</p>
-          <div className="w-4/5">
-            <div className="h-1 overflow-hidden rounded bg-black/10">
-              <div className="h-full animate-[hiw-type_1.8s_ease-out_forwards] bg-spark-500" style={{ maxWidth: 0, width: "100%" }} />
-            </div>
-            <p className="mt-1 text-[8.5px] text-neutral-500">Release build · installed on the iPhone</p>
-          </div>
+        // The real app installing on the iPhone, like on iOS: the icon fills in, then appears.
+        <div className="hiw-pop flex w-full flex-col items-center gap-1.5 text-neutral-900 [&_.text-ink-200]:text-neutral-900 [&_.text-sm]:text-[10.5px] [&_.text-sm]:font-semibold">
+          <InstallIcon replay={0} label="Habitly" />
+          <p className="text-[8.5px] text-neutral-500">Release build · on the iPhone</p>
         </div>
       )}
       {phase === 2 && (
