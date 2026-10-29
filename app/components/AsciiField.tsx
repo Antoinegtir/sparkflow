@@ -24,40 +24,64 @@ const roundRect = (dx: number, dy: number, hw: number, hh: number, r: number) =>
   return Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - r;
 };
 
-type Motif = (x: number, y: number, t: number, w: number, h: number) => number;
+/**
+ * Intensity 0..1 of the character at (x, y) at time t, on a grid `w` columns by `h` rows, drawn from the
+ * ramp; or the character itself, for motifs drawn as ASCII art.
+ */
+type Motif = (x: number, y: number, t: number, w: number, h: number) => number | string;
+
+const PROMPT = "A habit tracker with streaks and a weekly chart. Three habits for today, a check on each.";
+type Bubble = { left: number; top: number; width: number; height: number; lines: string[]; starts: number[]; total: number };
+const bubbles = new Map<string, Bubble>();
+
+/** The bubble for a w × h field: the prompt wrapped to its width, centred a little above the middle. */
+function bubble(w: number, h: number): Bubble {
+  const key = `${w}x${h}`;
+  const cached = bubbles.get(key);
+  if (cached) return cached;
+  const width = Math.max(14, Math.min(w - 2, 34));
+  const inner = width - 4;
+  const lines: string[] = [];
+  let cur = "";
+  for (const word of PROMPT.split(" ")) {
+    if (cur && `${cur} ${word}`.length > inner) {
+      lines.push(cur);
+      cur = word;
+    } else cur = cur ? `${cur} ${word}` : word;
+  }
+  if (cur) lines.push(cur);
+  // Each line starts after the previous one in the typing (its space counts too).
+  const starts = lines.map((_, i) => lines.slice(0, i).reduce((n, l) => n + l.length + 1, 0));
+  const height = lines.length + 4;
+  const b = { left: Math.floor((w - width) / 2), top: Math.floor(h / 2 - height / 2) - 2, width, height, lines, starts, total: PROMPT.length };
+  bubbles.set(key, b);
+  return b;
+}
 
 const MOTIFS: Motif[] = [
-  // 01 Describe: a message bubble, its lines being typed, a cursor blinking at the end.
+  // 01 Describe: a message bubble drawn in ASCII, the prompt typed into it, then typed again.
   (x, y, t, w, h) => {
-    const cx = w / 2;
-    const cy = Math.round(h * 0.45);
-    const hw = w * ASPECT * 0.4;
-    // As tall as it is wide (on screen), whatever the field's shape.
-    const hh = Math.round(Math.min(h * 0.3, hw * 1.1));
-    const dx = (x - cx) * ASPECT;
-    const dy = y - cy;
-    const edge = Math.abs(roundRect(dx, dy, hw, hh, 2.5)) < 0.55;
-    // The tail, under the bubble on the left.
-    const below = y - (cy + hh);
-    const tail = below > 0 && below < h * 0.12 && Math.abs(dx + hw * 0.55 - below * 0.9) < 0.7;
-    if (edge || tail) return 0.75;
-    // Text lines, typed one after the other, then the whole message starts again.
-    const lines = Math.max(2, Math.floor((hh * 2 - 3) / 2));
-    const line = Math.round((y - (cy - hh + 2)) / 2);
-    if ((y - (cy - hh + 2)) % 2 !== 0 || line < 0 || line >= lines) return 0;
-    const left = cx - hw / ASPECT + 3;
-    // Every line counts as full width for the typing, so they fill in order; the last one stops short.
-    const full = Math.floor((hw / ASPECT) * 2 - 6);
-    const width = line === lines - 1 ? Math.floor(full * 0.55) : full;
-    const col = x - left;
-    if (col < 0 || col >= width) return 0;
-    const typed = (t * 14) % (lines * full + 20);
-    const at = line * full + col;
-    if (at > typed) return 0;
-    // Gaps between words.
-    if (hash(Math.floor((col + line * 7) / 5), line) > 0.82) return 0;
-    const cursor = Math.floor(typed) - line * full === col && Math.sin(t * 8) > 0;
-    return cursor ? 1 : 0.45;
+    const b = bubble(w, h);
+    const right = b.left + b.width - 1;
+    const bottom = b.top + b.height - 1;
+    if (y === b.top || y === bottom) {
+      if (x === b.left || x === right) return y === b.top ? "." : "'";
+      return x > b.left && x < right ? "-" : " ";
+    }
+    // The tail, under the bubble's left side.
+    const below = y - bottom;
+    if (below >= 1 && below <= 3) return x === b.left + 3 + below ? "\\" : " ";
+    if (y < b.top || y > bottom) return " ";
+    if (x === b.left || x === right) return "|";
+    const row = y - b.top - 2;
+    const col = x - b.left - 2;
+    const line = b.lines[row];
+    const typed = Math.floor(t * 12) % (b.total + 30);
+    if (!line || col < 0 || col > line.length) return " ";
+    const at = b.starts[row] + col;
+    // The cursor blinks where the next character goes (after the last one at the end of a line).
+    if (at === typed && Math.sin(t * 9) > 0) return "_";
+    return col < line.length && at < typed ? line[col] : " ";
   },
   // 02 Plan: a grid of screens, lighting up one after another.
   (x, y, t, w, h) => {
@@ -147,8 +171,8 @@ function frame(step: number, t: number, cols: number, rows: number) {
   let out = "";
   for (let y = 0; y < rows; y++) {
     for (let x = 0; x < cols; x++) {
-      const v = Math.max(0, Math.min(1, f(x, y, t, cols, rows)));
-      out += RAMP[Math.round(v * (RAMP.length - 1))];
+      const v = f(x, y, t, cols, rows);
+      out += typeof v === "string" ? v : RAMP[Math.round(Math.max(0, Math.min(1, v)) * (RAMP.length - 1))];
     }
     out += "\n";
   }
