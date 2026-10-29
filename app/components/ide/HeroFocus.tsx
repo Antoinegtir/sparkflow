@@ -7,6 +7,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { isAppMessage, matchRoute, qualityFixPrompt, type ProjectState, type ScreenState } from "@/lib/shared";
 import { withScheme, type AppScheme } from "@/lib/web/app-scheme";
 import { outerSize, PREVIEW_DEVICES } from "@/lib/web/devices";
+import { useDeviceSkin } from "@/lib/web/device-skin";
 import { useSimDevice } from "@/lib/web/sim-device";
 import { openInSimulator } from "@/lib/web/sim-open";
 import { DotLens } from "../DotLens";
@@ -98,7 +99,10 @@ export function HeroFocus(p: Props) {
   const busy = s.status === "building" || s.status === "verifying";
 
   // A generated app in the live Simulator: opening another page takes the app there too.
-  const simUdid = useSimDevice().device?.udid;
+  const simDevice = useSimDevice().device;
+  const simUdid = simDevice?.udid;
+  // An Android emulator wears its own frame (its SDK skin); the iOS Simulator, the drawn iPhone.
+  const skin = useDeviceSkin(native ? simDevice : null);
   const webSim = !p.state.native && p.state.previewDevice === "simulator";
   // A page change that came from the Simulator itself (the user tapped a tab there) needs no reopening.
   const fromSim = useRef(false);
@@ -140,7 +144,7 @@ export function HeroFocus(p: Props) {
   const pickDevice = (id: string) => p.onDevice(id);
   const device = PREVIEW_DEVICES.find((d) => d.id === deviceId) ?? PREVIEW_DEVICES[1];
   const outer = outerSize(device);
-  const aspect = native ? (p.simPoints ? p.simPoints.width / p.simPoints.height : p.ipad ? 0.75 : 390 / 844) : outer.w / outer.h;
+  const aspect = native ? (skin ? skin.width / skin.height : p.simPoints ? p.simPoints.width / p.simPoints.height : p.ipad ? 0.75 : 390 / 844) : outer.w / outer.h;
   const targetH = Math.max(380, Math.min(800, box.h - 190));
   const targetW = targetH * aspect;
   const showSide = box.w > targetW + SIDE_W + 120;
@@ -373,7 +377,34 @@ export function HeroFocus(p: Props) {
       <DotMagnifier />
 
       <motion.div data-hero-phone className="absolute" style={{ left: x, top: y, width: targetW, height: targetH, scale: sc, transformOrigin: "0 0" }}>
-        {native ? (
+        {native && skin ? (
+          // The skin's frame image over the screen, which is cut to its rounded corners by the skin's
+          // overlay (opaque where the screen hides, so it is used inverted).
+          <div className="relative h-full w-full">
+            <div
+              className="absolute overflow-hidden bg-black"
+              style={{
+                left: `${(skin.screen.x / skin.width) * 100}%`,
+                top: `${(skin.screen.y / skin.height) * 100}%`,
+                width: `${(skin.screen.width / skin.width) * 100}%`,
+                height: `${(skin.screen.height / skin.height) * 100}%`,
+                ...(skin.mask
+                  ? {
+                      maskImage: `linear-gradient(#000 0 0), url(${skin.mask})`,
+                      WebkitMaskImage: `linear-gradient(#000 0 0), url(${skin.mask})`,
+                      maskSize: "100% 100%, 100% 100%",
+                      WebkitMaskSize: "100% 100%, 100% 100%",
+                      maskComposite: "exclude",
+                      WebkitMaskComposite: "xor",
+                    }
+                  : {}),
+              }}>
+              {screenContent}
+            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={skin.back} alt="" draggable={false} className="pointer-events-none absolute inset-0 h-full w-full select-none" />
+          </div>
+        ) : native ? (
         <PhoneFrame
           width={9999}
           height={9999}
