@@ -6,6 +6,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { childEnv, LineBuffer, templateDir } from "../sandbox/util";
 import { accessibilityInfo, type AxElement } from "./idb";
+import { isMac } from "./platform";
 import * as android from "./android";
 import { sendInput, simctl } from "./simulator";
 import { appScheme, devClientLink, metroUrlFor, pageLink, SLUG, templateHash, type DevPlatform } from "./dev-client-links";
@@ -198,7 +199,8 @@ async function copyTemplate(dest: string) {
   const from = templateDir();
   if (!existsSync(path.join(from, "node_modules", "expo"))) throw new Error("The template's node_modules are not installed yet");
   await mkdir(path.dirname(dest), { recursive: true });
-  const cmd = process.platform === "darwin" ? `cp -cR ${q(from)} ${q(dest)} || cp -R ${q(from)} ${q(dest)}` : `cp -R --reflink=auto ${q(from)} ${q(dest)}`;
+  // isMac(), read at run time: the build would inline process.platform (releases are built on Linux).
+  const cmd = isMac() ? `cp -cR ${q(from)} ${q(dest)} || cp -R ${q(from)} ${q(dest)}` : `cp -R --reflink=auto ${q(from)} ${q(dest)}`;
   await run("bash", ["-c", cmd], { maxBuffer: 16 * 1024 * 1024 });
   for (const d of ["ios", "android", ".expo", "dist"]) await rm(path.join(dest, d), { recursive: true, force: true });
 }

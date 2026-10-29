@@ -175,11 +175,8 @@ function CodeView({ projectId, state, file, line, onFile }: { projectId: string;
           ))}
         </select>
         <button
-          onClick={async () => {
-            // VS Code opens the project folder on this computer (through its vscode:// links).
-            const r = await fetch(`/api/projects/${projectId}/folder`).then((x) => x.json()).catch(() => null);
-            if (r?.path) location.href = `vscode://file${encodeURI(r.path)}/`;
-          }}
+          // sparkflow opens the folder in VS Code on this computer.
+          onClick={() => void fetch(`/api/projects/${projectId}/reveal?app=vscode`, { method: "POST" })}
           title="Open the project in VS Code"
           aria-label="Open the project in VS Code"
           className="grid size-7 shrink-0 cursor-pointer place-items-center rounded-md border border-[var(--line)] hover:bg-ink-800">

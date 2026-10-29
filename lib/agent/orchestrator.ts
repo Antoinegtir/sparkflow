@@ -27,6 +27,7 @@ import { createDriver } from "../sandbox";
 import { FolderSandbox, listSourceFiles } from "../sandbox/local";
 import type { InspectTargetResult, Sandbox, SandboxDriver } from "../sandbox/types";
 import { dataDir, expandHome } from "../sandbox/util";
+import { isMac } from "../web/platform";
 import { loadEnv } from "./env";
 import { createProvider } from "./llm";
 import type { LLMProvider } from "./llm/types";
@@ -895,11 +896,15 @@ export class Orchestrator {
     return (!rt.meta.native && (await this.linkFolder(id, rt.state.name ?? rt.meta.name).catch(() => null))) || dir;
   }
 
-  /** Shows the project's folder in Finder (or the Linux file manager). */
-  async revealProject(id: string) {
+  /** Shows the project's folder in Finder (or the Linux file manager), or opens it in VS Code. */
+  async revealProject(id: string, app: "finder" | "vscode" = "finder") {
     const dir = await this.projectFolder(id);
     if (!dir) throw new Error("This project has no folder on this computer");
-    spawn(process.platform === "darwin" ? "open" : "xdg-open", [dir], { detached: true, stdio: "ignore" }).unref();
+    // isMac(), read at run time: the build inlines process.platform (releases are built on Linux).
+    const [cmd, args] = app === "vscode" ? (isMac() ? ["open", ["-a", "Visual Studio Code", dir]] : ["code", [dir]]) : [isMac() ? "open" : "xdg-open", [dir]];
+    const child = spawn(cmd as string, args as string[], { detached: true, stdio: "ignore" });
+    child.on("error", () => {});
+    child.unref();
   }
 
   /**
