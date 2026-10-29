@@ -999,7 +999,7 @@ export class Orchestrator {
     const rt = await this.runtime(id);
     if (rt.meta.native) throw new Error("Settings are for apps made with Sparkflow");
     const expo = JSON.parse(await (await this.sandbox(rt)).readFile("app.json")).expo ?? {};
-    const splash = (expo.plugins ?? []).find((p: unknown) => Array.isArray(p) && p[0] === "expo-splash-screen")?.[1] ?? {};
+    const splash = expo.splash ?? (expo.plugins ?? []).find((p: unknown) => Array.isArray(p) && p[0] === "expo-splash-screen")?.[1] ?? {};
     // The template's placeholders give way to the project's own name.
     const id_ = defaultBundleId(rt.meta.name);
     return {
@@ -1032,11 +1032,10 @@ export class Orchestrator {
     expo.userInterfaceStyle = patch.appearance;
     expo.ios = { ...expo.ios, bundleIdentifier: patch.bundleIdentifier };
     expo.android = { ...expo.android, package: patch.androidPackage, adaptiveIcon: { ...expo.android?.adaptiveIcon, backgroundColor: patch.iconBackground } };
-    const plugins: unknown[] = (expo.plugins ??= []);
-    const at = plugins.findIndex((p) => (Array.isArray(p) ? p[0] : p) === "expo-splash-screen");
-    const splash = ["expo-splash-screen", { image: "./assets/splash-icon.png", imageWidth: 200, resizeMode: "contain", backgroundColor: patch.splashBackground }];
-    if (at >= 0) plugins[at] = splash;
-    else plugins.push(splash);
+    // app.json's own splash: the expo-splash-screen plugin needs a package the template doesn't install
+    // (Metro then won't start), so an entry written by an earlier version goes.
+    expo.splash = { ...expo.splash, image: "./assets/splash-icon.png", resizeMode: "contain", backgroundColor: patch.splashBackground };
+    if (expo.plugins) expo.plugins = expo.plugins.filter((p: unknown) => (Array.isArray(p) ? p[0] : p) !== "expo-splash-screen");
     await sb.writeFile("app.json", JSON.stringify(json, null, 2) + "\n");
     const square = (img: Buffer, size: number, fit: "cover" | "contain") =>
       sharp(img).resize(size, size, { fit, background: { r: 0, g: 0, b: 0, alpha: 0 } }).png().toBuffer();
