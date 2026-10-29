@@ -309,15 +309,38 @@ const MOTIFS: Motif[] = [
 const escape = (c: string) => (c === "<" ? "&lt;" : c === ">" ? "&gt;" : c === "&" ? "&amp;" : c);
 
 /** One frame as HTML: the field's characters, with white ones (a WHITE mark) in a white span. */
-function frame(step: number, t: number, cols: number, rows: number) {
-  const f = MOTIFS[Math.max(0, Math.min(MOTIFS.length - 1, step))];
+const GLITCH = "!<>-_\\/[]{}=+*^?#%@01";
+const TRANSITION = 0.7;
+
+function cell(f: Motif, x: number, y: number, t: number, cols: number, rows: number) {
+  const v = f(x, y, t, cols, rows);
+  if (typeof v !== "string") return RAMP[Math.round(Math.max(0, Math.min(1, v)) * (RAMP.length - 1))];
+  if (v.startsWith(WHITE)) return `<span class="text-white">${escape(v.slice(1))}</span>`;
+  return escape(v);
+}
+
+/**
+ * One frame of the field. While `p` (0..1) runs, the previous step's motif is wiped away by a ragged
+ * diagonal front of random glyphs, the new motif behind it.
+ */
+function frame(step: number, t: number, cols: number, rows: number, from = step, p = 1) {
+  const pick = (s: number) => MOTIFS[Math.max(0, Math.min(MOTIFS.length - 1, s))];
+  const f = pick(step);
+  const g = pick(from);
+  const span = cols + rows;
+  const front = p * (span + 12) - 6;
   let out = "";
   for (let y = 0; y < rows; y++) {
     for (let x = 0; x < cols; x++) {
-      const v = f(x, y, t, cols, rows);
-      if (typeof v !== "string") out += RAMP[Math.round(Math.max(0, Math.min(1, v)) * (RAMP.length - 1))];
-      else if (v.startsWith(WHITE)) out += `<span class="text-white">${escape(v.slice(1))}</span>`;
-      else out += escape(v);
+      if (p >= 1) {
+        out += cell(f, x, y, t, cols, rows);
+        continue;
+      }
+      // A ragged front: each cell crosses it at its own moment.
+      const d = x + y + (hash(x, y) - 0.5) * 8 - front;
+      if (d < -3) out += cell(f, x, y, t, cols, rows);
+      else if (d > 3) out += cell(g, x, y, t, cols, rows);
+      else out += escape(GLITCH[Math.floor(hash(x + Math.floor(t * 20), y) * GLITCH.length)]);
     }
     out += "\n";
   }
@@ -337,6 +360,9 @@ export function AsciiField({ step }: { step: number }) {
     let raf = 0;
     let last = 0;
     const start = performance.now();
+    let shown = stepRef.current;
+    let from = shown;
+    let changed = -TRANSITION;
     // As many columns as fit between the screen's left edge and the field's right edge (it's anchored
     // there, beside the summary), and as many rows as 80% of the screen's height, from one character's size.
     let cols = 40;
@@ -360,7 +386,14 @@ export function AsciiField({ step }: { step: number }) {
       // About 20 frames a second is enough for text, and cheap.
       if (now - last < 50) return;
       last = now;
-      el.innerHTML = frame(stepRef.current, (now - start) / 1000, cols, rows);
+      const t = (now - start) / 1000;
+      // A new step: the field switches over with a transition.
+      if (stepRef.current !== shown) {
+        from = shown;
+        shown = stepRef.current;
+        changed = t;
+      }
+      el.innerHTML = frame(shown, t, cols, rows, from, Math.min(1, (t - changed) / TRANSITION));
     };
     el.innerHTML = frame(stepRef.current, 1.2, cols, rows);
     if (still) return () => removeEventListener("resize", fit);
