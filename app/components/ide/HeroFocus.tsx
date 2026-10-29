@@ -123,7 +123,9 @@ export function HeroFocus(p: Props) {
     prevRoute.current = s.route;
     if (fromSim.current) return void (fromSim.current = false);
     if (!webSim || !simUdid || !p.state.preview) return;
-    const key = `${simUdid}:${p.state.id}`;
+    // Keyed by the Metro address too: a restarted sparkflow serves the app on another port, and the
+    // app still pointing at the old one must be opened again.
+    const key = `${simUdid}:${p.state.id}:${p.state.preview.webUrl}`;
     const quiet = () => openInSimulator(simUdid, p.state.preview!, s.previewPath ?? "/", s.route, { quiet: true });
     if (!openedInDev.has(key)) {
       openedInDev.add(key);
@@ -137,7 +139,7 @@ export function HeroFocus(p: Props) {
         .catch(() => {});
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [webSim, simUdid, s.route]);
+  }, [webSim, simUdid, s.route, p.state.preview?.webUrl]);
 
   // Target rect: height clamp(h − 190, 380..800), aspect of the simulator (native) or 390×844.
   // Web projects: the page is previewed in the project's device, picked in the tool rail.
