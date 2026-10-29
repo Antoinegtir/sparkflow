@@ -194,21 +194,16 @@ const ROCKET_W = 12;
 const FLAME_ROWS = 3;
 
 const MOTIFS: Motif[] = [
-  // 01 Describe: a chat from the top to the bottom: the prompt typed, a sketch drawn, a voice note, the reply.
+  // 01 Describe: a chat from the top to the bottom, all there at once: the prompt, a sketch, a voice note
+  // whose waveform moves, the reply.
   (x, y, t, w, h) => {
     const th = thread(w, h);
-    const now = t % th.cycle;
     const v = th.wave;
     if (y === v.y && x >= v.x0 && x < v.x1) {
-      if (now < v.at) return " ";
       const a = Math.abs(Math.sin(x * 0.9 + t * 6) * Math.sin(x * 0.3 - t * 2));
       return " .:-=+*#"[Math.min(7, Math.floor(a * 8))];
     }
-    // Before the reply is typed, three dots appear one by one where it starts.
-    const d = th.dots;
-    if (y === d.y && now >= d.from && now < d.to) return x >= 3 && x <= 7 && x % 2 === 1 && now >= d.from + (x - 3) * 0.15 ? "." : " ";
-    const row = th.at[y];
-    return row && now >= row[x] ? th.grid[y][x] : " ";
+    return th.grid[y]?.[x] ?? " ";
   },
   // 02 Plan: a grid of screens, lighting up one after another.
   (x, y, t, w, h) => {
