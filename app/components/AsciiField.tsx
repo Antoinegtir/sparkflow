@@ -75,7 +75,7 @@ function thread(w: number, h: number): Thread {
       put(left + width - 1, y, "|", when);
     }
   };
-  const bw = Math.max(16, Math.min(w - 2, 32));
+  const bw = Math.max(10, Math.min(w - 2, 32));
   const inner = bw - 4;
   const userLeft = w - bw - 1;
   const prompt = wrap(PROMPT, inner);
@@ -219,33 +219,37 @@ const MOTIFS: Motif[] = [
     const d = head - y;
     return d >= 0 && d < 7 ? 1 - d / 7 : 0;
   },
-  // 04 Look: a phone, its screen being captured (viewfinder corners blink) and scanned line by line.
+  // 04 Look: a big eye over the whole field, looking around, blinking now and then.
   (x, y, t, w, h) => {
-    const cx = w / 2;
-    const cy = Math.round(h / 2);
-    // A phone's proportions (half as wide as tall), as big as both the field's height and width allow.
-    const hh = Math.round(Math.min(h * 0.42, (w * ASPECT * 0.4) / 0.5));
-    const hw = hh * 0.5;
-    const dx = (x - cx) * ASPECT;
-    const dy = y - cy;
-    const body = roundRect(dx, dy, hw, hh, 2);
-    if (Math.abs(body) < 0.55) return 0.8;
-    const cycle = t % 4;
-    if (body < 0) {
-      // The app inside: a title and rows, lit by the scan as it passes.
-      const scan = -hh + ((cycle / 4) * hh * 2.2) % (hh * 2);
-      const row = Math.round((dy + hh - 3) / 3);
-      const onRow = (dy + hh - 3) % 3 === 0 && row >= 0 && Math.abs(dx) < hw - 2 && dy < hh - 2 && Math.abs(dx) < hw * (row === 0 ? 0.5 : 0.85);
-      // The scan lights the rows it crosses, and draws a thin line of its own.
-      const lit = Math.exp(-((dy - scan) ** 2) / 2);
-      return Math.max(onRow ? 0.3 + lit * 0.7 : 0, Math.abs(dy - scan) < 0.5 ? 0.45 : 0);
+    // In column units: a character is about twice as tall as it is wide.
+    const dx = x - w / 2;
+    const dy = (y - h / 2) * 2;
+    const rx = w / 2 - 1;
+    const u = dx / rx;
+    // Rings of sight spreading from the eye over the whole field.
+    const ring = Math.sin(Math.hypot(dx, dy) * 0.35 - t * 3);
+    const sight = ring > 0.85 ? 0.3 : 0;
+    if (Math.abs(u) > 1) return sight;
+    const cycle = t % 5;
+    const blink = cycle > 4.7 ? Math.abs(cycle - 4.85) / 0.15 : 1;
+    const lid = Math.min(rx * 0.9, h - 2) * (1 - u * u) * blink;
+    const edge = Math.abs(Math.abs(dy) - lid);
+    if (edge < 1.2) return "#";
+    if (Math.abs(dy) > lid) {
+      // Lashes over the top lid.
+      const above = -dy - lid;
+      return dy < 0 && above < 4 && x % 3 === 0 && Math.abs(u) < 0.8 ? ":" : sight;
     }
-    // Viewfinder corners around the phone.
-    const ox = Math.abs(dx) - (hw + 2);
-    const oy = Math.abs(dy) - (hh + 1.5);
-    const corner = (Math.abs(ox) < 0.5 && oy > -h * 0.12 && oy < 0.5) || (Math.abs(oy) < 0.5 && ox > -hw * 0.45 && ox < 0.5);
-    // They blink once at the start of each round: the capture.
-    return corner ? (cycle < 0.5 && Math.sin(cycle * 40) > 0 ? 1 : 0.6) : 0;
+    // The iris follows a slow look around; the pupil and a glint inside it.
+    const ix = Math.sin(t * 0.7) * rx * 0.35;
+    const iy = Math.sin(t * 1.1) * lid * 0.15;
+    const r = Math.hypot(dx - ix, dy - iy);
+    const R = Math.min(rx * 0.32, lid * 0.95 + 0.01);
+    if (Math.hypot(dx - ix + R * 0.35, dy - iy + R * 0.35) < R * 0.18) return "@";
+    if (r < R * 0.42) return " ";
+    if (r < R) return 0.45 + 0.4 * Math.abs(Math.sin(Math.atan2(dy - iy, dx - ix) * 9 + t));
+    if (r < R + 1.2) return 0.9;
+    return 0.06;
   },
   // 05 Fix: a spiral turning, the loop of verify, fix, repeat.
   (x, y, t, w, h) => {
