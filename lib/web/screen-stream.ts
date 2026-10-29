@@ -39,7 +39,27 @@ export function subscribeScreen(udid: string, listener: Listener) {
   };
 }
 
-/** Android: screenshots back to back, sent only when the screen changed. */
+/** Android: the emulator's video stream, or screenshots back to back (sent only when the screen changed) without ffmpeg. */
+function android_(udid: string, b: Broadcast) {
+  b.starting = true;
+  const send = (jpeg: Buffer) => {
+    b.last = jpeg;
+    for (const l of b.listeners) l(jpeg);
+  };
+  void android
+    .videoFrames(udid, send)
+    .catch(() => null)
+    .then((stop) => {
+      b.starting = false;
+      // Everyone left while it was starting.
+      if (stop && screens.get(udid) !== b) return stop();
+      if (!stop) return poll(udid, b);
+      b.stop = stop;
+      // The video only has frames when the screen changes: a still screen starts from a screenshot.
+      void android.frame(udid, "jpeg").then((jpeg) => !b.last && send(jpeg), () => {});
+    });
+}
+
 function poll(udid: string, b: Broadcast) {
   let ended = false;
   b.stop = () => void (ended = true);
@@ -57,7 +77,7 @@ function poll(udid: string, b: Broadcast) {
 }
 
 function start(udid: string, b: Broadcast) {
-  if (android.isAndroidId(udid)) return poll(udid, b);
+  if (android.isAndroidId(udid)) return android_(udid, b);
   b.starting = true;
   void videoStream(udid)
     .then((call) => {

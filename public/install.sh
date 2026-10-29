@@ -149,6 +149,16 @@ else
   warn "watchman not found (optional, faster reloads)"
 fi
 
+# ffmpeg: the Android emulator's live screen (its video stream), like the iOS Simulator's.
+if has ffmpeg; then
+  ok "ffmpeg"
+elif has brew; then
+  warn "ffmpeg missing: installing it (live Android screen)"
+  brew install ffmpeg >/dev/null 2>&1 && ok "ffmpeg installed" || warn "ffmpeg couldn't be installed (optional: the Android screen updates slower)"
+else
+  warn "ffmpeg not found (optional: the Android screen updates slower)"
+fi
+
 # GitHub CLI: puts an app's history on GitHub from the Code tab (creates the repository, pushes).
 if ! has gh && has brew; then
   warn "GitHub CLI missing: installing it (to put your apps on GitHub)"

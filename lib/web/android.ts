@@ -319,3 +319,72 @@ export async function shutdown(serial: string) {
 export async function avdOf(serial: string) {
   return (await shell(serial, "getprop", "ro.boot.qemu.avd_name").catch(() => "")).trim();
 }
+
+let ffmpegBin: string | null | undefined;
+/** ffmpeg from Homebrew or the PATH; null when there is none. */
+async function ffmpegPath() {
+  if (ffmpegBin !== undefined) return ffmpegBin;
+  const known = ["/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg", "/usr/bin/ffmpeg"].find((p) => existsSync(p));
+  ffmpegBin = known ?? (await run("which", ["ffmpeg"]).then((r) => r.stdout.trim() || null, () => null));
+  return ffmpegBin;
+}
+
+/**
+ * Live screen like the iOS Simulator's: the emulator's H.264 screen recording (frames only when the screen
+ * changes, ~30 fps while it moves) decoded to JPEGs by ffmpeg, at half the device resolution. screenrecord
+ * stops after 3 minutes: it starts again while someone watches. Resolves null without ffmpeg.
+ */
+export async function videoFrames(serial: string, onFrame: (jpeg: Buffer) => void): Promise<(() => void) | null> {
+  const [adbBin, ff] = await Promise.all([adbPath(), ffmpegPath()]);
+  if (!adbBin || !ff) return null;
+  const m = /Physical size:\s*(\d+)x(\d+)/.exec(await shell(serial, "wm", "size"));
+  const even = (n: number) => Math.max(2, Math.round(n / 4) * 2);
+  const size = m ? `${even(Number(m[1]))}x${even(Number(m[2]))}` : "540x1200";
+  const SOI = Buffer.from([0xff, 0xd8]);
+  const EOI = Buffer.from([0xff, 0xd9]);
+  let stopped = false;
+  let kill = () => {};
+  const once = () => {
+    if (stopped) return;
+    const rec = spawn(adbBin, ["-s", serial, "exec-out", "screenrecord", "--output-format=h264", "--size", size, "--bit-rate", "8000000", "-"]);
+    // No probing or buffering: each frame goes out as soon as it's decoded (showall: even before the
+    // stream is fully known). The raw stream has no timestamps: the clock gives them.
+    const dec = spawn(ff, [
+      ...["-loglevel", "error", "-probesize", "32", "-analyzeduration", "0", "-fflags", "nobuffer", "-flags", "low_delay", "-flags2", "showall"],
+      ...["-use_wallclock_as_timestamps", "1", "-f", "h264", "-i", "-"],
+      ...["-vf", "format=yuvj420p", "-fps_mode", "passthrough", "-enc_time_base", "1/1000000", "-f", "mjpeg", "-q:v", "4", "-flush_packets", "1", "-"],
+    ]);
+    rec.stdout.pipe(dec.stdin);
+    dec.stdin.on("error", () => {});
+    let buf = Buffer.alloc(0);
+    dec.stdout.on("data", (chunk: Buffer) => {
+      buf = Buffer.concat([buf, chunk]);
+      for (;;) {
+        const s = buf.indexOf(SOI);
+        if (s < 0) break;
+        const e = buf.indexOf(EOI, s + 2);
+        if (e < 0) {
+          buf = buf.subarray(s);
+          break;
+        }
+        onFrame(Buffer.from(buf.subarray(s, e + 2)));
+        buf = buf.subarray(e + 2);
+      }
+    });
+    kill = () => {
+      rec.kill();
+      dec.kill();
+    };
+    rec.on("exit", () => {
+      dec.stdin.end();
+      if (!stopped) setTimeout(once, 300);
+    });
+  };
+  once();
+  return () => {
+    stopped = true;
+    kill();
+    // screenrecord keeps running on the device when adb goes away.
+    void adb(serial, "shell", "pkill", "-INT", "screenrecord").catch(() => {});
+  };
+}
