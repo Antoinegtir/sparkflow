@@ -7,6 +7,8 @@ import { PhoneSteps } from "./PhoneSteps";
 const PHONE_SCALE = 1.5;
 /** Video box size: square clip, as large as fits comfortably. */
 const SIZE = `min(${70 * PHONE_SCALE}vh, ${640 * PHONE_SCALE}px)`;
+/** What the box grew by over its first size: the section makes room for it above and below. */
+const GROWTH = `(${SIZE} - min(70vh, 640px))`;
 /** Vertical squash of the edge-on phone at the top of the page (thinner white edge); width is never changed. */
 const MIN_SCALE = 0.03;
 /** How fast it un-squashes: back to full height after 1/GROW_SPEED of the way to the middle. */
@@ -217,9 +219,15 @@ export function ScrollVideo({ src, className, children }: { src: string; classNa
     };
   }, []);
   return (
-    // Pulled up by half the clip so its middle line (the edge-on phone) lands just below what's above.
-    // The phone stays pinned for as long as the section lasts: children (on the right) scroll past it.
-    <div ref={section} className="pointer-events-none relative" style={{ minHeight: `calc(${SIZE} + 70vh)`, marginTop: `calc(${SIZE} / -2 - 8px)` }}>
+    // Pulled up by half the clip so its middle line (the edge-on phone) lands just below what's above,
+    // less half of what the phone grew so the taller phone stands up clear of the prompts above.
+    // The phone stays pinned for as long as the section lasts: children (on the right) scroll past it,
+    // and a spacer at the end (not padding: a sticky box stops at its parent's content) keeps it pinned
+    // until the last step has been read.
+    <div
+      ref={section}
+      className="pointer-events-none relative"
+      style={{ minHeight: `calc(${SIZE} + 70vh)`, marginTop: `calc(${SIZE} / -2 - 8px + ${GROWTH} / 2)` }}>
       {/* Sticky makes its own stacking context: blend it as a whole so the clip's black drops out. */}
       <div className="pointer-events-none sticky flex justify-center mix-blend-screen" style={{ top: `calc(50vh - ${SIZE} / 2)` }}>
         <video
@@ -271,6 +279,7 @@ export function ScrollVideo({ src, className, children }: { src: string; classNa
           {children}
         </div>
       )}
+      <div aria-hidden style={{ height: `calc(${GROWTH} + 6vh)` }} />
     </div>
   );
 }
