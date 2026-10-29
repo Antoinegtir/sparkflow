@@ -1,19 +1,33 @@
-import { accessibilityInfo } from "@/lib/web/idb";
-import { flatten } from "@/lib/web/native-tabs";
+import { accessibilityInfo, type AxElement } from "@/lib/web/idb";
 import { assertUdid } from "@/lib/web/simulator";
 import { handle, type RouteCtx } from "@/lib/web/server";
 
 export const dynamic = "force-dynamic";
 
-/** Boxes of elements whose label matches. Short texts match exactly so "Pro" does not hit "Profile". */
+const flatten = (els: AxElement[]): AxElement[] => els.flatMap((e) => [e, ...flatten(e.children ?? [])]);
+
+/**
+ * Boxes of the elements that make up a piece of the app: those whose testID (`id`) or label (`text`)
+ * matches, and their union. Short texts match exactly so "Pro" does not hit "Profile". `whole=1`:
+ * the whole screen (a page's root element).
+ */
 export const GET = handle(async (req: Request, { params }: RouteCtx<{ udid: string }>) => {
-  const texts = new URL(req.url).searchParams.getAll("text").map((t) => t.trim().toLowerCase()).filter(Boolean);
+  const q = new URL(req.url).searchParams;
+  const ids = new Set(q.getAll("id").filter(Boolean));
+  const texts = q.getAll("text").map((t) => t.trim().toLowerCase()).filter(Boolean);
   const all = flatten(await accessibilityInfo(assertUdid((await params).udid)));
+  if (q.get("whole") === "1") {
+    // The largest element on screen is the app's window.
+    const screen = all.filter((e) => e.frame && e.frame.width < 1000).sort((a, b) => b.frame!.width * b.frame!.height - a.frame!.width * a.frame!.height)[0]?.frame;
+    return Response.json(screen ? { union: screen, frames: [screen], count: 1 } : null);
+  }
   const frames = all
     .filter((e) => {
+      if (!e.frame || e.frame.width >= 1000) return false;
+      // A kit component's parts carry ids derived from its own: profile-scheme → profile-scheme-light.
+      if (e.AXUniqueId && (ids.has(e.AXUniqueId) || [...ids].some((id) => e.AXUniqueId!.startsWith(`${id}-`)))) return true;
       const l = (e.AXLabel ?? "").toLowerCase().trim();
-      if (!l || !e.frame || e.frame.width >= 1000) return false;
-      return texts.some((t) => l === t || (t.length >= 5 && l.includes(t)));
+      return !!l && texts.some((t) => l === t || (t.length >= 5 && l.includes(t)));
     })
     .map((e) => e.frame!);
   if (!frames.length) return Response.json(null);

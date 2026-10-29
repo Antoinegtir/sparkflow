@@ -10,7 +10,54 @@ import type { ProjectState } from "@/lib/shared";
 import type { JsxComponent, JsxNode } from "@/lib/web/jsx-tree";
 
 /** An element picked from the tree: highlighted on the phone on hover, added to the selection on click. */
-export type LayoutPick = { key: string; testId?: string; label: string; texts: string[]; each: boolean; file: string; line: number; anchors?: Anchors };
+export type LayoutPick = {
+  key: string;
+  testId?: string;
+  label: string;
+  texts: string[];
+  each: boolean;
+  file: string;
+  line: number;
+  anchors?: Anchors;
+  /** Holds other elements (a View, a Screen): its own texts don't name it. */
+  container: boolean;
+  /** How the live Simulator finds it on screen. */
+  find: SimFind;
+};
+
+/**
+ * Finding an element in the Simulator's accessibility tree, which only lists what VoiceOver reads
+ * (texts, buttons): plain Views and their testIDs aren't in it. So an element is found by every
+ * testID and text inside it, list items included (their data hints), and outlined as the block
+ * that holds them all; a page's root element is the whole screen.
+ */
+export type SimFind = { ids: string[]; texts: string[]; whole?: boolean; fallback?: SimFind };
+const MAX_FIND = 40;
+const isEmptyFind = (f: SimFind) => !f.whole && !f.ids.length && !f.texts.length;
+
+export function findOf(n: JsxNode, hintsBy: Record<string, string[]>, whole: boolean): SimFind {
+  const ids = new Set<string>();
+  const texts = new Set<string>();
+  const walk = (x: JsxNode, hints: Record<string, string[]>) => {
+    if (x.kind === "text") {
+      const m = x.text.match(/^\{(.+)\}$/);
+      for (const t of m ? (hints[m[1].trim()] ?? []) : [x.text]) if (t.trim()) texts.add(t.trim());
+      return;
+    }
+    const next = x.hintsBy ? { ...hints, ...x.hintsBy } : hints;
+    if (x.kind === "element") {
+      const id = x.attrs.testID;
+      if (id && !id.startsWith("{")) ids.add(id.replace(/^["'`]|["'`]$/g, ""));
+      for (const a of [...LITERAL_ATTRS, "accessibilityLabel"]) if (x.attrs[a] && !x.attrs[a].startsWith("{")) texts.add(x.attrs[a]);
+      // The kit's Avatar shows the initials of its name.
+      if (x.label === "Avatar" && x.attrs.name && !x.attrs.name.startsWith("{"))
+        texts.add(x.attrs.name.split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase());
+    }
+    x.children.forEach((c) => walk(c, next));
+  };
+  walk(n, hintsBy);
+  return { ids: [...ids].slice(0, MAX_FIND), texts: [...texts].slice(0, MAX_FIND), ...(whole ? { whole: true } : {}) };
+}
 /** What an element without a testID contains: the app finds it as the smallest block holding all of these. */
 export type Anchors = { ids: string[]; texts: string[]; labels?: string[]; climb?: boolean; control?: boolean };
 
@@ -110,7 +157,7 @@ export function LayoutTree({
       </div>
       <div className="py-1">
         {page
-          ? page.tree.map((n, i) => <Row key={i} node={n} depth={0} file={layout.file!} hintsBy={{}} inList={false} onHover={onHover} onPick={onPick} onJump={onJump} />)
+          ? page.tree.map((n, i) => <Row key={i} node={n} depth={0} root file={layout.file!} hintsBy={{}} inList={false} onHover={onHover} onPick={onPick} onJump={onJump} />)
           : layout.components.map((c) => <ComponentBlock key={c.name} c={c} file={layout.file!} isPage={c.name === layout.component} onHover={onHover} onPick={onPick} onJump={onJump} />)}
       </div>
     </div>
@@ -126,7 +173,7 @@ function ComponentBlock({ c, file, isPage, ...rest }: { c: JsxComponent; file: s
         {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />} &lt;{c.name} /&gt;
         {isPage && <span className="rounded bg-spark-500/15 px-1.5 text-[10px] text-spark-400">this page</span>}
       </button>
-      {open && c.tree.map((n, i) => <Row key={i} node={n} depth={1} file={file} hintsBy={{}} inList={false} {...rest} />)}
+      {open && c.tree.map((n, i) => <Row key={i} node={n} depth={1} root={isPage} file={file} hintsBy={{}} inList={false} {...rest} />)}
     </div>
   );
 }
@@ -134,6 +181,8 @@ function ComponentBlock({ c, file, isPage, ...rest }: { c: JsxComponent; file: s
 function Row({
   node,
   depth,
+  root = false,
+  inherited,
   file,
   hintsBy,
   inList,
@@ -143,6 +192,10 @@ function Row({
 }: {
   node: JsxNode;
   depth: number;
+  /** The page's top element: it is the whole screen. */
+  root?: boolean;
+  /** The nearest parent the Simulator can find, for an element it can't find by itself. */
+  inherited?: SimFind;
   file: string;
   hintsBy: Record<string, string[]>;
   inList: boolean;
@@ -159,6 +212,11 @@ function Row({
   const textOnly = node.kind === "element" && kids.length > 0 && kids.every((k) => k.kind === "text");
   const inline = textOnly ? kids.map((k) => (k.kind === "text" ? k.text : "")).join(" ") : null;
 
+  const own = findOf(node, hintsBy, root || (node.kind === "element" && (node.label === "Screen" || /-screen$/.test(node.attrs.testID ?? ""))));
+  // Not on screen by itself (nothing to find, or nothing found): the nearest parent that is.
+  const findable = isEmptyFind(own) ? inherited : { ...own, ...(inherited ? { fallback: inherited } : {}) };
+  const container = node.kind === "element" && !textOnly && kids.some((k) => k.kind !== "text");
+
   const pick = (): LayoutPick | null => {
     if (node.kind !== "element") return null;
     const texts = textsOf(node, nextHints).filter(Boolean);
@@ -166,7 +224,10 @@ function Row({
     return {
       key: `layout:${file}:${node.line}`,
       testId,
-      label: testId ?? (texts[0] ? `${node.label} "${texts[0].slice(0, 30)}"` : node.label),
+      container,
+      find: findable ?? own,
+      // A container is named by itself (Screen #profile-screen), not by the first text it holds.
+      label: container ? `${node.label}${testId ? ` #${testId}` : ""}` : (testId ?? (texts[0] ? `${node.label} "${texts[0].slice(0, 30)}"` : node.label)),
       texts,
       each: textOnly && nextInList,
       file,
@@ -232,7 +293,7 @@ function Row({
       </div>
       {open &&
         !textOnly &&
-        kids.map((k, i) => <Row key={i} node={k} depth={depth + 1} file={file} hintsBy={nextHints} inList={nextInList} onHover={onHover} onPick={onPick} onJump={onJump} />)}
+        kids.map((k, i) => <Row key={i} node={k} depth={depth + 1} inherited={findable} file={file} hintsBy={nextHints} inList={nextInList} onHover={onHover} onPick={onPick} onJump={onJump} />)}
     </div>
   );
 }

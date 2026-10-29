@@ -309,9 +309,8 @@ export function HeroFocus(p: Props) {
                 frozenLabel={p.simFrozen ?? undefined}
                 inspect={p.inspect}
                 onPick={(pk: SimPick) => p.onSelect({ testId: pk.testId, text: pk.text, area: pk.area })}
-                // Found like a click on the same row: its texts plus literal labels and titles (Stat label="Voyages").
-                highlights={p.layoutHover ? { texts: [...new Set([...p.layoutHover.texts, ...(p.layoutHover.anchors?.texts ?? [])])], each: p.layoutHover.each } : null}
-                selected={p.selections.map((x) => ({ area: x.area, texts: x.anchors?.texts.length ? x.anchors.texts : x.text ? [x.text] : undefined }))}
+                highlights={p.layoutHover ? { find: p.layoutHover.find, each: p.layoutHover.each } : null}
+                selected={p.selections.map((x) => ({ area: x.area, find: x.find ?? (x.text ? { ids: x.testId ? [x.testId] : [], texts: [x.text] } : undefined) }))}
               />
               {/* A generated app opening in Sparkflow Dev: build / open progress, or the error. */}
               {webSim && <DevClientOverlay name={p.state.name} />}

@@ -1,6 +1,7 @@
 "use client";
 
 import clsx from "clsx";
+import type { SimFind } from "./LayoutTree";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSimDevice } from "@/lib/web/sim-device";
 import { DevicePicker } from "./DevicePicker";
@@ -14,6 +15,22 @@ type El = { type: string; label: string | null; id: string | null; frame: { x: n
  * Live iOS Simulator: MJPEG stream through idb (else 1 fps frames), touches and trackpad scrolling forwarded as
  * real finger gestures, two-way page sync with the IDE, an inspect layer and a frozen mode for captures.
  */
+/**
+ * Where an element is on the Simulator's screen (see /api/sim/[udid]/find). Not found: its nearest
+ * parent that is, up to the whole screen, so a pick always outlines something.
+ */
+async function findOnScreen(udid: string, f: SimFind | undefined): Promise<{ union: Area; frames: Area[] } | null> {
+  if (!f) return null;
+  if (f.whole || f.ids.length || f.texts.length) {
+    const q = new URLSearchParams([...f.ids.map((v) => ["id", v]), ...f.texts.map((v) => ["text", v]), ...(f.whole ? [["whole", "1"]] : [])]);
+    const found = await fetch(`/api/sim/${udid}/find?${q}`)
+      .then((r) => r.json())
+      .catch(() => null);
+    if (found?.union) return found;
+  }
+  return findOnScreen(udid, f.fallback);
+}
+
 export function SimulatorView({
   page,
   onPageChange,
@@ -30,9 +47,9 @@ export function SimulatorView({
   frozenLabel?: string;
   inspect?: boolean;
   onPick?: (p: SimPick) => void;
-  highlights?: { texts: string[]; each: boolean } | null;
-  /** The elements in the prompt: a picked area (fractions of the screen) or texts to find, outlined in blue. */
-  selected?: { area?: Area; texts?: string[] }[];
+  highlights?: { find: SimFind; each: boolean } | null;
+  /** The elements in the prompt: a picked area (fractions of the screen) or what to find, outlined in blue. */
+  selected?: { area?: Area; find?: SimFind }[];
 }) {
   const { supported, device, loaded } = useSimDevice();
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -295,14 +312,15 @@ export function SimulatorView({
   };
 
   // Highlight elements hovered in the Layout tree.
+  const hoverKey = JSON.stringify(highlights ?? null);
   useEffect(() => {
-    if (!udid || !highlights?.texts.length) return setBoxes([]);
-    const q = highlights.texts.map((t) => `text=${encodeURIComponent(t)}`).join("&");
-    fetch(`/api/sim/${udid}/find?${q}`)
-      .then((r) => r.json())
-      .then((j) => setBoxes(j?.frames ? (highlights.each ? j.frames : [j.union]) : []))
-      .catch(() => setBoxes([]));
-  }, [udid, highlights]);
+    if (!udid || !highlights) return setBoxes([]);
+    let alive = true;
+    void findOnScreen(udid, highlights.find).then((j) => alive && setBoxes(j ? (highlights.each ? j.frames : [j.union]) : []));
+    return () => {
+      alive = false;
+    };
+  }, [udid, hoverKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Outline the elements in the prompt: picked ones where they were picked, Layout ones by their texts.
   const selKey = JSON.stringify(selected ?? []);
@@ -313,10 +331,9 @@ export function SimulatorView({
     void Promise.all(
       list.map(async (s): Promise<Area[]> => {
         if (s.area) return [{ x: s.area.x * points.width, y: s.area.y * points.height, width: s.area.width * points.width, height: s.area.height * points.height }];
-        if (!s.texts?.length) return [];
-        const q = s.texts.map((t) => `text=${encodeURIComponent(t)}`).join("&");
-        const j = await fetch(`/api/sim/${udid}/find?${q}`).then((r) => r.json()).catch(() => null);
-        return j?.union ? [j.union] : [];
+        if (!s.find) return [];
+        const j = await findOnScreen(udid, s.find);
+        return j ? [j.union] : [];
       }),
     ).then((r) => alive && setSelBoxes(r.flat()));
     return () => {

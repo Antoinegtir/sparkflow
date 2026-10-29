@@ -195,7 +195,7 @@ export function IDE({ id, slug: initialSlug, initialPage }: { id: string; slug: 
   const onLayoutPick = (p: LayoutPick) => {
     // The hover outline gives way to the persistent blue selection.
     setLayoutHover(null);
-    void addSelection({ key: p.key, testId: p.testId ?? p.label, label: p.label, text: p.texts[0], file: p.file, line: p.line, layout: true, anchors: p.anchors });
+    void addSelection({ key: p.key, testId: p.testId ?? p.label, label: p.label, text: p.container ? undefined : p.texts[0], file: p.file, line: p.line, layout: true, anchors: p.anchors, find: p.find });
   };
 
   // ---- prompts ----

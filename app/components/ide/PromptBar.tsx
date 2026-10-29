@@ -1,6 +1,7 @@
 "use client";
 
 import clsx from "clsx";
+import type { SimFind } from "./LayoutTree";
 import { ArrowUp, Crosshair, ImagePlus, LayoutGrid, Loader2, Mic, Square, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { MediaInput, Phase, ProjectState } from "@/lib/shared";
@@ -15,6 +16,8 @@ export type Selection = {
   file?: string;
   line?: number;
   layout?: boolean;
+  /** Picked in the Layout tree: how the live Simulator finds it. */
+  find?: SimFind;
   /** Elements without a testID are found in the app by what they contain. */
   anchors?: { ids: string[]; texts: string[]; labels?: string[]; climb?: boolean; control?: boolean };
 };
