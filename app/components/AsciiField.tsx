@@ -31,33 +31,131 @@ const roundRect = (dx: number, dy: number, hw: number, hh: number, r: number) =>
 type Motif = (x: number, y: number, t: number, w: number, h: number) => number | string;
 
 const PROMPT = "A habit tracker with streaks and a weekly chart. Three habits for today, a check on each.";
-type Bubble = { left: number; top: number; width: number; height: number; lines: string[]; starts: number[]; total: number };
-const bubbles = new Map<string, Bubble>();
+const REPLY = "On it: three screens, a streak on each habit.";
+/** The conversation for a w × h field: a char and the time (s) it appears at, for every cell. */
+type Thread = { grid: string[][]; at: number[][]; wave: { y: number; x0: number; x1: number; at: number }; dots: { y: number; from: number; to: number }; cycle: number };
+const threads = new Map<string, Thread>();
 
-/** The bubble for a w × h field: the prompt wrapped to its width, centred a little above the middle. */
-function bubble(w: number, h: number): Bubble {
-  const key = `${w}x${h}`;
-  const cached = bubbles.get(key);
-  if (cached) return cached;
-  const width = Math.max(14, Math.min(w - 2, 34));
-  const inner = width - 4;
+function wrap(text: string, width: number) {
   const lines: string[] = [];
   let cur = "";
-  for (const word of PROMPT.split(" ")) {
-    if (cur && `${cur} ${word}`.length > inner) {
+  for (const word of text.split(" ")) {
+    if (cur && `${cur} ${word}`.length > width) {
       lines.push(cur);
       cur = word;
     } else cur = cur ? `${cur} ${word}` : word;
   }
   if (cur) lines.push(cur);
-  // Each line starts after the previous one in the typing (its space counts too).
-  const starts = lines.map((_, i) => lines.slice(0, i).reduce((n, l) => n + l.length + 1, 0));
-  const height = lines.length + 4;
-  const b = { left: Math.floor((w - width) / 2), top: Math.floor(h / 2 - height / 2) - 2, width, height, lines, starts, total: PROMPT.length };
-  bubbles.set(key, b);
-  return b;
+  return lines;
 }
 
+/**
+ * A chat drawn top to bottom over the whole height: the prompt typed in a bubble, a sketch of the app
+ * drawn line by line (it takes the height left), a voice note, then Muse Spark's reply.
+ */
+function thread(w: number, h: number): Thread {
+  const key = `${w}x${h}`;
+  const cached = threads.get(key);
+  if (cached) return cached;
+  const grid = Array.from({ length: h }, () => Array<string>(w).fill(" "));
+  const at = Array.from({ length: h }, () => Array<number>(w).fill(Infinity));
+  const put = (x: number, y: number, c: string, when: number) => {
+    if (x < 0 || y < 0 || x >= w || y >= h) return;
+    grid[y][x] = c;
+    at[y][x] = when;
+  };
+  const box = (left: number, top: number, width: number, height: number, when: number) => {
+    for (let x = left; x < left + width; x++) {
+      const edge = x === left || x === left + width - 1;
+      put(x, top, edge ? "." : "-", when);
+      put(x, top + height - 1, edge ? "'" : "-", when);
+    }
+    for (let y = top + 1; y < top + height - 1; y++) {
+      put(left, y, "|", when);
+      put(left + width - 1, y, "|", when);
+    }
+  };
+  const bw = Math.max(16, Math.min(w - 2, 32));
+  const inner = bw - 4;
+  const userLeft = w - bw - 1;
+  const prompt = wrap(PROMPT, inner);
+  const reply = wrap(REPLY, inner);
+  // Rows: prompt box, gap, sketch box, gap, voice box, gap, reply box; the sketch takes what's left.
+  const fixed = prompt.length + 2 + 1 + 2 + 1 + 3 + 1 + reply.length + 2;
+  // A phone's proportions (a character is twice as tall as it is wide); the height it doesn't need goes
+  // between the messages.
+  const pw = Math.min(inner, 22);
+  const room = Math.max(6, h - fixed - 2);
+  const sketchRows = Math.min(room, Math.round(pw * 1.05));
+  const gap = Math.floor((room - sketchRows) / 3);
+  let y = Math.max(0, Math.floor((h - fixed - sketchRows - gap * 3) / 2));
+  let t = 0.3;
+
+  box(userLeft, y, bw, prompt.length + 2, t);
+  prompt.forEach((line, i) => {
+    for (let c = 0; c < line.length; c++) put(userLeft + 2 + c, y + 1 + i, line[c], (t += 1 / 14));
+    t += 1 / 14;
+  });
+  y += prompt.length + 3 + gap;
+  t += 0.5;
+
+  // The sketch: a phone, a title, habit rows with a check, a bar chart under them.
+  box(userLeft, y, bw, sketchRows + 2, t);
+  const pl = userLeft + Math.floor((bw - pw) / 2);
+  const ph = sketchRows;
+  const py = y + 1;
+  const mid = pw - 2;
+  const row = (text: string) => `|${text.padEnd(mid).slice(0, mid)}|`;
+  // The phone's parts; the rows left over go between them, so the phone fills the bubble's height.
+  const chartRows = Math.max(2, Math.min(7, ph - 14));
+  const chart = Array.from({ length: chartRows }, (_, r) => {
+    let line = " ";
+    for (let c = 1; c < mid - 1; c++) {
+      const tall = Math.round(chartRows * (0.3 + 0.7 * Math.abs(Math.sin(c * 1.3))));
+      line += c % 2 === 1 && chartRows - r <= tall ? "#" : " ";
+    }
+    return row(line);
+  });
+  const parts = [
+    [row(" Habits"), `|${"-".repeat(mid)}|`],
+    [row(" [x] Read"), row(" [x] Run"), row(" [ ] Water")],
+    [row(" * 12 day streak")],
+    chart,
+    [`|${"-".repeat(mid)}|`, row("  o   o   o")],
+  ];
+  const used = parts.reduce((n, p) => n + p.length, 2);
+  const spare = Math.max(0, ph - used);
+  const rows: string[] = [`.${"-".repeat(mid)}.`];
+  parts.forEach((p, i) => {
+    rows.push(...p);
+    if (i < parts.length - 1) for (let k = 0; k < Math.floor((spare * (i + 1)) / (parts.length - 1)) - Math.floor((spare * i) / (parts.length - 1)); k++) rows.push(row(""));
+  });
+  rows.push(`'${"-".repeat(mid)}'`);
+  rows.slice(0, ph).forEach((line, r) => {
+    t += 0.09;
+    for (let c = 0; c < line.length; c++) put(pl + c, py + r, line[c], t);
+  });
+  y += sketchRows + 3 + gap;
+  t += 0.5;
+
+  // The voice note: a play mark and a waveform that moves.
+  box(userLeft, y, bw, 3, t);
+  put(userLeft + 2, y + 1, ">", t);
+  const wave = { y: y + 1, x0: userLeft + 4, x1: userLeft + bw - 2, at: t };
+  y += 4 + gap;
+  t += 1.6;
+
+  // The reply, on the left: dots first, then typed.
+  box(1, y, bw, reply.length + 2, t);
+  const dots = t;
+  t += 1.2;
+  reply.forEach((line, i) => {
+    for (let c = 0; c < line.length; c++) put(3 + c, y + 1 + i, line[c], (t += 1 / 16));
+  });
+  const result = { grid, at, wave, dots: { y: y + 1, from: dots, to: dots + 1.2 }, cycle: t + 3 };
+  threads.set(key, result);
+  return result;
+}
 
 /** An arrow pointer; the spaces inside it hide the ripples behind. */
 // Figma's pointer, drawn in white over the ripples: its tip at the top left.
@@ -96,33 +194,21 @@ const ROCKET_W = 12;
 const FLAME_ROWS = 3;
 
 const MOTIFS: Motif[] = [
-  // 01 Describe: a message bubble drawn in ASCII, the prompt typed into it, then typed again.
+  // 01 Describe: a chat from the top to the bottom: the prompt typed, a sketch drawn, a voice note, the reply.
   (x, y, t, w, h) => {
-    const b = bubble(w, h);
-    const right = b.left + b.width - 1;
-    const bottom = b.top + b.height - 1;
-    // The tail: an opening in the bottom edge, then a triangle closing under it, | on the left and / on
-    // the right, meeting three rows down.
-    const tl = b.left + 3;
-    if (y === b.top || y === bottom) {
-      if (x === b.left || x === right) return y === b.top ? "." : "'";
-      if (y === bottom && (x === tl || x === tl + 4)) return ".";
-      if (y === bottom && x > tl && x < tl + 4) return " ";
-      return x > b.left && x < right ? "-" : " ";
+    const th = thread(w, h);
+    const now = t % th.cycle;
+    const v = th.wave;
+    if (y === v.y && x >= v.x0 && x < v.x1) {
+      if (now < v.at) return " ";
+      const a = Math.abs(Math.sin(x * 0.9 + t * 6) * Math.sin(x * 0.3 - t * 2));
+      return " .:-=+*#"[Math.min(7, Math.floor(a * 8))];
     }
-    const below = y - bottom;
-    if (below >= 1 && below <= 3) return x === tl ? "|" : x === tl + 4 - below ? "/" : " ";
-    if (y < b.top || y > bottom) return " ";
-    if (x === b.left || x === right) return "|";
-    const row = y - b.top - 2;
-    const col = x - b.left - 2;
-    const line = b.lines[row];
-    const typed = Math.floor(t * 12) % (b.total + 30);
-    if (!line || col < 0 || col > line.length) return " ";
-    const at = b.starts[row] + col;
-    // The cursor blinks where the next character goes (after the last one at the end of a line).
-    if (at === typed && Math.sin(t * 9) > 0) return "_";
-    return col < line.length && at < typed ? line[col] : " ";
+    // Before the reply is typed, three dots appear one by one where it starts.
+    const d = th.dots;
+    if (y === d.y && now >= d.from && now < d.to) return x >= 3 && x <= 7 && x % 2 === 1 && now >= d.from + (x - 3) * 0.15 ? "." : " ";
+    const row = th.at[y];
+    return row && now >= row[x] ? th.grid[y][x] : " ";
   },
   // 02 Plan: a grid of screens, lighting up one after another.
   (x, y, t, w, h) => {
