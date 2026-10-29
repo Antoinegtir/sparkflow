@@ -3,9 +3,9 @@
 import { useEffect, useRef } from "react";
 
 /**
- * An ASCII animation under the "How it works" summary, one motif per step: the voice of Describe, the grid
- * of the plan, code raining for Build, the scan of Look, the loop of Fix, the ripples of a click, the
- * sky of Ship. Drawn as text (a <pre>), about 20 frames a second while it's on screen.
+ * An ASCII animation beside the "How it works" summary, one motif per step: a message being typed, the
+ * grid of the plan, code raining for Build, a phone captured and scanned, the loop of Fix, the ripples of
+ * a click, the app going up to the stores. Drawn as text (a <pre>), about 20 frames a second while it's on screen.
  */
 const RAMP = " .:-=+*#%@";
 // A character cell is about twice as tall as wide: x is squeezed so circles stay round.
@@ -17,14 +17,47 @@ const hash = (a: number, b: number) => {
 };
 
 /** Intensity 0..1 of the character at (x, y) at time t, on a grid `w` columns by `h` rows. */
+/** Signed distance to a rounded rectangle centred on 0 (negative inside), in character units. */
+const roundRect = (dx: number, dy: number, hw: number, hh: number, r: number) => {
+  const qx = Math.abs(dx) - hw + r;
+  const qy = Math.abs(dy) - hh + r;
+  return Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - r;
+};
+
 type Motif = (x: number, y: number, t: number, w: number, h: number) => number;
 
 const MOTIFS: Motif[] = [
-  // 01 Describe: a voice waveform running across.
+  // 01 Describe: a message bubble, its lines being typed, a cursor blinking at the end.
   (x, y, t, w, h) => {
-    const amp = (0.25 + 0.75 * Math.abs(Math.sin(x * 0.11 + t * 0.9))) * (h / 2 - 1.5);
-    const wave = h / 2 + Math.sin(x * 0.42 - t * 4) * amp * Math.sin(x * 0.07 + t);
-    return Math.exp(-((y - wave) ** 2) / 1.6);
+    const cx = w / 2;
+    const cy = Math.round(h * 0.45);
+    const hw = w * ASPECT * 0.4;
+    // As tall as it is wide (on screen), whatever the field's shape.
+    const hh = Math.round(Math.min(h * 0.3, hw * 1.1));
+    const dx = (x - cx) * ASPECT;
+    const dy = y - cy;
+    const edge = Math.abs(roundRect(dx, dy, hw, hh, 2.5)) < 0.55;
+    // The tail, under the bubble on the left.
+    const below = y - (cy + hh);
+    const tail = below > 0 && below < h * 0.12 && Math.abs(dx + hw * 0.55 - below * 0.9) < 0.7;
+    if (edge || tail) return 0.75;
+    // Text lines, typed one after the other, then the whole message starts again.
+    const lines = Math.max(2, Math.floor((hh * 2 - 3) / 2));
+    const line = Math.round((y - (cy - hh + 2)) / 2);
+    if ((y - (cy - hh + 2)) % 2 !== 0 || line < 0 || line >= lines) return 0;
+    const left = cx - hw / ASPECT + 3;
+    // Every line counts as full width for the typing, so they fill in order; the last one stops short.
+    const full = Math.floor((hw / ASPECT) * 2 - 6);
+    const width = line === lines - 1 ? Math.floor(full * 0.55) : full;
+    const col = x - left;
+    if (col < 0 || col >= width) return 0;
+    const typed = (t * 14) % (lines * full + 20);
+    const at = line * full + col;
+    if (at > typed) return 0;
+    // Gaps between words.
+    if (hash(Math.floor((col + line * 7) / 5), line) > 0.82) return 0;
+    const cursor = Math.floor(typed) - line * full === col && Math.sin(t * 8) > 0;
+    return cursor ? 1 : 0.45;
   },
   // 02 Plan: a grid of screens, lighting up one after another.
   (x, y, t, w, h) => {
@@ -40,13 +73,32 @@ const MOTIFS: Motif[] = [
     const d = head - y;
     return d >= 0 && d < 7 ? 1 - d / 7 : 0;
   },
-  // 04 Look: an eye, and a scan line sweeping down through it.
+  // 04 Look: a phone, its screen being captured (viewfinder corners, a flash) and scanned line by line.
   (x, y, t, w, h) => {
-    const scan = ((t * h * 0.28) % (h + 6)) - 3;
-    const dx = (x - w / 2) * ASPECT;
-    const dy = y - h / 2;
-    const eye = Math.abs(Math.hypot(dx / 1.6, dy) - h * 0.3) < 0.6 ? 0.6 : Math.hypot(dx, dy) < h * 0.11 ? 0.9 : 0;
-    return Math.max(eye, Math.exp(-((y - scan) ** 2) / 1.2) * 0.9);
+    const cx = w / 2;
+    const cy = Math.round(h / 2);
+    // A phone's proportions (half as wide as tall), as big as both the field's height and width allow.
+    const hh = Math.round(Math.min(h * 0.42, (w * ASPECT * 0.4) / 0.5));
+    const hw = hh * 0.5;
+    const dx = (x - cx) * ASPECT;
+    const dy = y - cy;
+    const body = roundRect(dx, dy, hw, hh, 2);
+    if (Math.abs(body) < 0.55) return 0.8;
+    const cycle = t % 4;
+    if (body < 0) {
+      // The app inside: a title and rows, lit by the scan as it passes.
+      const scan = -hh + ((cycle / 4) * hh * 2.2) % (hh * 2);
+      const row = Math.round((dy + hh - 3) / 3);
+      const onRow = (dy + hh - 3) % 3 === 0 && row >= 0 && Math.abs(dx) < hw - 2 && dy < hh - 2 && Math.abs(dx) < hw * (row === 0 ? 0.5 : 0.85);
+      const lit = Math.exp(-((dy - scan) ** 2) / 2);
+      const flash = cycle < 0.25 ? 1 - cycle * 4 : 0;
+      return Math.max(onRow ? 0.3 + lit * 0.7 : 0, lit * 0.35, flash * 0.5);
+    }
+    // Viewfinder corners around the phone.
+    const ox = Math.abs(dx) - (hw + 2);
+    const oy = Math.abs(dy) - (hh + 1.5);
+    const corner = (Math.abs(ox) < 0.5 && oy > -h * 0.12 && oy < 0.5) || (Math.abs(oy) < 0.5 && ox > -hw * 0.45 && ox < 0.5);
+    return corner ? 0.6 : 0;
   },
   // 05 Fix: a spiral turning, the loop of verify, fix, repeat.
   (x, y, t, w, h) => {
@@ -62,14 +114,31 @@ const MOTIFS: Motif[] = [
     const r = Math.hypot((x - cx) * ASPECT, y - cy);
     return Math.max(0, Math.sin(r * 1.3 - t * 5)) * Math.exp(-r / (h * 0.45));
   },
-  // 07 Ship: stars streaming down past something rising.
+  // 07 Ship: chevrons rising, the app going up to the stores, over a progress bar filling up.
   (x, y, t, w, h) => {
-    const row = Math.floor(y + t * (2 + hash(x, 3) * 4));
-    const star = hash(x, row) > 0.93 ? 0.4 + hash(row, x) * 0.6 : 0;
-    const dx = (x - w / 2) * ASPECT;
-    const trail = Math.abs(dx) < 1.2 && y > h / 2 ? 0.9 * (1 - (y - h / 2) / (h / 2)) * (0.6 + 0.4 * Math.sin(t * 20 + y)) : 0;
-    const tip = Math.hypot(dx, (y - h / 2 + 1) * 0.8) < 1.6 ? 1 : 0;
-    return Math.max(star, trail, tip);
+    const cx = w / 2;
+    const dx = Math.abs((x - cx) * ASPECT);
+    const top = h * 0.12;
+    const span = h * 0.62;
+    let v = 0;
+    // Arms no wider than the middle of the field.
+    const armLen = Math.min(h * 0.12, (w * ASPECT * 0.38) / 1.1);
+    for (let k = 0; k < 3; k++) {
+      // Each chevron climbs from the bottom of its span to the top, fading near the top.
+      const p = (t * 0.35 + k / 3) % 1;
+      const tipY = top + span * (1 - p);
+      const arm = y - tipY;
+      if (arm >= 0 && arm < armLen && Math.abs(dx - arm * 1.1) < 0.75) v = Math.max(v, 0.35 + 0.65 * p);
+    }
+    // The progress bar under it.
+    const barY = Math.round(h * 0.86);
+    const barW = w * ASPECT * 0.32;
+    if (Math.abs(y - barY) <= 1 && dx <= barW) {
+      const fill = (t * 0.35) % 1;
+      const pos = ((x - cx) * ASPECT + barW) / (barW * 2);
+      return y === barY ? (pos <= fill ? 0.85 : 0.15) : 0.25;
+    }
+    return v;
   },
 ];
 
