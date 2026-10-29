@@ -71,6 +71,19 @@ export function companion(udid: string): Promise<Companion> {
   return p;
 }
 
+/**
+ * A companion that stopped answering (stuck, or killed by another sparkflow taking the simulator): dropped
+ * and killed, so the next call starts a fresh one instead of every read waiting out its deadline.
+ */
+export function resetCompanion(udid: string) {
+  const p = companions.get(udid);
+  companions.delete(udid);
+  void p?.then((c) => c.proc.kill("SIGKILL")).catch(() => {});
+}
+
+/** gRPC "deadline exceeded" and "unavailable": the companion is gone or hung, not the request at fault. */
+const companionLost = (err: unknown) => [4, 14].includes((err as { code?: number })?.code ?? -1);
+
 export async function screenPoints(udid: string) {
   if (android.isAndroidId(udid)) return android.screenPoints(udid);
   return (await companion(udid)).points;
@@ -93,6 +106,17 @@ export type AxElement = {
  */
 export async function accessibilityInfo(udid: string, point?: { x: number; y: number }): Promise<AxElement[]> {
   if (android.isAndroidId(udid)) return android.accessibilityInfo(udid, point);
+  try {
+    return await readAccessibility(udid, point);
+  } catch (err) {
+    if (!companionLost(err)) throw err;
+    // Once more with a new companion.
+    resetCompanion(udid);
+    return readAccessibility(udid, point);
+  }
+}
+
+async function readAccessibility(udid: string, point?: { x: number; y: number }): Promise<AxElement[]> {
   const c = await companion(udid);
   const read = async () => {
     // On the home screen or while booting no app is in front: that's an empty screen, not an error.
