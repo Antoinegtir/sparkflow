@@ -370,7 +370,7 @@ function TreeLevel({ node, depth, onOpen, expanded }: { node: Tree; depth: numbe
 }
 
 /** Material Icon Theme icon for a file or folder name (served by /api/file-icon). */
-function MaterialIcon({ name, folder, open }: { name: string; folder?: boolean; open?: boolean }) {
+export function MaterialIcon({ name, folder, open }: { name: string; folder?: boolean; open?: boolean }) {
   const q = new URLSearchParams({ name, ...(folder ? { kind: "folder" } : {}), ...(open ? { open: "1" } : {}) });
   // eslint-disable-next-line @next/next/no-img-element
   return <img src={`/api/file-icon?${q}`} alt="" width={16} height={16} className="size-4 shrink-0" draggable={false} />;

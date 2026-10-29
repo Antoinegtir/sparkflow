@@ -403,8 +403,8 @@ export function IDE({ id, slug: initialSlug, initialPage }: { id: string; slug: 
       onDoubleClick={() => (side === "right" ? setPanelW(340) : setExplorerW(232))}
       title="Drag to resize · double-click to reset"
       className={clsx("group absolute top-0 bottom-0 z-20 flex w-4 cursor-col-resize items-center justify-center", side === "right" ? "-left-2" : "-right-2")}>
-      {/* Visible grip, brighter while hovered or dragged. */}
-      <span className={clsx("h-10 w-1 rounded-full transition-colors", resizing ? "bg-spark-500" : "bg-ink-600 group-hover:bg-ink-400")} />
+      {/* Visible grip, brighter while hovered or dragged; outlined so it reads the same over the canvas and over a panel. */}
+      <span className={clsx("h-10 w-1 rounded-full ring-1 ring-black/50 transition-colors", resizing ? "bg-spark-500" : "bg-ink-500 group-hover:bg-ink-300")} />
     </div>
   );
 

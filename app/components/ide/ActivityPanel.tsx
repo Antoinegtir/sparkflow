@@ -1,10 +1,11 @@
 "use client";
 
 import clsx from "clsx";
-import { FolderOpen, Pencil } from "lucide-react";
+import { FolderOpen } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { NavEdge, ProjectState } from "@/lib/shared";
 import { highlightLine } from "@/lib/web/highlight";
+import { MaterialIcon } from "./FileTree";
 import { FlowPanel } from "./FlowPanel";
 import { GitHubSetup } from "./GitHubSetup";
 import { LayoutTree, type LayoutPick } from "./LayoutTree";
@@ -53,7 +54,7 @@ export function ActivityPanel(p: Props) {
       </div>
       <div className="min-h-0 flex-1">
         {p.tab === "activity" && <Activity state={p.state} />}
-        {p.tab === "code" && <CodeView projectId={p.projectId} state={p.state} file={p.file} line={p.line} onFile={p.onFile} />}
+        {p.tab === "code" && <CodeView projectId={p.projectId} state={p.state} file={p.file} line={p.line} />}
         {p.tab === "layout" &&
           (p.focused || p.state.native ? (
             <LayoutTree projectId={p.projectId} state={p.state} route={p.focused} selectedKeys={p.selectedKeys} onHover={p.onLayoutHover} onPick={p.onLayoutPick} onJump={(f, l) => p.onFile(f, l)} />
@@ -127,26 +128,42 @@ function Bubble({ who, sub, children }: { who: "user" | "agent"; sub?: string; c
 const CODE = /\.(tsx?|jsx?|json|mjs|cjs|md|css|swift)$/i;
 const IMAGE = /\.(png|jpe?g|gif|webp|svg)$/i;
 
-function CodeView({ projectId, state, file, line, onFile }: { projectId: string; state: ProjectState; file: string | null; line: number | null; onFile: (p: string | null, l?: number | null) => void }) {
-  const [files, setFiles] = useState<string[]>([]);
-  const [content, setContent] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  // Editing by hand: the draft, and whether it's being saved.
+function CodeView({ projectId, state, file, line }: { projectId: string; state: ProjectState; file: string | null; line: number | null }) {
+  // `saved` is the file as on disk; `draft` is the editor, saved automatically a moment after you stop typing.
+  const [saved, setSaved] = useState<string | null>(null);
   const [draft, setDraft] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
+  const [status, setStatus] = useState<"saved" | "saving" | "error">("saved");
+  const [error, setError] = useState<string | null>(null);
   // TypeScript errors in this file, shown at the end of their line like VS Code's Error Lens.
   const [diags, setDiags] = useState<{ line: number; message: string }[]>([]);
   const [checks, setChecks] = useState(0);
   const scroller = useRef<HTMLDivElement>(null);
+  const dirty = useRef(false);
+  dirty.current = draft != null && draft !== saved;
 
   useEffect(() => {
-    fetch(`/api/projects/${projectId}/files`)
-      .then((r) => r.json())
-      .then((j) => setFiles((j.files as string[]).filter((f) => /\.(tsx?|json)$/.test(f) && !f.startsWith("components/sparkflow"))))
-      .catch(() => {});
-  }, [projectId, state.commits.length]);
+    setSaved(null);
+    setDraft(null);
+    setError(null);
+  }, [file]);
 
-  useEffect(() => setDraft(null), [file]);
+  useEffect(() => {
+    if (!file || IMAGE.test(file)) return;
+    let live = true;
+    fetch(`/api/projects/${projectId}/files?path=${encodeURIComponent(file)}`)
+      .then(async (r) => {
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.error);
+        if (!live) return;
+        setSaved(j.content);
+        // A new commit (the agent's, or ours) refreshes the file unless you're mid-edit.
+        if (!dirty.current) setDraft(j.content);
+      })
+      .catch((e) => live && setError(String(e.message)));
+    return () => {
+      live = false;
+    };
+  }, [projectId, file, state.commits.length]);
 
   useEffect(() => {
     setDiags([]);
@@ -161,78 +178,53 @@ function CodeView({ projectId, state, file, line, onFile }: { projectId: string;
     };
   }, [projectId, file, state.commits.length, checks]);
 
+  // Auto-save.
   useEffect(() => {
-    setContent(null);
-    setError(null);
-    if (!file || IMAGE.test(file)) return;
-    fetch(`/api/projects/${projectId}/files?path=${encodeURIComponent(file)}`)
-      .then(async (r) => {
-        const j = await r.json();
-        if (!r.ok) throw new Error(j.error);
-        setContent(j.content);
-      })
-      .catch((e) => setError(String(e.message)));
-  }, [projectId, file, state.commits.length]);
+    if (draft == null || saved == null || draft === saved || !file) return;
+    const t = setTimeout(async () => {
+      setStatus("saving");
+      const res = await fetch(`/api/projects/${projectId}/files`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ type: "write", path: file, content: draft }),
+      }).catch(() => null);
+      if (!res?.ok) {
+        setStatus("error");
+        setError((await res?.json().catch(() => null))?.error ?? "Couldn't save the file");
+        return;
+      }
+      setError(null);
+      setSaved(draft);
+      setStatus("saved");
+      setChecks((n) => n + 1);
+    }, 900);
+    return () => clearTimeout(t);
+  }, [draft, saved, file, projectId]);
 
   useEffect(() => {
-    if (!line || !content) return;
+    if (!line || saved == null) return;
     scroller.current?.querySelector(`[data-line="${line}"]`)?.scrollIntoView({ block: "center" });
-  }, [line, content]);
+  }, [line, saved]);
 
-  const save = async () => {
-    if (draft == null || !file || saving) return;
-    setSaving(true);
-    setError(null);
-    const res = await fetch(`/api/projects/${projectId}/files`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ type: "write", path: file, content: draft }),
-    }).catch(() => null);
-    setSaving(false);
-    if (!res?.ok) return setError((await res?.json().catch(() => null))?.error ?? "Couldn't save the file");
-    setContent(draft);
-    setDraft(null);
-    setChecks((n) => n + 1);
-  };
-
+  const name = file?.split("/").pop() ?? "";
   return (
     <div className="flex h-full flex-col">
       <div className="flex shrink-0 items-center gap-1.5 border-b border-[var(--line)] p-2">
-        <select
-          value={file ?? ""}
-          onChange={(e) => onFile(e.target.value || null)}
-          className="w-full cursor-pointer rounded-md border border-[var(--line)] bg-[var(--panel-2)] px-2 py-1 font-mono text-[11.5px] text-ink-200 outline-none">
-          <option value="">Choose a file…</option>
-          {file && !files.includes(file) && <option value={file}>{file}</option>}
-          {files.map((f) => (
-            <option key={f} value={f}>
-              {f}
-            </option>
-          ))}
-        </select>
-        {content != null &&
-          (draft == null ? (
-            <button
-              onClick={() => setDraft(content)}
-              title="Edit this file"
-              aria-label="Edit this file"
-              className="grid size-7 shrink-0 cursor-pointer place-items-center rounded-md border border-[var(--line)] text-ink-200 hover:bg-ink-800">
-              <Pencil size={13} />
-            </button>
-          ) : (
+        <div className="flex h-7 min-w-0 flex-1 items-center gap-2 px-1 font-mono text-[11.5px] text-ink-200" title={file ?? undefined}>
+          {file ? (
             <>
-              <button onClick={() => setDraft(null)} className="h-7 shrink-0 cursor-pointer rounded-md border border-[var(--line)] px-2 text-[11.5px] text-ink-300 hover:bg-ink-800">
-                Cancel
-              </button>
-              <button
-                onClick={() => void save()}
-                disabled={saving || draft === content}
-                title="Save (⌘S)"
-                className="h-7 shrink-0 cursor-pointer rounded-md bg-spark-500 px-2.5 text-[11.5px] font-medium text-white hover:bg-spark-400 disabled:cursor-default disabled:opacity-50">
-                {saving ? "Saving…" : "Save"}
-              </button>
+              <MaterialIcon name={name} />
+              <span className="truncate">{file}</span>
+              {draft != null && (
+                <span className={clsx("ml-auto shrink-0 font-sans text-[10.5px]", status === "error" ? "text-red-400" : "text-ink-500")}>
+                  {status === "saving" || dirty.current ? "Saving…" : status === "error" ? "Not saved" : "Saved"}
+                </span>
+              )}
             </>
-          ))}
+          ) : (
+            <span className="font-sans text-ink-500">No file open</span>
+          )}
+        </div>
         <button
           // sparkflow opens the folder in VS Code on this computer.
           onClick={() => void fetch(`/api/projects/${projectId}/reveal?app=vscode`, { method: "POST" })}
@@ -253,7 +245,7 @@ function CodeView({ projectId, state, file, line, onFile }: { projectId: string;
         {!state.native && <GitHubSetup projectId={projectId} appName={state.name} />}
       </div>
       <div ref={scroller} className="min-h-0 flex-1 overflow-auto">
-        {!file && <p className="p-4 text-[12px] text-ink-500">The project&apos;s code. Pick a file, or click an element in the Layout tab; the pencil edits it.</p>}
+        {!file && <p className="p-4 text-[12px] text-ink-500">Open a file from Source in the explorer, or click an element in the Layout tab. Edits save automatically.</p>}
         {file && IMAGE.test(file) && (
           <div className="p-4">
             <div className="grid place-items-center rounded-lg border border-[var(--line)] bg-[repeating-conic-gradient(#8882_0_25%,transparent_0_50%)] bg-[length:16px_16px] p-4">
@@ -264,16 +256,16 @@ function CodeView({ projectId, state, file, line, onFile }: { projectId: string;
               {file}&apos;)</code>
           </div>
         )}
-        {file && !IMAGE.test(file) && !CODE.test(file) && !content && !error && <p className="p-4 text-[12px] text-ink-500">Binary file.</p>}
-        {error && <p className="p-4 text-[12px] text-red-400">{error}</p>}
-        {content != null && (
-          // The editor is a transparent textarea over the highlighted lines, so errors stay on their line while typing.
+        {file && !IMAGE.test(file) && !CODE.test(file) && draft == null && !error && <p className="p-4 text-[12px] text-ink-500">Binary file.</p>}
+        {error && <p className="px-4 py-2 text-[12px] text-red-400">{error}</p>}
+        {draft != null && (
+          // A transparent textarea over the highlighted lines, so errors stay on their line while typing.
           <div className="relative w-max min-w-full">
-            <pre className="py-2 font-mono text-[11.5px] leading-[1.6]" aria-hidden={draft != null}>
-              {(draft ?? content).split("\n").map((l, i) => {
+            <pre className="py-2 font-mono text-[11.5px] leading-[1.6]" aria-hidden>
+              {draft.split("\n").map((l, i) => {
                 const errs = diags.filter((d) => d.line === i + 1);
                 return (
-                  <div key={i} data-line={i + 1} className={clsx("flex", errs.length ? "bg-red-500/10" : line === i + 1 && draft == null && "bg-spark-500/15")}>
+                  <div key={i} data-line={i + 1} className={clsx("flex", errs.length ? "bg-red-500/10" : line === i + 1 && "bg-spark-500/15")}>
                     <span className={clsx("w-10 shrink-0 select-none pr-3 text-right", errs.length ? "text-red-400" : "text-ink-600")}>{i + 1}</span>
                     <code className="whitespace-pre text-ink-200">{highlightLine(l)}</code>
                     {errs.length > 0 && <span className="select-none whitespace-pre pl-6 pr-3 text-red-400/90">{errs.map((e) => e.message).join("  ·  ")}</span>}
@@ -281,30 +273,26 @@ function CodeView({ projectId, state, file, line, onFile }: { projectId: string;
                 );
               })}
             </pre>
-            {draft != null && (
-              <textarea
-                autoFocus
-                value={draft}
-                wrap="off"
-                spellCheck={false}
-                onChange={(e) => setDraft(e.target.value)}
-                onKeyDown={(e) => {
-                  if ((e.metaKey || e.ctrlKey) && e.key === "s") {
-                    e.preventDefault();
-                    void save();
-                  } else if (e.key === "Escape") setDraft(null);
-                  else if (e.key === "Tab") {
-                    // Two spaces, like the project's code, instead of leaving the field.
-                    e.preventDefault();
-                    const t = e.currentTarget;
-                    const { selectionStart: a, selectionEnd: b } = t;
-                    setDraft(draft.slice(0, a) + "  " + draft.slice(b));
-                    requestAnimationFrame(() => t.setSelectionRange(a + 2, a + 2));
-                  }
-                }}
-                className="absolute inset-0 resize-none overflow-hidden whitespace-pre bg-transparent py-2 pl-10 font-mono text-[11.5px] leading-[1.6] text-transparent caret-ink-100 outline-none selection:bg-spark-500/30"
-              />
-            )}
+            <textarea
+              value={draft}
+              wrap="off"
+              spellCheck={false}
+              aria-label={file ?? "Code"}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                // ⌘S out of habit: it's saved anyway.
+                if ((e.metaKey || e.ctrlKey) && e.key === "s") e.preventDefault();
+                else if (e.key === "Tab") {
+                  // Two spaces, like the project's code, instead of leaving the field.
+                  e.preventDefault();
+                  const t = e.currentTarget;
+                  const { selectionStart: a, selectionEnd: b } = t;
+                  setDraft(draft.slice(0, a) + "  " + draft.slice(b));
+                  requestAnimationFrame(() => t.setSelectionRange(a + 2, a + 2));
+                }
+              }}
+              className="absolute inset-0 resize-none overflow-hidden whitespace-pre bg-transparent py-2 pl-10 font-mono text-[11.5px] leading-[1.6] text-transparent caret-ink-100 outline-none selection:bg-spark-500/30"
+            />
           </div>
         )}
       </div>
