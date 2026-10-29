@@ -29,9 +29,10 @@ function OpenOnPhone({ state }: { state: ProjectState }) {
           {url ? (
             <>
               <div className="mx-auto w-fit rounded-lg bg-white p-2">
-                <QRCodeSVG value={url} size={180} />
+                {/* An https link: every phone camera reads it (an exp:// one only with Expo Go installed). */}
+                <QRCodeSVG value={`https://sparkflow-ai.web.app/open?u=${encodeURIComponent(url)}`} size={180} />
               </div>
-              <p className="mt-3 text-[12px] text-ink-300">Scan with the camera to open the app in Expo Go (same Wi‑Fi).</p>
+              <p className="mt-3 text-[12px] text-ink-300">Scan with your phone's camera: it opens the app in Expo Go (same Wi‑Fi).</p>
               <p className="mt-1 truncate font-mono text-[11px] text-ink-500">{url}</p>
             </>
           ) : (
