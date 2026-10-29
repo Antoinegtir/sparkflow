@@ -49,7 +49,7 @@ const STEPS = [
     kicker: "06 · Point and talk",
     title: "Point at it and say what to change",
     body: "Click anything on the live phone, a button or a whole card, and say “bigger, in blue”. Sparkflow finds the component, the file and the line, makes the change and takes a new screenshot. Every version stays on a timeline.",
-    tags: ["Show and tell", "Versions", "iPhone and iPad"],
+    tags: ["Show and tell", "Versions", "iOS", "Android"],
   },
   {
     icon: Rocket,
