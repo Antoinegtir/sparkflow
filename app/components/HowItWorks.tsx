@@ -148,6 +148,8 @@ export function HowItWorks() {
                       ? "border-spark-400 bg-spark-500 text-white shadow-[0_0_0_6px_color-mix(in_oklab,var(--color-spark-500)_18%,transparent)]"
                       : "border-ink-600 bg-ink-900 text-ink-500",
                   )}>
+                  {/* The last step reached: confetti, again each time you scroll back to it. */}
+                  {i === STEPS.length - 1 && i === reached && <Confetti />}
                   {/* The step being read: a ring that keeps spreading out from its dot. */}
                   {i === reached && <span className="absolute inset-0 animate-ping rounded-full border-2 border-spark-400 [animation-duration:1.6s]" />}
                   <Icon size={15} />
@@ -175,5 +177,35 @@ export function HowItWorks() {
         </ol>
       </div>
     </div>
+  );
+}
+
+const CONFETTI_COLORS = ["#3b82f6", "#60a5fa", "#a78bfa", "#f472b6", "#facc15", "#34d399"];
+/** A burst of confetti from the parent's centre (fixed per mount, so it doesn't change on re-render). */
+function Confetti() {
+  const [pieces] = useState(() =>
+    Array.from({ length: 36 }, (_, i) => {
+      const angle = (i / 36) * Math.PI * 2 + Math.random() * 0.4;
+      const dist = 60 + Math.random() * 110;
+      return {
+        x: `${Math.cos(angle) * dist}px`,
+        y: `${Math.sin(angle) * dist - 40}px`,
+        r: `${Math.round(Math.random() * 720 - 360)}deg`,
+        color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+        round: i % 3 === 0,
+        delay: `${Math.random() * 120}ms`,
+      };
+    }),
+  );
+  return (
+    <span className="pointer-events-none absolute left-1/2 top-1/2 z-10" aria-hidden>
+      {pieces.map((p, i) => (
+        <span
+          key={i}
+          className={clsx("hiw-confetti absolute -ml-1 -mt-1 h-2 w-1.5", p.round && "w-2 rounded-full")}
+          style={{ background: p.color, animationDelay: p.delay, ["--x" as string]: p.x, ["--y" as string]: p.y, ["--r" as string]: p.r }}
+        />
+      ))}
+    </span>
   );
 }

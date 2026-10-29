@@ -206,7 +206,15 @@
 .hiw-scan { animation: hiw-scan 1.8s linear infinite; }
 @keyframes hiw-cursor { 0% { left: 75%; top: 80%; } 45%, 70% { left: 55%; top: 42%; transform: scale(1); } 55% { transform: scale(.85); } 100% { left: 75%; top: 80%; } }
 .hiw-cursor { animation: hiw-cursor 2.6s ease-in-out infinite; }
+/* Confetti from the last step's dot: each piece flies out (--x, --y), spins and falls. */
+@keyframes hiw-confetti {
+  0% { opacity: 1; transform: translate(0, 0) rotate(0); }
+  70% { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--x), calc(var(--y) + 140px)) rotate(var(--r)); }
+}
+.hiw-confetti { animation: hiw-confetti 1.6s cubic-bezier(.15,.7,.4,1) both; }
 @media (prefers-reduced-motion: reduce) {
+  .hiw-confetti { display: none; }
   .hiw-pop, .hiw-type, .hiw-wave, .hiw-scan, .hiw-cursor { animation: none; max-width: none; }
 }
 
