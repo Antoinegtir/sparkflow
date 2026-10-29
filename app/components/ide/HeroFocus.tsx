@@ -8,6 +8,7 @@ import { isAppMessage, matchRoute, qualityFixPrompt, type ProjectState, type Scr
 import { withScheme, type AppScheme } from "@/lib/web/app-scheme";
 import { outerSize, PREVIEW_DEVICES } from "@/lib/web/devices";
 import { useDeviceSkin } from "@/lib/web/device-skin";
+import { RunOnMenu } from "./RunOn";
 import { SkinFrame } from "./SkinFrame";
 import { useSimDevice } from "@/lib/web/sim-device";
 import { openInSimulator } from "@/lib/web/sim-open";
@@ -496,37 +497,9 @@ function ToolRail(p: Omit<Props, "onDevice"> & { style: React.CSSProperties; onR
             {PREVIEW_DEVICES.find((d) => d.id === p.device)?.ipad ? <Tablet size={15} /> : <Smartphone size={15} />}
           </button>
           {picker && (
-            <div className="absolute top-0 left-full ml-2 w-40 rounded-xl border border-[var(--line)] bg-[var(--panel)] p-1 shadow-2xl">
-              {(["ios", "android"] as const).map((pf) => (
-                <div key={pf}>
-                  <p className="px-2.5 pt-1.5 pb-1 text-[10px] font-semibold uppercase tracking-wide text-ink-500">{pf === "ios" ? "iOS" : "Android"}</p>
-                  {/* The live iOS Simulator or Android emulator: the app opens in it, natively in Sparkflow Dev. */}
-                  {pf === (sim.device?.platform ?? "ios") && sim.supported && p.state.preview && (
-                    <button
-                      onClick={() => {
-                        p.onDevice("simulator");
-                        setPicker(false);
-                        // The focus view then opens the app in it (HeroFocus' effect on the device), progress over it.
-                      }}
-                      className={clsx("flex w-full cursor-pointer items-center justify-between rounded-md px-2.5 py-1.5 text-left text-[12.5px] hover:bg-ink-800", p.device === "simulator" ? "text-ink-100" : "text-ink-300")}>
-                      {pf === "ios" ? "Simulator" : "Emulator"}
-                      {p.device === "simulator" && <Check size={13} className="text-spark-400" />}
-                    </button>
-                  )}
-                  {PREVIEW_DEVICES.filter((d) => d.platform === pf).map((d) => (
-                    <button
-                      key={d.id}
-                      onClick={() => {
-                        p.onDevice(d.id);
-                        setPicker(false);
-                      }}
-                      className={clsx("flex w-full cursor-pointer items-center justify-between rounded-md px-2.5 py-1.5 text-left text-[12.5px] hover:bg-ink-800", d.id === p.device ? "text-ink-100" : "text-ink-300")}>
-                      {d.label}
-                      {d.id === p.device && <Check size={13} className="text-spark-400" />}
-                    </button>
-                  ))}
-                </div>
-              ))}
+            // Same choices as the top bar's Run on menu: this Mac's devices, your phone, web previews.
+            <div className="absolute top-0 left-full z-50 ml-2">
+              <RunOnMenu state={p.state} onDevice={p.onDevice} onDone={() => setPicker(false)} />
             </div>
           )}
         </div>

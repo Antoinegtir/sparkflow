@@ -21,6 +21,8 @@ type Props = {
   onTogglePanel: () => void;
   onDeviceSwitching: (name: string | null) => void;
   onDevice: (id: string) => void;
+  /** Width of the right panel when open: the device and Play end at its edge, over the canvas. */
+  panelWidth: number;
 };
 
 export function TopBar(p: Props) {
@@ -29,7 +31,7 @@ export function TopBar(p: Props) {
   const verified = s.order.filter((r) => s.screens[r]?.status === "done").length;
   const native = !!s.native;
   return (
-    <header className="flex h-12 shrink-0 items-center justify-between gap-3 border-b border-[var(--line)] bg-[var(--panel)] px-3">
+    <header className="relative flex h-12 shrink-0 items-center justify-between gap-3 border-b border-[var(--line)] bg-[var(--panel)] px-3">
       <div className="flex min-w-0 items-center gap-3">
         <span className="shrink-0" title="All projects">
           <Logo compact />
@@ -61,7 +63,8 @@ export function TopBar(p: Props) {
         )}
         {!p.connected && <span className="animate-pulse-soft text-[11px] text-amber-400">reconnecting…</span>}
       </div>
-      <div className="flex items-center gap-1.5">
+      {/* Over the canvas, ending at the right panel's edge rather than across its border. */}
+      <div className="absolute top-1/2 flex -translate-y-1/2 items-center gap-1.5" style={{ right: p.panelWidth ? p.panelWidth + 12 : 180 }}>
         <RunOn state={s} onDevice={p.onDevice} onSwitching={p.onDeviceSwitching} />
         <button
           onClick={p.onPlay}
@@ -69,6 +72,8 @@ export function TopBar(p: Props) {
           className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-spark-500 px-2.5 py-1.5 text-[12.5px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-40">
           <Play size={12} className="fill-current" /> Play
         </button>
+      </div>
+      <div className="flex items-center gap-1.5">
         <button onClick={p.onPalette} className="hidden cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1.5 text-[12px] text-ink-400 hover:bg-ink-800 hover:text-ink-100 lg:flex">
           <Command size={13} /> Commands <kbd className="rounded border border-[var(--line)] px-1 font-mono text-[10px]">⌘K</kbd>
         </button>

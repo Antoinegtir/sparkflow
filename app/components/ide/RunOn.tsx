@@ -18,23 +18,10 @@ export function RunOn({ state, onDevice, onSwitching }: { state: ProjectState; o
   const sim = useSimDevice();
   const native = !!state.native;
   const [open, setOpen] = useState(false);
-  const [qr, setQr] = useState(false);
-  const [devices, setDevices] = useState<Device[] | null>(null);
-  const [all, setAll] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
-  const load = () =>
-    fetch("/api/sim/devices")
-      .then((r) => r.json())
-      .then((d) => Array.isArray(d) && setDevices(d))
-      .catch(() => {});
-
   useEffect(() => {
-    if (!open) {
-      setQr(false);
-      return setAll(false);
-    }
-    void load();
+    if (!open) return;
     const close = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
     document.addEventListener("mousedown", close);
     return () => document.removeEventListener("mousedown", close);
@@ -43,12 +30,71 @@ export function RunOn({ state, onDevice, onSwitching }: { state: ProjectState; o
   const onLive = native || state.previewDevice === "simulator";
   const preview = PREVIEW_DEVICES.find((d) => d.id === state.previewDevice);
 
+  // The button says what the app runs on now.
+  const Icon = onLive ? (sim.device?.ipad ? Tablet : Smartphone) : preview ? (preview.ipad ? Tablet : Smartphone) : Monitor;
+  const label = busy ? `Starting ${busy}…` : onLive ? (sim.device?.name ?? "No device") : (preview?.label ?? "Web");
+  const kind = onLive ? (sim.device?.platform === "android" ? "Emulator" : "Simulator") : "Web preview";
+
+  return (
+    <div ref={ref} className="relative">
+      <button onClick={() => setOpen((o) => !o)} className="flex cursor-pointer items-center gap-2 rounded-lg border border-[var(--line)] px-2.5 py-1.5 text-[12.5px] text-ink-200 hover:text-ink-100">
+        {busy ? <Loader2 size={13} className="animate-spin" /> : <Icon size={13} />}
+        <span className="max-w-[160px] truncate">{label}</span>
+        <span className={clsx("hidden rounded px-1.5 py-px text-[10.5px] sm:inline", onLive ? "bg-emerald-400/15 text-emerald-300" : "bg-ink-800 text-ink-400")}>{kind}</span>
+        <ChevronDown size={12} className="text-ink-500" />
+      </button>
+      {open && (
+        <div className="absolute right-0 z-50 mt-1">
+          <RunOnMenu
+            state={state}
+            onDevice={onDevice}
+            onDone={() => setOpen(false)}
+            onSwitching={(name) => {
+              setBusy(name);
+              onSwitching(name);
+            }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The choices themselves (also the focus view's device button): this computer's Simulators and
+ * emulators, your phone, the web preview sizes.
+ */
+export function RunOnMenu({
+  state,
+  onDevice,
+  onSwitching,
+  onDone,
+}: {
+  state: ProjectState;
+  onDevice: (id: string) => void;
+  onSwitching?: (name: string | null) => void;
+  onDone: () => void;
+}) {
+  const sim = useSimDevice();
+  const native = !!state.native;
+  const [qr, setQr] = useState(false);
+  const [devices, setDevices] = useState<Device[] | null>(null);
+  const [all, setAll] = useState(false);
+  useEffect(() => {
+    fetch("/api/sim/devices")
+      .then((r) => r.json())
+      .then((d) => Array.isArray(d) && setDevices(d))
+      .catch(() => {});
+  }, []);
+
+  const onLive = native || state.previewDevice === "simulator";
+  const preview = PREVIEW_DEVICES.find((d) => d.id === state.previewDevice);
+
   async function runOnDevice(d: Device) {
-    setOpen(false);
+    onDone();
     // Already the one shown: just show the app there.
     if (d.booted && sim.device?.udid === d.udid) return native || onDevice("simulator");
-    setBusy(d.name);
-    onSwitching(d.name);
+    onSwitching?.(d.name);
     try {
       const res = await fetch("/api/sim/devices", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ udid: d.udid, bundleId: state.native?.bundleId }) });
       const json = await res.json().catch(() => ({}));
@@ -57,15 +103,9 @@ export function RunOn({ state, onDevice, onSwitching }: { state: ProjectState; o
       window.dispatchEvent(new Event(SIM_CHANGED));
       if (!native) onDevice("simulator");
     } finally {
-      setBusy(null);
-      onSwitching(null);
+      onSwitching?.(null);
     }
   }
-
-  // The button says what the app runs on now.
-  const Icon = onLive ? (sim.device?.ipad ? Tablet : Smartphone) : preview ? (preview.ipad ? Tablet : Smartphone) : Monitor;
-  const label = busy ? `Starting ${busy}…` : onLive ? (sim.device?.name ?? "No device") : (preview?.label ?? "Web");
-  const kind = onLive ? (sim.device?.platform === "android" ? "Emulator" : "Simulator") : "Web preview";
 
   // Long lists (Xcode installs many Simulators): the running ones and a few others, unless "Show all".
   const FEW = 3;
@@ -100,15 +140,7 @@ export function RunOn({ state, onDevice, onSwitching }: { state: ProjectState; o
   const hidden = (devices ?? []).length - (["iphone", "ipad", "android"] as const).reduce((n, k) => n + sorted(k).filter((d, i) => d.booted || i < FEW).length, 0);
 
   return (
-    <div ref={ref} className="relative">
-      <button onClick={() => setOpen((o) => !o)} className="flex cursor-pointer items-center gap-2 rounded-lg border border-[var(--line)] px-2.5 py-1.5 text-[12.5px] text-ink-200 hover:text-ink-100">
-        {busy ? <Loader2 size={13} className="animate-spin" /> : <Icon size={13} />}
-        <span className="max-w-[160px] truncate">{label}</span>
-        <span className={clsx("hidden rounded px-1.5 py-px text-[10.5px] sm:inline", onLive ? "bg-emerald-400/15 text-emerald-300" : "bg-ink-800 text-ink-400")}>{kind}</span>
-        <ChevronDown size={12} className="text-ink-500" />
-      </button>
-      {open && (
-        <div className="absolute right-0 z-50 mt-1 max-h-[70vh] w-80 overflow-auto rounded-xl border border-[var(--line)] bg-[var(--panel)] p-1 shadow-2xl">
+        <div className="max-h-[70vh] w-80 overflow-auto rounded-xl border border-[var(--line)] bg-[var(--panel)] p-1 text-left shadow-2xl">
           {heading(<Smartphone size={12} />, "On this Mac", "the native app, live")}
           {sim.supported ? (
             <>
@@ -163,7 +195,7 @@ export function RunOn({ state, onDevice, onSwitching }: { state: ProjectState; o
                     <button
                       key={d.id}
                       onClick={() => {
-                        setOpen(false);
+                        onDone();
                         onDevice(d.id);
                       }}
                       className={clsx(row, !onLive && preview?.id === d.id && "bg-spark-500/10")}>
@@ -177,7 +209,5 @@ export function RunOn({ state, onDevice, onSwitching }: { state: ProjectState; o
             </>
           )}
         </div>
-      )}
-    </div>
   );
 }
