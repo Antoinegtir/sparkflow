@@ -74,7 +74,11 @@ export function TopBar(p: Props) {
         </button>
       </div>
       <div className="flex items-center gap-1.5">
-        <button onClick={p.onPalette} className="hidden cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1.5 text-[12px] text-ink-400 hover:bg-ink-800 hover:text-ink-100 lg:flex">
+        {/* Panel open: Commands starts just right of its edge, over the panel. */}
+        <button
+          onClick={p.onPalette}
+          style={p.panelWidth ? { left: `calc(100% - ${p.panelWidth}px + 12px)` } : undefined}
+          className={clsx("hidden cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1.5 text-[12px] text-ink-400 hover:bg-ink-800 hover:text-ink-100 lg:flex", p.panelWidth && "absolute top-1/2 -translate-y-1/2")}>
           <Command size={13} /> Commands <kbd className="rounded border border-[var(--line)] px-1 font-mono text-[10px]">⌘K</kbd>
         </button>
         <button onClick={p.onTogglePanel} aria-label={p.panelOpen ? "Hide the panel" : "Show the panel"} className={clsx("grid size-8 cursor-pointer place-items-center rounded-lg hover:bg-ink-800", p.panelOpen ? "text-ink-100" : "text-ink-500")}>
