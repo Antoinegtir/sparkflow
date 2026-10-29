@@ -36,52 +36,21 @@ function Describe() {
   );
 }
 
-const THEMES = [
-  { name: "Blue", color: "#3b82f6" },
-  { name: "Violet", color: "#8b5cf6" },
-  { name: "Green", color: "#10b981" },
-  { name: "Coral", color: "#f97316" },
-];
-
-/** The plan's screens, with a theme picker the visitor can try: the cards take its colour. */
 function Plan() {
   const screens = ["Today", "Stats", "Habit", "Settings"];
-  const [theme, setTheme] = useState(0);
-  const color = THEMES[theme].color;
   return (
-    <div className="flex h-full flex-col justify-center gap-2 p-3">
-      <div className="grid grid-cols-2 gap-2">
-        {screens.map((s, i) => (
-          <div key={s} className="hiw-pop rounded-xl border border-black/10 bg-black/5 p-2" style={{ animationDelay: `${i * 180}ms` }}>
-            <div className="text-[10px] font-semibold text-neutral-900">{s}</div>
-            <div className="mt-1.5 space-y-1">
-              <div className="h-1 w-3/4 rounded bg-black/20" />
-              <div className="h-1 w-1/2 rounded bg-black/15" />
-              <div className="h-4 rounded transition-colors duration-300" style={{ background: `${color}4d` }} />
-            </div>
+    <div className="grid h-full grid-cols-2 content-center gap-2 p-3">
+      {screens.map((s, i) => (
+        <div key={s} className="hiw-pop rounded-xl border border-black/10 bg-black/5 p-2" style={{ animationDelay: `${i * 180}ms` }}>
+          <div className="text-[10px] font-semibold text-neutral-900">{s}</div>
+          <div className="mt-1.5 space-y-1">
+            <div className="h-1 w-3/4 rounded bg-black/20" />
+            <div className="h-1 w-1/2 rounded bg-black/15" />
+            <div className="h-4 rounded bg-spark-500/30" />
           </div>
-        ))}
-      </div>
-      {/* Theme picker: an iOS segmented control. */}
-      <div className="hiw-pop relative mt-1 grid grid-cols-4 rounded-lg bg-black/8 p-0.5" style={{ animationDelay: "800ms" }} role="radiogroup" aria-label="Theme">
-        <span
-          className="absolute inset-y-0.5 left-0.5 rounded-md bg-white shadow-sm transition-transform duration-300 ease-out"
-          style={{ width: "calc((100% - 4px) / 4)", transform: `translateX(${theme * 100}%)` }}
-        />
-        {THEMES.map((t, i) => (
-          <button
-            key={t.name}
-            type="button"
-            role="radio"
-            aria-checked={i === theme}
-            onClick={() => setTheme(i)}
-            className={clsx("relative z-10 flex cursor-pointer items-center justify-center gap-1 py-1 text-[8.5px] font-medium transition-colors", i === theme ? "text-neutral-900" : "text-neutral-500")}>
-            <span className="size-1.5 rounded-full" style={{ background: t.color }} />
-            {t.name}
-          </button>
-        ))}
-      </div>
-      <p className="text-center text-[9.5px] text-neutral-500">4 screens · 11 acceptance criteria</p>
+        </div>
+      ))}
+      <p className="col-span-2 mt-1 text-center text-[9.5px] text-neutral-500">4 screens · 11 acceptance criteria</p>
     </div>
   );
 }
