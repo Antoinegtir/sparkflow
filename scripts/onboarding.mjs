@@ -139,28 +139,49 @@ function completeFolder(line) {
   return [names.map((n) => line.slice(0, line.length - base.length) + n + "/"), line];
 }
 
-function ask(prompt, completer) {
+/**
+ * Reads a line. `hint`: a suggestion shown dimmed in the empty field; Tab or → takes it, typing
+ * anything else clears it.
+ */
+function ask(prompt, completer, hint) {
   return new Promise((resolve) => {
-    const rl = createInterface({ input: process.stdin, output: process.stdout, completer, terminal: true });
+    // On an empty line Tab gives the hint instead of listing folders.
+    const complete = hint ? (line) => (line ? completer(line) : [[hint], line]) : completer;
+    const rl = createInterface({ input: process.stdin, output: process.stdout, completer: complete, terminal: true });
+    let ghost = false;
+    const onKey = (_s, key) => {
+      if (key?.name === "right" && !rl.line) rl.write(hint);
+      if (ghost) {
+        ghost = false;
+        process.stdout.write("\x1b[K");
+      }
+    };
     rl.on("SIGINT", () => {
       rl.close();
       process.stdout.write(`\n  ${dim("Cancelled, nothing saved.")}\n`);
       process.exit(130);
     });
     rl.question(prompt, (answer) => {
+      process.stdin.off("keypress", onKey);
       rl.close();
       // A Tab with nothing to complete lands in the answer as a tab character.
       resolve(answer.replace(/\t/g, "").trim());
     });
+    if (hint) {
+      process.stdout.write(`${dim(hint)}\x1b[${hint.length}D`);
+      ghost = true;
+      process.stdin.on("keypress", onKey);
+    }
   });
 }
 
 /** Where the apps live: any folder you can write to. Apps already saved can move along. */
 async function askFolder() {
   const before = currentFolder();
-  console.log(`  Where should your ${bold("apps")} live? ${dim("Tab completes, Enter keeps")} ${dim(tilde(before))}`);
+  const suggestion = "~/Documents/apps";
+  console.log(`  Where should your ${bold("apps")} live? ${dim(`Tab takes ${suggestion}, Enter keeps ${tilde(before)}`)}`);
   for (;;) {
-    const answer = await ask(`  ${blue("›")} Folder: `, completeFolder);
+    const answer = await ask(`  ${blue("›")} Folder: `, completeFolder, suggestion);
     const dir = answer ? expand(answer) : before;
     try {
       mkdirSync(dir, { recursive: true });
