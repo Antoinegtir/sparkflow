@@ -257,6 +257,8 @@ async function isInstalled(device: string) {
  */
 export async function installDevClient(device: string) {
   const platform: DevPlatform = android.isAndroidId(device) ? "android" : "ios";
+  // An emulator just started (switched to from the device menu) can't install anything yet.
+  if (platform === "android") await android.waitReady(device);
   const file = await ensureDevClient(platform);
   const hash = await templateHash();
   const record = await installedHashes();

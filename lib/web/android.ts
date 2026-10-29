@@ -322,6 +322,19 @@ export async function bootAvd(avd: string) {
   throw new Error(`${avd} did not boot in 3 minutes`);
 }
 
+/**
+ * Waits until the emulator can take an install: booted, and its package manager up (it answers a while
+ * after sys.boot_completed; before that adb says "device is still booting").
+ */
+export async function waitReady(serial: string, seconds = 180) {
+  for (let i = 0; i < seconds; i++) {
+    const booted = (await shell(serial, "getprop", "sys.boot_completed").catch(() => "")).trim() === "1";
+    if (booted && /^package:/m.test(await shell(serial, "pm", "path", "android").catch(() => ""))) return;
+    await sleep(1000);
+  }
+  throw new Error("The Android emulator is still starting after 3 minutes: try again once its home screen shows");
+}
+
 export async function shutdown(serial: string) {
   await adb(serial, "emu", "kill").catch(() => {});
   densities.delete(serial);

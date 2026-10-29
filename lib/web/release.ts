@@ -122,6 +122,7 @@ async function build(target: ReleaseTarget, platform: ReleasePlatform, src: stri
   await sh(path.join(src, "android"), `./gradlew assembleRelease -PreactNativeArchitectures=${abi} --console=plain`, androidEnv());
   const apk = path.join(src, "android", "app", "build", "outputs", "apk", "release", "app-release.apk");
   step("Installing on the emulator");
+  await android.waitReady(serial);
   await android.adb(serial, "install", "-r", apk);
   await android.adb(serial, "shell", "monkey", "-p", target.androidPackage, "-c", "android.intent.category.LAUNCHER", "1");
 }
