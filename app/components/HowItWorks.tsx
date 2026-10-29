@@ -148,6 +148,8 @@ export function HowItWorks() {
                       ? "border-spark-400 bg-spark-500 text-white shadow-[0_0_0_6px_color-mix(in_oklab,var(--color-spark-500)_18%,transparent)]"
                       : "border-ink-600 bg-ink-900 text-ink-500",
                   )}>
+                  {/* The step being read: a ring that keeps spreading out from its dot. */}
+                  {i === reached && <span className="absolute inset-0 animate-ping rounded-full border-2 border-spark-400 [animation-duration:1.6s]" />}
                   <Icon size={15} />
                 </span>
                 <div
