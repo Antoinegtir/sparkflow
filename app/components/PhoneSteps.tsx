@@ -122,8 +122,8 @@ function Describe() {
 /** A screen of the plan as a tiny wireframe: its name and a sketch of what it holds. */
 function PlanCard({ name, children, delay, lit }: { name: string; children: React.ReactNode; delay: number; lit?: boolean }) {
   return (
-    <div className={clsx("hiw-pop rounded-lg border bg-white px-1.5 py-1 shadow-sm transition-colors duration-500", lit ? "border-spark-400 ring-2 ring-spark-400/25" : "border-black/10")} style={{ animationDelay: `${delay}ms` }}>
-      <div className="mb-0.5 flex items-center justify-between">
+    <div className={clsx("hiw-pop rounded-lg border bg-white px-2 py-1.5 shadow-sm transition-colors duration-500", lit ? "border-spark-400 ring-2 ring-spark-400/25" : "border-black/10")} style={{ animationDelay: `${delay}ms` }}>
+      <div className="mb-1 flex items-center justify-between">
         <span className="text-[8px] font-semibold text-neutral-900">{name}</span>
         <span className="h-1 w-1 rounded-full bg-black/15" />
       </div>
@@ -144,7 +144,7 @@ function Plan() {
         <span className="text-[11px] font-bold text-neutral-900">Plan</span>
         <span className="text-[8px] text-neutral-500">4 screens · tabs</span>
       </div>
-      <div className="relative grid grid-cols-2 gap-x-3 gap-y-2.5">
+      <div className="relative grid grid-cols-2 gap-x-4 gap-y-3">
         <PlanCard name="Today" delay={0} lit={phase === 2}>
           <div className="space-y-[3px]">
             {[0, 1, 2].map((i) => (
@@ -184,7 +184,7 @@ function Plan() {
           </div>
         </PlanCard>
         {/* Navigation: Today opens Stats and a Habit; drawn in once the screens are there. */}
-        <span className={clsx("pointer-events-none absolute left-1/2 top-[24%] h-[2px] w-3 -translate-x-1/2 origin-left rounded-full bg-spark-500 transition-transform duration-500", phase >= 1 ? "scale-x-100" : "scale-x-0")} />
+        <span className={clsx("pointer-events-none absolute left-1/2 top-[24%] h-[2px] w-4 -translate-x-1/2 origin-left rounded-full bg-spark-500 transition-transform duration-500", phase >= 1 ? "scale-x-100" : "scale-x-0")} />
         <span className={clsx("pointer-events-none absolute left-[24%] top-1/2 h-3 w-[2px] -translate-y-1/2 origin-top rounded-full bg-spark-500 transition-transform duration-500 delay-200", phase >= 1 ? "scale-y-100" : "scale-y-0")} />
       </div>
       {/* What Today must show: checked on its screenshot later. */}
@@ -287,10 +287,11 @@ function MiniApp({ highlight, onTap, done, big }: { highlight?: number; onTap?: 
 // Phases: the app runs on each platform, the screenshot (a flash), the scan, each criterion checked on
 // the element it's about, then contrast and touch targets, then all clear.
 const LOOK = [1100, 500, 900, 750, 750, 750, 900, 1600];
+// Outlines measured on the scaled app: its title, its rows, its progress bar (in % of the frame).
 const LOOK_CHECKS = [
-  { label: "Header reads “Today”", box: "left-[4%] top-[5%] h-[18%] w-[40%]" },
-  { label: "Three habit rows", box: "left-[4%] top-[34%] h-[52%] w-[92%]" },
-  { label: "A progress bar", box: "left-[4%] top-[25%] h-[8%] w-[92%]" },
+  { label: "Header reads “Today”", box: "left-[3%] top-[4%] h-[16%] w-[42%]" },
+  { label: "Three habit rows", box: "left-[3%] top-[35%] h-[59%] w-[94%]" },
+  { label: "A progress bar", box: "left-[3%] top-[26%] h-[8%] w-[94%]" },
 ];
 function Look() {
   const phase = useScene(LOOK);
@@ -301,7 +302,7 @@ function Look() {
   return (
     <div className="flex h-full flex-col gap-2 px-2.5 pb-2 pt-4">
       {/* Where it runs: the three platforms light up one after the other. */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2 px-0.5">
         <span className="flex items-center gap-1 whitespace-nowrap text-[8.5px] font-medium text-neutral-600">
           <Camera size={10} /> {phase === 0 ? "Running" : "Captured"}
         </span>
@@ -315,20 +316,23 @@ function Look() {
         </div>
       </div>
       {/* The screenshot, framed like a viewfinder, with what each criterion looks at outlined. */}
-      <div className="relative mx-auto h-[158px] w-[88%] overflow-hidden rounded-xl border border-black/10 bg-white shadow-md">
-        <div className="origin-top-left scale-[0.84]" style={{ width: `${100 / 0.84}%` }}>
-          <MiniApp done={done} onTap={(i) => setDone((d) => d.map((x, j) => (j === i ? !x : x)))} />
+      <div className="relative mx-auto w-[84%] rounded-xl border border-black/10 bg-white p-2 shadow-md">
+        {/* The app, scaled down whole; the outlines are placed on it, so they land on its elements. */}
+        <div className="relative h-[124px] overflow-hidden">
+          <div className="origin-top-left scale-[0.72]" style={{ width: `${100 / 0.72}%` }}>
+            <MiniApp done={done} onTap={(i) => setDone((d) => d.map((x, j) => (j === i ? !x : x)))} />
+          </div>
+          <div className={clsx("pointer-events-none absolute inset-0 bg-white transition-opacity duration-150", phase === 1 ? "opacity-90" : "opacity-0")} />
+          {phase === 2 && <div className="hiw-scan pointer-events-none absolute inset-x-0 h-8 bg-gradient-to-b from-transparent via-sky-400/30 to-transparent" />}
+          {LOOK_CHECKS.map((c, i) => (
+            <span key={c.label} className={clsx("pointer-events-none absolute rounded-md border-2 transition-all duration-300", c.box, checking === i ? "border-spark-500 bg-spark-500/10 opacity-100" : i < through ? "border-emerald-500/50 opacity-100" : "border-transparent opacity-0")}>
+              <span className={clsx("absolute -right-1.5 -top-1.5 grid size-3.5 place-items-center rounded-full text-[7px] font-bold text-white", i < through && checking !== i ? "bg-emerald-500" : "bg-spark-500")}>{i + 1}</span>
+            </span>
+          ))}
         </div>
-        <div className={clsx("pointer-events-none absolute inset-0 bg-white transition-opacity duration-150", phase === 1 ? "opacity-90" : "opacity-0")} />
-        {phase === 2 && <div className="hiw-scan pointer-events-none absolute inset-x-0 h-8 bg-gradient-to-b from-transparent via-sky-400/30 to-transparent" />}
-        {LOOK_CHECKS.map((c, i) => (
-          <span key={c.label} className={clsx("pointer-events-none absolute rounded-md border-2 transition-all duration-300", c.box, checking === i ? "border-spark-500 bg-spark-500/10 opacity-100" : i < through ? "border-emerald-500/50 opacity-100" : "border-transparent opacity-0")}>
-            <span className={clsx("absolute -right-1.5 -top-1.5 grid size-3.5 place-items-center rounded-full text-[7px] font-bold text-white", i < through && checking !== i ? "bg-emerald-500" : "bg-spark-500")}>{i + 1}</span>
-          </span>
-        ))}
-        {/* Viewfinder corners. */}
+        {/* Viewfinder corners, in the frame's margin. */}
         {["left-1 top-1 border-l-2 border-t-2", "right-1 top-1 border-r-2 border-t-2", "bottom-1 left-1 border-b-2 border-l-2", "bottom-1 right-1 border-b-2 border-r-2"].map((c) => (
-          <span key={c} className={clsx("pointer-events-none absolute size-3 rounded-[3px] border-neutral-900/50", c)} />
+          <span key={c} className={clsx("pointer-events-none absolute size-2.5 rounded-[2px] border-neutral-900/40", c)} />
         ))}
       </div>
       {/* What Muse Spark checks on it. */}
@@ -495,7 +499,7 @@ function Ship() {
         <div className="hiw-pop flex w-full flex-col items-center gap-1.5 text-neutral-900 [&_.text-ink-200]:text-neutral-900 [&_.text-sm]:text-[10.5px] [&_.text-sm]:font-semibold">
           <InstallIcon
             replay={0}
-            label="MyApp"
+            label="Habits"
             // The habit app being installed: its own icon, a green check on a dark tile.
             icon={
               <span className="absolute inset-0 grid place-items-center bg-gradient-to-b from-[#1c1f26] to-[#050608]">
