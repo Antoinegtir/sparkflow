@@ -18,7 +18,8 @@ export const GET = handle(async (req: Request, { params }: RouteCtx<{ udid: stri
   const texts = q.getAll("text").map((t) => t.trim().toLowerCase()).filter(Boolean);
   const udid = assertUdid((await params).udid);
   // Android reads its whole UI tree in about 2 s: hovering row after row reuses a recent one.
-  const all = flatten(await (isAndroidId(udid) ? recentAccessibility(udid) : accessibilityInfo(udid)));
+  // `fresh=1` (after a touch moved the screen): a new read.
+  const all = flatten(await (isAndroidId(udid) && q.get("fresh") !== "1" ? recentAccessibility(udid) : accessibilityInfo(udid)));
   if (q.get("whole") === "1") {
     // The largest element on screen is the app's window.
     const screen = all.filter((e) => e.frame && e.frame.width < 1000).sort((a, b) => b.frame!.width * b.frame!.height - a.frame!.width * a.frame!.height)[0]?.frame;

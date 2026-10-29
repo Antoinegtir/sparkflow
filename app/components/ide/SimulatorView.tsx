@@ -19,16 +19,16 @@ type El = { type: string; label: string | null; id: string | null; frame: { x: n
  * Where an element is on the Simulator's screen (see /api/sim/[udid]/find). Not found: its nearest
  * parent that is, up to the whole screen, so a pick always outlines something.
  */
-async function findOnScreen(udid: string, f: SimFind | undefined, wholeFallback = true, first = true): Promise<{ union: Area; frames: Area[] } | null> {
+async function findOnScreen(udid: string, f: SimFind | undefined, wholeFallback = true, first = true, fresh = false): Promise<{ union: Area; frames: Area[] } | null> {
   if (!f || (f.whole && !first && !wholeFallback)) return null;
   if (f.whole || f.ids.length || f.texts.length) {
-    const q = new URLSearchParams([...f.ids.map((v) => ["id", v]), ...f.texts.map((v) => ["text", v]), ...(f.whole ? [["whole", "1"]] : [])]);
+    const q = new URLSearchParams([...f.ids.map((v) => ["id", v]), ...f.texts.map((v) => ["text", v]), ...(f.whole ? [["whole", "1"]] : []), ...(fresh ? [["fresh", "1"]] : [])]);
     const found = await fetch(`/api/sim/${udid}/find?${q}`)
       .then((r) => r.json())
       .catch(() => null);
     if (found?.union) return found;
   }
-  return findOnScreen(udid, f.fallback, wholeFallback, false);
+  return findOnScreen(udid, f.fallback, wholeFallback, false, fresh);
 }
 
 export function SimulatorView({
@@ -63,6 +63,9 @@ export function SimulatorView({
   const [hover, setHover] = useState<{ el: NonNullable<El>; box: Area } | null>(null);
   const [boxes, setBoxes] = useState<Area[]>([]);
   const [selBoxes, setSelBoxes] = useState<Area[]>([]);
+  // Bumped after a touch: the screen may have moved (scroll, another page), outlines are found again
+  // on a fresh read of it.
+  const [refind, setRefind] = useState(0);
   const udid = device?.udid;
   const points = device?.points ?? null;
 
@@ -188,11 +191,15 @@ export function SimulatorView({
     const key = `${page.parent ?? ""}/${page.title}`;
     if (shown.current === key) return;
     shown.current = key;
+    // Another page: the outlines of this one go at once, not when the page has changed.
+    setSelBoxes([]);
+    setBoxes([]);
     void fetch(`/api/sim/${udid}/tab`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(page) }).catch(() => {});
   }, [udid, page]);
 
   // Simulator → IDE: after each lift, ask which page is showing.
   const afterLift = useCallback(() => {
+    setTimeout(() => setRefind((n) => n + 1), 600);
     if (!udid || !onPageChange) return;
     setTimeout(async () => {
       const r = await fetch(`/api/sim/${udid}/tab`).then((x) => x.json()).catch(() => null);
@@ -223,6 +230,9 @@ export function SimulatorView({
     try {
       e.currentTarget.setPointerCapture(e.pointerId);
     } catch {}
+    // A touch can scroll or change the page: outlines would point at old places. Found again after it.
+    setSelBoxes([]);
+    setBoxes([]);
     const p = toPoints(e.clientX, e.clientY);
     const id = Date.now() + Math.random();
     setRipples((r) => [...r, { id, x: e.clientX - p.r.left, y: e.clientY - p.r.top }]);
@@ -334,14 +344,14 @@ export function SimulatorView({
       list.map(async (s): Promise<Area[]> => {
         if (s.area) return [{ x: s.area.x * points.width, y: s.area.y * points.height, width: s.area.width * points.width, height: s.area.height * points.height }];
         if (!s.find) return [];
-        const j = await findOnScreen(udid, s.find);
+        const j = await findOnScreen(udid, s.find, true, true, refind > 0);
         return j ? [j.union] : [];
       }),
     ).then((r) => alive && setSelBoxes(r.flat()));
     return () => {
       alive = false;
     };
-  }, [udid, selKey, points?.width, points?.height]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [udid, selKey, points?.width, points?.height, refind]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loaded && !supported) return <Message text="The iOS Simulator needs macOS with Xcode; the Android emulator needs the Android SDK (adb)." />;
   if (loaded && !device)
