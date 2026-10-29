@@ -105,9 +105,18 @@ export function HowItWorks() {
             <p className="landing-head mb-8 text-3xl font-semibold text-ink-100">How it works</p>
             <ol className="flex flex-col gap-3">
               {STEPS.map(({ kicker, title }, i) => (
-                <li key={kicker} className={clsx("transition-colors duration-500", i === reached ? "text-ink-100" : i < reached ? "text-ink-400" : "text-ink-600")}>
-                  <span className={clsx("mr-3 font-mono text-[11px] tracking-[0.18em]", i <= reached ? "text-spark-400" : "text-ink-600")}>{kicker.slice(0, 2)}</span>
-                  <span className="text-[14px]">{title}</span>
+                <li key={kicker}>
+                  {/* Goes to that step: the timeline, the phone and this list follow the scroll. */}
+                  <button
+                    type="button"
+                    onClick={() => root.current?.querySelectorAll<HTMLElement>("[data-step]")[i]?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                    className={clsx(
+                      "group cursor-pointer text-right transition-all duration-300 hover:-translate-x-1 hover:text-ink-100",
+                      i === reached ? "text-ink-100" : i < reached ? "text-ink-400" : "text-ink-600",
+                    )}>
+                    <span className={clsx("mr-3 font-mono text-[11px] tracking-[0.18em] transition-colors group-hover:text-spark-400", i <= reached ? "text-spark-400" : "text-ink-600")}>{kicker.slice(0, 2)}</span>
+                    <span className="text-[14px]">{title}</span>
+                  </button>
                 </li>
               ))}
             </ol>
