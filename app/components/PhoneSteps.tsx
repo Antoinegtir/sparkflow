@@ -23,11 +23,12 @@ function Describe() {
         {text.slice(0, n)}
         <span className="ml-px inline-block h-3 w-px translate-y-0.5 animate-pulse bg-white" />
       </div>
-      <div className="flex items-center gap-2 rounded-full bg-black/8 px-3 py-2">
-        <Mic size={12} className="text-spark-400" />
-        <div className="flex h-4 flex-1 items-center gap-[3px]">
+      <div className="flex items-center gap-2 overflow-hidden rounded-full bg-black/8 px-3 py-2">
+        <Mic size={12} className="shrink-0 text-spark-400" />
+        {/* As many bars as fit: the wave stays inside the chip. */}
+        <div className="flex h-4 min-w-0 flex-1 items-center gap-[3px] overflow-hidden">
           {Array.from({ length: 18 }, (_, i) => (
-            <span key={i} className="hiw-wave w-[3px] rounded-full bg-spark-400/80" style={{ animationDelay: `${i * 70}ms` }} />
+            <span key={i} className="hiw-wave w-[3px] shrink-0 rounded-full bg-spark-400/80" style={{ animationDelay: `${i * 70}ms` }} />
           ))}
         </div>
       </div>
