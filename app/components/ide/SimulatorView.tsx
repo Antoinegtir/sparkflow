@@ -361,13 +361,13 @@ export function SimulatorView({
         <span key={r.id} className="animate-tap pointer-events-none absolute size-10 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/50" style={{ left: r.x, top: r.y }} />
       ))}
       {inspect && hover && points && !selBoxes.some((b) => Math.abs(b.x - hover.box.x) < 2 && Math.abs(b.y - hover.box.y) < 2 && Math.abs(b.width - hover.box.width) < 2) && (
-        <div className="pointer-events-none absolute rounded-md border-2 border-violet-500 bg-violet-500/10" style={pct(hover.box)}>
-          <span className="absolute -top-5 left-0 rounded bg-violet-500 px-1.5 text-[10px] font-semibold whitespace-nowrap text-white">{hover.el.label || hover.el.type}</span>
+        <div className="pointer-events-none absolute rounded-md border-2 border-spark-400 bg-spark-500/10" style={pct(hover.box)}>
+          <span className="absolute -top-5 left-0 rounded bg-spark-500 px-1.5 text-[10px] font-semibold whitespace-nowrap text-white">{hover.el.label || hover.el.type}</span>
         </div>
       )}
       {points &&
-        boxes.map((b, i) => <div key={i} className="pointer-events-none absolute rounded-md border-2 border-violet-500 bg-violet-500/10" style={pct(b)} />)}
-      {/* Selected: blue, above the violet hover (an element just picked stays under the pointer). */}
+        boxes.map((b, i) => <div key={i} className="pointer-events-none absolute rounded-md border-2 border-spark-400 bg-spark-500/10" style={pct(b)} />)}
+      {/* Selected: solid blue, above the lighter hover (an element just picked stays under the pointer). */}
       {points &&
         selBoxes.map((b, i) => <div key={`s${i}`} className="pointer-events-none absolute rounded-md border-2 border-spark-500 bg-spark-500/10" style={pct(b)} />)}
       {frozen && (

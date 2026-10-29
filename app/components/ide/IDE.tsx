@@ -236,12 +236,12 @@ export function IDE({ id, slug: initialSlug, initialPage }: { id: string; slug: 
     // A generated app in the live Simulator: the Simulator switches with it (its pages are web captures).
     if (!state.native) {
       if (state.previewDevice === "simulator")
-        void fetch("/api/sim/appearance", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ appearance: next }) }).catch(() => {});
+        void fetch("/api/sim/appearance", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ appearance: next, udid: sim.device.udid }) }).catch(() => {});
       return;
     }
     setCapturingDark(true);
     try {
-      await fetch("/api/sim/appearance", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ appearance: next }) });
+      await fetch("/api/sim/appearance", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ appearance: next, udid: sim.device.udid }) });
       const missing = state.order.some((r) => (next === "dark" ? !state.screens[r]?.dark : !state.screens[r]?.screenshotUrl));
       if (missing) {
         await new Promise((r) => setTimeout(r, 800));
