@@ -3,23 +3,34 @@
 import clsx from "clsx";
 import { Check, ChevronDown, KeyRound, Loader2, Rocket, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ReleaseJob } from "@/lib/web/release";
+import { createPortal } from "react-dom";
+import type { ReleaseJob, StoreReadiness } from "@/lib/web/release";
 import { AndroidLogo, AppleLogo } from "../BrandIcons";
 
 /**
  * Ship: a native Release build of the app (its own name, icon and bundle ID) installed on the Simulator or
- * emulator, or a fastlane upload to TestFlight / Google Play's internal track, with its live log.
+ * emulator, or an upload to TestFlight / Google Play's internal track, with its live log. An upload that
+ * still lacks a credential says so in the menu and opens the setup instead of starting.
  */
+type Readiness = Record<"ios" | "android", StoreReadiness>;
+
+/** The IDE opens its right panel on Activity, where a build's log shows. */
+export const SHOW_ACTIVITY = "sparkflow:show-activity";
+const showActivity = () => dispatchEvent(new Event(SHOW_ACTIVITY));
 export function ReleaseMenu({ projectId }: { projectId: string }) {
   const [open, setOpen] = useState(false);
-  const [creds, setCreds] = useState(false);
+  const [creds, setCreds] = useState<"ios" | "android" | true | false>(false);
+  const [ready, setReady] = useState<Readiness | null>(null);
   const [job, setJob] = useState<ReleaseJob | null>(null);
   const [error, setError] = useState<string | null>(null);
   const root = useRef<HTMLDivElement>(null);
-  const log = useRef<HTMLPreElement>(null);
 
   const refresh = useCallback(async () => {
-    const r = await fetch(`/api/projects/${projectId}/release`, { cache: "no-store" }).then((x) => x.json()).catch(() => null);
+    const r = await fetch(`/api/projects/${projectId}/release`, {
+      cache: "no-store",
+    })
+      .then((x) => x.json())
+      .catch(() => null);
     setJob(r?.job ?? null);
   }, [projectId]);
   useEffect(() => void refresh(), [refresh]);
@@ -30,8 +41,12 @@ export function ReleaseMenu({ projectId }: { projectId: string }) {
     return () => clearInterval(t);
   }, [job?.state, refresh]);
   useEffect(() => {
-    if (log.current) log.current.scrollTop = log.current.scrollHeight;
-  }, [job?.log]);
+    if (!open) return;
+    void fetch("/api/release", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((j) => setReady(j.readiness ?? null))
+      .catch(() => {});
+  }, [open, creds]);
   useEffect(() => {
     if (!open) return;
     const close = (e: PointerEvent) => !root.current?.contains(e.target as Node) && setOpen(false);
@@ -41,10 +56,16 @@ export function ReleaseMenu({ projectId }: { projectId: string }) {
 
   const start = async (action: "build" | "deploy", platform: "ios" | "android") => {
     setError(null);
-    const r = await fetch(`/api/projects/${projectId}/release`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action, platform }) }).catch(() => null);
+    const r = await fetch(`/api/projects/${projectId}/release`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action, platform }),
+    }).catch(() => null);
     const j = await r?.json().catch(() => null);
+    if (r?.status === 409 && j?.setup) return setCreds(j.setup);
     if (!r?.ok) return setError(j?.error ?? "Couldn't start");
     setJob(j.job);
+    showActivity();
   };
 
   const running = job?.state === "running";
@@ -53,7 +74,8 @@ export function ReleaseMenu({ projectId }: { projectId: string }) {
     <div ref={root} className="relative">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--line)] bg-[var(--panel-2)] px-2.5 py-1.5 text-[12.5px] font-medium text-ink-100 hover:bg-ink-800">
+        className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--line)] bg-[var(--panel-2)] px-2.5 py-1.5 text-[12.5px] font-medium text-ink-100 hover:bg-ink-800"
+      >
         {running ? <Loader2 size={12} className="animate-spin text-spark-400" /> : <Rocket size={12} />} Ship <ChevronDown size={12} className="text-ink-500" />
       </button>
       {open && (
@@ -65,13 +87,28 @@ export function ReleaseMenu({ projectId }: { projectId: string }) {
           <button disabled={running} onClick={() => void start("build", "android")} className={item}>
             <AndroidLogo className="size-3.5" /> Android emulator <span className="ml-auto text-[11px] text-ink-500">Release</span>
           </button>
-          <p className="px-2.5 pb-1 pt-2.5 text-[10.5px] font-semibold uppercase tracking-wide text-ink-500">Deploy with fastlane</p>
-          <button disabled={running} onClick={() => void start("deploy", "ios")} className={item}>
-            <AppleLogo className="size-3.5 text-ink-200" /> App Store <span className="ml-auto text-[11px] text-ink-500">TestFlight</span>
-          </button>
-          <button disabled={running} onClick={() => void start("deploy", "android")} className={item}>
-            <AndroidLogo className="size-3.5" /> Google Play <span className="ml-auto text-[11px] text-ink-500">Internal testing</span>
-          </button>
+          <p className="px-2.5 pb-1 pt-2.5 text-[10.5px] font-semibold uppercase tracking-wide text-ink-500">Publish to the stores</p>
+          {(["ios", "android"] as const).map((pl) => {
+            const r = ready?.[pl];
+            return (
+              <button
+                key={pl}
+                disabled={running}
+                // Not set up yet: straight to what's missing instead of a failed upload.
+                onClick={() => (r && !r.ready ? setCreds(pl) : void start("deploy", pl))}
+                title={r && !r.ready ? `Missing: ${r.missing.join(", ")}` : undefined}
+                className={item}
+              >
+                {pl === "ios" ? <AppleLogo className="size-3.5 text-ink-200" /> : <AndroidLogo className="size-3.5" />}
+                {pl === "ios" ? "App Store" : "Google Play"}
+                {r && !r.ready ? (
+                  <span className="ml-auto rounded-full bg-amber-500/15 px-2 py-0.5 text-[10.5px] text-amber-300">Set up</span>
+                ) : (
+                  <span className="ml-auto text-[11px] text-ink-500">{pl === "ios" ? "TestFlight" : "Internal testing"}</span>
+                )}
+              </button>
+            );
+          })}
           <button onClick={() => setCreds(true)} className={clsx(item, "mt-1 border-t border-[var(--line)] pt-2 text-ink-400")}>
             <KeyRound size={13} /> Store credentials…
           </button>
@@ -79,31 +116,45 @@ export function ReleaseMenu({ projectId }: { projectId: string }) {
           {job && (
             <div className="mt-1.5 border-t border-[var(--line)] px-1 pt-2">
               <div className="flex items-center gap-1.5 px-1.5 text-[12px]">
-                {job.state === "running" ? <Loader2 size={12} className="animate-spin text-spark-400" /> : job.state === "done" ? <Check size={12} className="text-emerald-400" /> : <X size={12} className="text-red-400" />}
+                {job.state === "running" ? (
+                  <Loader2 size={12} className="animate-spin text-spark-400" />
+                ) : job.state === "done" ? (
+                  <Check size={12} className="text-emerald-400" />
+                ) : (
+                  <X size={12} className="text-red-400" />
+                )}
                 <span className={clsx("truncate", job.state === "error" ? "text-red-400" : "text-ink-200")}>
                   {job.platform === "ios" ? "iOS" : "Android"} {job.action === "build" ? "build" : "upload"} · {job.state === "error" ? "failed" : job.step}
                 </span>
                 <span className="ml-auto shrink-0 font-mono text-[10.5px] text-ink-500">{Math.round(((job.ended ?? Date.now()) - job.started) / 1000)} s</span>
               </div>
-              <pre ref={log} className="mt-1.5 max-h-48 overflow-auto whitespace-pre-wrap break-all rounded-md bg-black/40 p-2 font-mono text-[10px] leading-snug text-ink-400">
-                {job.log.trim() || "…"}
-              </pre>
+              <button onClick={showActivity} className="mt-1 cursor-pointer px-1.5 text-[11px] text-spark-400 hover:text-spark-300">
+                See its log in Activity
+              </button>
             </div>
           )}
         </div>
       )}
-      {creds && <CredentialsDialog onClose={() => setCreds(false)} />}
+      {/* In the IDE's root (its colours): the top bar's centred group is transformed, which would trap a fixed dialog in it. */}
+      {creds && createPortal(<CredentialsDialog focus={creds === true ? undefined : creds} onClose={() => setCreds(false)} />, document.querySelector("[data-ide]") ?? document.body)}
     </div>
   );
 }
 
 type Masked = {
+  readiness?: Readiness;
   apple: { keyId: string; issuerId: string; keyPath: string; teamId: string };
-  google: { jsonKeyPath: string; keystorePath: string; keyAlias: string; storePasswordSet: boolean; keyPasswordSet: boolean };
+  google: {
+    jsonKeyPath: string;
+    keystorePath: string;
+    keyAlias: string;
+    storePasswordSet: boolean;
+    keyPasswordSet: boolean;
+  };
 };
 
-/** Credentials for fastlane, saved on this computer (~/.sparkflow/release.json), never in your account. */
-function CredentialsDialog({ onClose }: { onClose: () => void }) {
+/** Store credentials, saved on this computer (~/.sparkflow/release.json), never in your account. */
+function CredentialsDialog({ focus, onClose }: { focus?: "ios" | "android"; onClose: () => void }) {
   const [saved, setSaved] = useState<Masked | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const form = useRef<HTMLFormElement>(null);
@@ -121,10 +172,25 @@ function CredentialsDialog({ onClose }: { onClose: () => void }) {
     // Passwords left blank stay as saved.
     const opt = (k: string) => v(k) || undefined;
     const body = {
-      apple: { keyId: v("keyId"), issuerId: v("issuerId"), keyPath: v("keyPath"), teamId: v("teamId") },
-      google: { jsonKeyPath: v("jsonKeyPath"), keystorePath: v("keystorePath"), keyAlias: v("keyAlias"), storePassword: opt("storePassword"), keyPassword: opt("keyPassword") },
+      apple: {
+        keyId: v("keyId"),
+        issuerId: v("issuerId"),
+        keyPath: v("keyPath"),
+        teamId: v("teamId"),
+      },
+      google: {
+        jsonKeyPath: v("jsonKeyPath"),
+        keystorePath: v("keystorePath"),
+        keyAlias: v("keyAlias"),
+        storePassword: opt("storePassword"),
+        keyPassword: opt("keyPassword"),
+      },
     };
-    const r = await fetch("/api/release", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }).catch(() => null);
+    const r = await fetch("/api/release", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    }).catch(() => null);
     if (!r?.ok) return setStatus("Couldn't save");
     setSaved(await r.json());
     setStatus("Saved on this computer");
@@ -142,12 +208,17 @@ function CredentialsDialog({ onClose }: { onClose: () => void }) {
               <X size={16} />
             </button>
           </div>
-          <p className="mt-1 text-[12px] leading-relaxed text-ink-500">Used by fastlane for every app. Saved on this computer only (~/.sparkflow/release.json, readable by you alone), never in your Sparkflow account.</p>
+          <p className="mt-1 text-[12px] leading-relaxed text-ink-500">
+            Used to upload every app. Saved on this computer only (~/.sparkflow/release.json, readable by you alone), never in your Sparkflow account.
+          </p>
 
           <h3 className="mt-5 flex items-center gap-2 text-[12.5px] font-semibold text-ink-200">
             <AppleLogo className="size-3.5" /> App Store Connect
           </h3>
-          <p className="mt-1 text-[11.5px] text-ink-500">An API key with the App Manager role (App Store Connect › Users and Access › Integrations). The app must already exist in App Store Connect with its bundle ID.</p>
+          <Missing r={saved.readiness?.ios} on={focus === "ios"} />
+          <p className="mt-1 text-[11.5px] text-ink-500">
+            An API key with the App Manager role (App Store Connect › Users and Access › Integrations). The app must already exist in App Store Connect with its bundle ID.
+          </p>
           <div className="mt-3 grid grid-cols-2 gap-3">
             <label>
               <span className={label}>Key ID</span>
@@ -170,7 +241,10 @@ function CredentialsDialog({ onClose }: { onClose: () => void }) {
           <h3 className="mt-6 flex items-center gap-2 text-[12.5px] font-semibold text-ink-200">
             <AndroidLogo className="size-3.5" /> Google Play
           </h3>
-          <p className="mt-1 text-[11.5px] text-ink-500">A service account JSON key with release rights, and your upload keystore. Google Play takes the very first .aab of a new app from the Play Console; fastlane uploads every one after.</p>
+          <Missing r={saved.readiness?.android} on={focus === "android"} />
+          <p className="mt-1 text-[11.5px] text-ink-500">
+            A service account JSON key with release rights, and your upload keystore. Google Play takes the very first .aab of a new app from the Play Console; Sparkflow uploads every one after.
+          </p>
           <div className="mt-3 grid grid-cols-2 gap-3">
             <label className="col-span-2">
               <span className={label}>Service account JSON key (path)</span>
@@ -207,6 +281,64 @@ function CredentialsDialog({ onClose }: { onClose: () => void }) {
         </form>
       ) : (
         <p className="text-[13px] text-ink-300">{status ?? "Loading…"}</p>
+      )}
+    </div>
+  );
+}
+
+/** What an upload still needs, above its section; highlighted for the store you came from. */
+function Missing({ r, on }: { r?: StoreReadiness; on: boolean }) {
+  if (!r) return null;
+  if (r.ready)
+    return (
+      <p className="mt-1.5 flex items-center gap-1.5 text-[11.5px] text-emerald-400">
+        <Check size={12} /> Ready to upload
+      </p>
+    );
+  return (
+    <div className={clsx("mt-2 rounded-lg border px-3 py-2 text-[11.5px]", on ? "border-amber-500/40 bg-amber-500/10 text-amber-200" : "border-[var(--line)] text-ink-400")}>
+      Still needed: {r.missing.join(", ")}.
+    </div>
+  );
+}
+
+/**
+ * The last build or upload of the app, as a terminal at the top of Activity: its steps and output, live
+ * while it runs. Nothing when the app was never built.
+ */
+export function ReleaseLog({ projectId }: { projectId: string }) {
+  const [job, setJob] = useState<ReleaseJob | null>(null);
+  const [open, setOpen] = useState(true);
+  const pre = useRef<HTMLPreElement>(null);
+  const refresh = useCallback(async () => {
+    const r = await fetch(`/api/projects/${projectId}/release`, { cache: "no-store" }).then((x) => x.json()).catch(() => null);
+    setJob(r?.job ?? null);
+  }, [projectId]);
+  useEffect(() => void refresh(), [refresh]);
+  // Every 2 s while it runs; a build started from Ship shows up within 2 s too.
+  useEffect(() => {
+    const t = setInterval(refresh, job?.state === "running" ? 2000 : 5000);
+    return () => clearInterval(t);
+  }, [job?.state, refresh]);
+  useEffect(() => {
+    if (pre.current) pre.current.scrollTop = pre.current.scrollHeight;
+  }, [job?.log, open]);
+  if (!job) return null;
+  const what = `${job.platform === "ios" ? "iOS" : "Android"} ${job.action === "build" ? "build" : job.platform === "ios" ? "App Store upload" : "Google Play upload"}`;
+  return (
+    <div className="shrink-0 border-b border-[var(--line)] p-2">
+      <button onClick={() => setOpen((o) => !o)} className="flex w-full cursor-pointer items-center gap-1.5 px-1 text-left text-[12px]">
+        {job.state === "running" ? <Loader2 size={12} className="animate-spin text-spark-400" /> : job.state === "done" ? <Check size={12} className="text-emerald-400" /> : <X size={12} className="text-red-400" />}
+        <span className={clsx("truncate", job.state === "error" ? "text-red-400" : "text-ink-200")}>
+          {what} · {job.state === "error" ? "failed" : job.step}
+        </span>
+        <span className="ml-auto shrink-0 font-mono text-[10.5px] text-ink-500">{Math.round(((job.ended ?? Date.now()) - job.started) / 1000)} s</span>
+        <ChevronDown size={12} className={clsx("shrink-0 text-ink-500 transition", !open && "-rotate-90")} />
+      </button>
+      {open && (
+        <pre ref={pre} className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap break-all rounded-md bg-black/50 p-2.5 font-mono text-[10.5px] leading-snug text-ink-300">
+          {job.log.trim() || "…"}
+        </pre>
       )}
     </div>
   );

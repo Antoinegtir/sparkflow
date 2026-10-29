@@ -49,7 +49,11 @@ export function releaseJob(id: string): ReleaseJob | null {
   return e ? { ...e.job, log: e.buffer.tail(60) } : null;
 }
 
-export function startRelease(target: ReleaseTarget, action: ReleaseAction, platform: ReleasePlatform, device?: string) {
+export async function startRelease(target: ReleaseTarget, action: ReleaseAction, platform: ReleasePlatform, device?: string) {
+  if (action === "deploy") {
+    const r = (await storeReadiness())[platform];
+    if (!r.ready) throw new NotReadyError(platform, r.missing);
+  }
   const cur = jobs.get(target.id);
   if (cur?.job.state === "running") throw new Error(`A ${cur.job.action} for ${cur.job.platform === "ios" ? "iOS" : "Android"} is already running`);
   const e: Entry = { job: { action, platform, state: "running", step: "Starting", started: Date.now(), log: "" }, buffer: new LineBuffer(600) };
@@ -123,13 +127,11 @@ async function build(target: ReleaseTarget, platform: ReleasePlatform, src: stri
 }
 
 async function deploy(target: ReleaseTarget, platform: ReleasePlatform, src: string, step: (s: string) => void, sh: Sh) {
+  // storeReadiness() checked everything before the job started.
   const c = await readCredentials();
-  const fastlane = await which("fastlane");
-  if (!fastlane) throw new Error("fastlane isn't installed: brew install fastlane");
+  const fastlane = (await which("fastlane"))!;
   if (platform === "ios") {
-    const a = c.apple ?? {};
-    if (!a.keyId || !a.issuerId || !a.keyPath || !a.teamId) throw new Error("Set your App Store Connect API key (key ID, issuer ID, .p8 file) and Team ID in Release settings first");
-    if (!existsSync(a.keyPath)) throw new Error(`The .p8 key isn't at ${a.keyPath}`);
+    const a = c.apple as Required<NonNullable<ReleaseCredentials["apple"]>>;
     step("Generating the iOS project (CocoaPods)");
     await sh(src, "npx expo prebuild -p ios --clean", { CI: "1" });
     await writeFastlane(src, target);
@@ -145,9 +147,7 @@ async function deploy(target: ReleaseTarget, platform: ReleasePlatform, src: str
     });
     return;
   }
-  const gl = c.google ?? {};
-  if (!gl.jsonKeyPath || !gl.keystorePath || !gl.keyAlias || !gl.storePassword) throw new Error("Set your Google Play service account key and upload keystore in Release settings first");
-  for (const f of [gl.jsonKeyPath, gl.keystorePath]) if (!existsSync(f)) throw new Error(`File not found: ${f}`);
+  const gl = c.google as Required<NonNullable<ReleaseCredentials["google"]>>;
   step("Generating the Android project");
   await sh(src, "npx expo prebuild -p android --clean --no-install", { CI: "1" });
   await writeFastlane(src, target);
@@ -305,6 +305,49 @@ export function maskedCredentials(c: ReleaseCredentials) {
       keyPasswordSet: !!c.google?.keyPassword,
     },
   };
+}
+
+// ---- Store readiness ----
+
+export type StoreReadiness = { ready: boolean; missing: string[] };
+
+/**
+ * What an upload to a store still needs, said before anything starts: tools on this computer, then each
+ * credential, then the files they point to.
+ */
+export async function storeReadiness(): Promise<Record<ReleasePlatform, StoreReadiness>> {
+  const c = await readCredentials();
+  const fastlane = await which("fastlane");
+  const tool = fastlane ? [] : ["fastlane on this computer (brew install fastlane)"];
+  const file = (p: string | undefined, what: string) => (p && !existsSync(p) ? [`${what}: no file at ${p}`] : []);
+  const a = c.apple ?? {};
+  const ios = [
+    ...(isMac() ? [] : ["a Mac with Xcode"]),
+    ...tool,
+    ...(a.keyId ? [] : ["App Store Connect key ID"]),
+    ...(a.issuerId ? [] : ["App Store Connect issuer ID"]),
+    ...(a.keyPath ? [] : ["App Store Connect .p8 key file"]),
+    ...(a.teamId ? [] : ["Apple Team ID"]),
+    ...file(a.keyPath, ".p8 key"),
+  ];
+  const gl = c.google ?? {};
+  const androidMissing = [
+    ...tool,
+    ...(gl.jsonKeyPath ? [] : ["Google Play service account key"]),
+    ...(gl.keystorePath ? [] : ["upload keystore"]),
+    ...(gl.keyAlias ? [] : ["keystore key alias"]),
+    ...(gl.storePassword ? [] : ["keystore password"]),
+    ...file(gl.jsonKeyPath, "Service account key"),
+    ...file(gl.keystorePath, "Keystore"),
+  ];
+  return { ios: { ready: !ios.length, missing: ios }, android: { ready: !androidMissing.length, missing: androidMissing } };
+}
+
+/** Thrown before an upload starts when something it needs is missing: no job, no log, a clear list. */
+export class NotReadyError extends Error {
+  constructor(public platform: ReleasePlatform, public missing: string[]) {
+    super(`${platform === "ios" ? "App Store" : "Google Play"} needs: ${missing.join(", ")}`);
+  }
 }
 
 // ---- Helpers ----

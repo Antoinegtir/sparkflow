@@ -11,6 +11,7 @@ import { usePresence } from "@/lib/web/presence";
 import { SIM_CHANGED, useSimDevice } from "@/lib/web/sim-device";
 import { useProject } from "@/lib/web/useProject";
 import { ActivityPanel, type FlowAction, type PanelTab } from "./ActivityPanel";
+import { SHOW_ACTIVITY } from "./ReleaseMenu";
 import { Canvas } from "./Canvas";
 import { CommandPalette, type Command } from "./CommandPalette";
 import { DiffViewer } from "./DiffViewer";
@@ -49,6 +50,15 @@ export function IDE({ id, slug: initialSlug, initialPage }: { id: string; slug: 
   // Bumped to show the open file in the explorer's Source tree.
   const [reveal, setReveal] = useState(0);
   const [panelOpen, setPanelOpen] = useState(true);
+  // Ship started a build: its log is in Activity.
+  useEffect(() => {
+    const show = () => {
+      setTab("activity");
+      setPanelOpen(true);
+    };
+    addEventListener(SHOW_ACTIVITY, show);
+    return () => removeEventListener(SHOW_ACTIVITY, show);
+  }, []);
   const [panelW, setPanelW] = useState(340);
   const [explorerW, setExplorerW] = useState(232);
   const [resizing, setResizing] = useState(false);

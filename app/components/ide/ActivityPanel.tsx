@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { NavEdge, ProjectState } from "@/lib/shared";
 import { CodeEditor } from "./CodeEditor";
 import { MaterialIcon } from "./FileTree";
+import { ReleaseLog } from "./ReleaseMenu";
 import { FlowPanel } from "./FlowPanel";
 import { GitHubSetup } from "./GitHubSetup";
 import { LayoutTree, type LayoutPick } from "./LayoutTree";
@@ -55,7 +56,14 @@ export function ActivityPanel(p: Props) {
         ))}
       </div>
       <div className="min-h-0 flex-1">
-        {p.tab === "activity" && <Activity state={p.state} />}
+        {p.tab === "activity" && (
+          <div className="flex h-full min-h-0 flex-col">
+            <ReleaseLog projectId={p.projectId} />
+            <div className="min-h-0 flex-1">
+              <Activity state={p.state} />
+            </div>
+          </div>
+        )}
         {p.tab === "code" && <CodeView projectId={p.projectId} state={p.state} file={p.file} line={p.line} onReveal={p.onReveal} onFile={p.onFile} />}
         {p.tab === "layout" &&
           (p.focused || p.state.native ? (
