@@ -58,19 +58,46 @@ function bubble(w: number, h: number): Bubble {
   return b;
 }
 
+/** The terminal's lines at time t (a 10 s loop), each as wide as the window's inside. */
+function shipLines(w: number, t: number) {
+  const inner = Math.max(18, Math.min(w - 2, 34)) - 4;
+  const k = t % 10;
+  const dots = (label: string, status: string) => `${label} ${".".repeat(Math.max(1, inner - label.length - status.length - 2))} ${status}`;
+  const bar = (label: string, from: number, to: number) => {
+    const p = Math.max(0, Math.min(1, (k - from) / (to - from)));
+    const pct = p >= 1 ? " ok" : `${Math.round(p * 100)}%`.padStart(3);
+    const n = inner - label.length - pct.length - 3;
+    const done = Math.round(p * n);
+    return `${label} [${"#".repeat(done)}${".".repeat(n - done)}]${pct}`;
+  };
+  const cmd = "$ sparkflow ship";
+  const out = [cmd.slice(0, Math.floor(k * 16))];
+  if (k > 1.4) out.push(dots("Release build", k > 2.4 ? "ok" : "..."));
+  if (k > 2.6) out.push(dots("Signing", k > 3.4 ? "ok" : "..."));
+  if (k > 3.6) out.push(bar("TestFlight ", 3.6, 6.4));
+  if (k > 4.2) out.push(bar("Google Play", 4.2, 7.2));
+  if (k > 7.6) out.push("Shipped to both stores.");
+  while (out.length < 6) out.push("");
+  return out;
+}
+
 const MOTIFS: Motif[] = [
   // 01 Describe: a message bubble drawn in ASCII, the prompt typed into it, then typed again.
   (x, y, t, w, h) => {
     const b = bubble(w, h);
     const right = b.left + b.width - 1;
     const bottom = b.top + b.height - 1;
+    // The tail: an opening in the bottom edge, then a triangle closing under it, | on the left and / on
+    // the right, meeting three rows down.
+    const tl = b.left + 3;
     if (y === b.top || y === bottom) {
       if (x === b.left || x === right) return y === b.top ? "." : "'";
+      if (y === bottom && (x === tl || x === tl + 4)) return ".";
+      if (y === bottom && x > tl && x < tl + 4) return " ";
       return x > b.left && x < right ? "-" : " ";
     }
-    // The tail, under the bubble's left side.
     const below = y - bottom;
-    if (below >= 1 && below <= 3) return x === b.left + 3 + below ? "\\" : " ";
+    if (below >= 1 && below <= 3) return x === tl ? "|" : x === tl + 4 - below ? "/" : " ";
     if (y < b.top || y > bottom) return " ";
     if (x === b.left || x === right) return "|";
     const row = y - b.top - 2;
@@ -138,31 +165,25 @@ const MOTIFS: Motif[] = [
     const r = Math.hypot((x - cx) * ASPECT, y - cy);
     return Math.max(0, Math.sin(r * 1.3 - t * 5)) * Math.exp(-r / (h * 0.45));
   },
-  // 07 Ship: chevrons rising, the app going up to the stores, over a progress bar filling up.
+  // 07 Ship: a terminal shipping the app, step by step: the build, the signing, both stores filling up.
   (x, y, t, w, h) => {
-    const cx = w / 2;
-    const dx = Math.abs((x - cx) * ASPECT);
-    const top = h * 0.12;
-    const span = h * 0.62;
-    let v = 0;
-    // Arms no wider than the middle of the field.
-    const armLen = Math.min(h * 0.12, (w * ASPECT * 0.38) / 1.1);
-    for (let k = 0; k < 3; k++) {
-      // Each chevron climbs from the bottom of its span to the top, fading near the top.
-      const p = (t * 0.35 + k / 3) % 1;
-      const tipY = top + span * (1 - p);
-      const arm = y - tipY;
-      if (arm >= 0 && arm < armLen && Math.abs(dx - arm * 1.1) < 0.75) v = Math.max(v, 0.35 + 0.65 * p);
+    const lines = shipLines(w, t);
+    const width = Math.max(18, Math.min(w - 2, 34));
+    const left = Math.floor((w - width) / 2);
+    const top = Math.floor(h / 2 - (lines.length + 4) / 2) - 2;
+    const right = left + width - 1;
+    const bottom = top + lines.length + 3;
+    if (y < top || y > bottom || x < left || x > right) return " ";
+    if (y === top || y === bottom) {
+      if (x === left || x === right) return y === top ? "." : "'";
+      // The window's title in the top edge.
+      const title = "-- ship ";
+      const i = x - left - 1;
+      return y === top && i < title.length ? title[i] : "-";
     }
-    // The progress bar under it.
-    const barY = Math.round(h * 0.86);
-    const barW = w * ASPECT * 0.32;
-    if (Math.abs(y - barY) <= 1 && dx <= barW) {
-      const fill = (t * 0.35) % 1;
-      const pos = ((x - cx) * ASPECT + barW) / (barW * 2);
-      return y === barY ? (pos <= fill ? 0.85 : 0.15) : 0.25;
-    }
-    return v;
+    if (x === left || x === right) return "|";
+    const line = lines[y - top - 2];
+    return line?.[x - left - 2] ?? " ";
   },
 ];
 
