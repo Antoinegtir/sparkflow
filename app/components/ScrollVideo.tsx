@@ -86,9 +86,11 @@ export function ScrollVideo({ src, className, children }: { src: string; classNa
       const from = scrollY;
       const dist = to - from;
       // Only keep the speed if it goes the right way; a minimum keeps very slow stops from dragging.
-      const v0 = Math.sign(dist) * Math.max(0.6, speed * Math.sign(dist));
+      const v0 = Math.sign(dist) * Math.max(1.6, speed * Math.sign(dist));
       // Constant deceleration from v0 to 0 covers dist in 2 * dist / v0.
-      const duration = Math.min(1200, Math.max(280, (2 * dist) / v0));
+      const duration = Math.min(650, Math.max(240, (2 * dist) / v0));
+      // The momentum's share of the curve, capped so a short glide never overshoots the stop and comes back.
+      const m = Math.sign(dist) * Math.min(Math.abs(v0 * duration), Math.abs(dist) * 2);
       const t0 = performance.now();
       gliding = true;
       const step = (now: number) => {
@@ -96,7 +98,7 @@ export function ScrollVideo({ src, className, children }: { src: string; classNa
         const t2 = t * t;
         const t3 = t2 * t;
         // Starts at speed v0, lands on `to` with zero speed.
-        const y = from * (2 * t3 - 3 * t2 + 1) + v0 * duration * (t3 - 2 * t2 + t) + to * (3 * t2 - 2 * t3);
+        const y = from * (2 * t3 - 3 * t2 + 1) + m * (t3 - 2 * t2 + t) + to * (3 * t2 - 2 * t3);
         scrollTo({ top: y, behavior: "instant" });
         if (t < 1 && gliding) glideRaf = requestAnimationFrame(step);
         else gliding = false;
@@ -117,7 +119,9 @@ export function ScrollVideo({ src, className, children }: { src: string; classNa
       // "How it works" link. Up: back to the top, the phone a thin divider.
       const how = document.getElementById("how");
       // Exactly where the browser scrolls for that link: the anchor's top minus its scroll-margin.
-      const rest = how ? how.getBoundingClientRect().top + y - parseFloat(getComputedStyle(how).scrollMarginTop) : zone[1] + innerHeight * 0.06;
+      // Without the slide-in offset the steps still have while fading in (up to 24px lower): where they settle.
+      const slideIn = after.current ? new DOMMatrixReadOnly(getComputedStyle(after.current).transform).f : 0;
+      const rest = how ? how.getBoundingClientRect().top - slideIn + y - parseFloat(getComputedStyle(how).scrollMarginTop) : zone[1] + innerHeight * 0.06;
       if (gliding || y <= zone[0] || y >= rest - 2) return;
       glide(dir > 0 ? rest : zone[0]);
     };
