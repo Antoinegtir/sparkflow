@@ -1,29 +1,29 @@
 "use client";
 
 import clsx from "clsx";
-import { ExternalLink, RotateCw, X } from "lucide-react";
+import { ExternalLink, Globe, RotateCw, Smartphone, X } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { isAppMessage, matchRoute, type ProjectState } from "@/lib/shared";
 import { withScheme, type AppScheme } from "@/lib/web/app-scheme";
+import { useDeviceSkin } from "@/lib/web/device-skin";
 import { useSimDevice } from "@/lib/web/sim-device";
 import { openInSimulator } from "@/lib/web/sim-open";
 import { DevClientOverlay } from "./DevClientOverlay";
 import { SimulatorView } from "./SimulatorView";
 import { PREVIEW_DEVICES, SE_CHIN } from "@/lib/web/devices";
+import { SkinFrame } from "./SkinFrame";
 import { CupertinoSpinner, PhoneFrame, SafeAreaScreen, SeFrame, type SafeAreas } from "./ui";
 
 type Platform = "web" | "ios" | "android";
 type Device = { id: string; label: string; areas: SafeAreas; h: number; radius: number; bezel: number; ipad?: boolean; homeButton?: boolean; simulator?: boolean };
 
-/** Devices per platform: the live Simulator, then the shared preview devices. */
-const DEVICES: Record<Exclude<Platform, "web">, Device[]> = {
-  ios: [
-    // The live iOS Simulator (needs macOS with Xcode); its size comes from the booted device.
-    { id: "simulator", label: "Simulator", areas: { width: 393, top: 59, bottom: 34 }, h: 852, radius: 55, bezel: 12, simulator: true },
-    ...PREVIEW_DEVICES.filter((d) => d.platform === "ios").map((d) => ({ ...d, label: d.label.replace(/^iPhone /, "") })),
-  ],
+/** Web preview sizes per platform (the web build in a device frame). */
+const PREVIEWS: Record<Exclude<Platform, "web">, Device[]> = {
+  ios: PREVIEW_DEVICES.filter((d) => d.platform === "ios"),
   android: PREVIEW_DEVICES.filter((d) => d.platform === "android"),
 };
+/** The running iOS Simulator or Android emulator; its size comes from the device itself. */
+const LIVE: Omit<Device, "label"> = { id: "simulator", areas: { width: 393, top: 59, bottom: 34 }, h: 852, radius: 55, bezel: 12, simulator: true };
 /** Desktop browser window for the web preview. */
 const WEB = { w: 1280, h: 800, chrome: 40 };
 const PREFS_KEY = "sparkflow-play";
@@ -37,11 +37,16 @@ export function PlayMode({ state, scheme, startPath, onClose, onSimButton, onDev
   const sim = useSimDevice();
   // Opens on the device the page is shown on (the focus view's), so the phone carries straight over.
   const onSim = state.previewDevice === "simulator";
-  const current = native || !state.preview ? undefined : onSim ? { id: "simulator", platform: "ios" as const } : PREVIEW_DEVICES.find((d) => d.id === state.previewDevice);
+  // The live device's platform is only known once the device list has loaded (see below).
+  const current = native || !state.preview ? undefined : onSim ? { id: "simulator", platform: sim.device?.platform ?? ("ios" as const) } : PREVIEW_DEVICES.find((d) => d.id === state.previewDevice);
   const [platform, setPlatform] = useState<Platform>(current?.platform ?? "ios");
+  const picked = useRef(false);
+  useEffect(() => {
+    if (!picked.current && (native || onSim) && sim.device) setPlatform(sim.device.platform);
+  }, [native, onSim, sim.device]);
   const [deviceId, setDeviceId] = useState<Record<Exclude<Platform, "web">, string>>({
-    ios: native || !state.preview ? "simulator" : current?.platform === "ios" ? current.id : "iphone",
-    android: current?.platform === "android" ? current.id : "pixel",
+    ios: native || !state.preview || onSim ? "simulator" : current?.platform === "ios" ? current.id : "iphone",
+    android: onSim ? "simulator" : current?.platform === "android" ? current.id : "pixel",
   });
   const [path, setPath] = useState(startPath);
   const [run, setRun] = useState(0);
@@ -85,7 +90,12 @@ export function PlayMode({ state, scheme, startPath, onClose, onSimButton, onDev
     return () => window.removeEventListener("message", onMessage);
   }, []);
 
-  const devices = platform === "web" ? [] : DEVICES[platform].filter((d) => !d.simulator || sim.supported || native);
+  // Per platform: the device running it live (when one is), then the web preview sizes. An imported
+  // native project only runs live.
+  const liveHere = sim.device && platform !== "web" && sim.device.platform === platform ? sim.device : null;
+  const devices: Device[] =
+    platform === "web" ? [] : [...(liveHere ? [{ ...LIVE, label: liveHere.name }] : []), ...(native ? [] : PREVIEWS[platform])];
+  const skin = useDeviceSkin(liveHere?.platform === "android" ? liveHere : null);
   const device = platform === "web" ? null : (devices.find((d) => d.id === deviceId[platform]) ?? devices[0]);
   const live = !!device?.simulator;
   // The Simulator shows whatever app it has open: for a generated app, open it there first, natively
@@ -115,8 +125,10 @@ export function PlayMode({ state, scheme, startPath, onClose, onSimButton, onDev
       ? { w: simPoints?.width ?? 393, h: simPoints?.height ?? 852, r: sim.device?.ipad ? 21 : 55, bezel: sim.device?.ipad ? 36 : 12 }
       : { w: device.areas.width, h: device.h, r: device.radius, bezel: device.bezel };
   const se = !!device?.homeButton;
-  const outerW = dims ? dims.w + dims.bezel * 2 : WEB.w;
-  const outerH = dims ? dims.h + (se ? 2 * SE_CHIN : dims.bezel * 2) : WEB.h + WEB.chrome;
+  // A live Android emulator in its own frame (SDK skin), its screen at the device's size in points.
+  const skinK = live && skin && dims ? dims.w / skin.screen.width : 0;
+  const outerW = skinK ? skin!.width * skinK : dims ? dims.w + dims.bezel * 2 : WEB.w;
+  const outerH = skinK ? skin!.height * skinK : dims ? dims.h + (se ? 2 * SE_CHIN : dims.bezel * 2) : WEB.h + WEB.chrome;
   useLayoutEffect(() => {
     const el = stage.current;
     if (!el) return;
@@ -213,6 +225,13 @@ export function PlayMode({ state, scheme, startPath, onClose, onSimButton, onDev
         {app}
       </BrowserWindow>
     );
+  } else if (live && skinK) {
+    body = (
+      <SkinFrame skin={skin!} style={{ width: outerW, height: outerH }}>
+        <SimulatorView />
+        {!native && <DevClientOverlay name={state.name} />}
+      </SkinFrame>
+    );
   } else if (live) {
     body = (
       <PhoneFrame width={outerW} height={outerH} radius={dims!.r + dims!.bezel} bezel={dims!.bezel} hardware ipad={sim.device?.ipad} onButton={onSimButton}>
@@ -237,26 +256,64 @@ export function PlayMode({ state, scheme, startPath, onClose, onSimButton, onDev
     );
   }
 
-  const seg = "cursor-pointer rounded-md px-2.5 py-1";
+  const seg = "flex cursor-pointer items-center gap-1.5 rounded-md px-2.5 py-1 transition";
+  const pickPlatform = (m: Platform) => {
+    picked.current = true;
+    setPlatform(m);
+    save(m, deviceId);
+  };
+  const pickDevice = (id: string) => {
+    if (platform === "web") return;
+    picked.current = true;
+    const ids = { ...deviceId, [platform]: id };
+    setDeviceId(ids);
+    save(platform, ids);
+  };
+  const previews = devices.filter((d) => !d.simulator);
   return (
     <div ref={root} data-ide className="fixed inset-0 z-[80] flex flex-col bg-black/85 backdrop-blur-md" onMouseDown={(e) => e.target === e.currentTarget && dismiss()}>
-      <div className="relative flex h-12 shrink-0 items-center justify-between px-4 text-[12.5px] text-white/80">
-        <div className="flex items-center gap-2">
-          {devices.length > 1 && (
-            <div className="flex rounded-lg bg-white/10 p-0.5">
-              {devices.map((d) => (
-                <button
-                  key={d.id}
-                  onClick={() => {
-                    if (platform === "web") return;
-                    const ids = { ...deviceId, [platform]: d.id };
-                    setDeviceId(ids);
-                    save(platform, ids);
-                  }}
-                  className={clsx(seg, "text-[11.5px]", device?.id === d.id ? "bg-white/20 text-white" : "text-white/60")}>
-                  {d.label}
+      <div className="relative flex h-14 shrink-0 items-center justify-between gap-3 px-4 text-[12.5px] text-white/80">
+        <div className="flex min-w-0 items-center gap-3">
+          {/* 1. Where it runs: the web build in a browser, or on iOS / Android. */}
+          <div className="flex rounded-lg bg-white/10 p-0.5">
+            {(["web", "ios", "android"] as const).map((m) => (
+              <button
+                key={m}
+                disabled={native && m !== "ios"}
+                onClick={() => pickPlatform(m)}
+                className={clsx(seg, platform === m ? "bg-white/20 text-white" : "text-white/60 hover:text-white", "disabled:cursor-not-allowed disabled:opacity-30")}>
+                {m === "web" ? <Globe size={13} /> : <Smartphone size={13} />}
+                {m === "web" ? "Web" : m === "ios" ? "iOS" : "Android"}
+              </button>
+            ))}
+          </div>
+          {/* 2. On what: the device running it live, or a web preview size. */}
+          {platform !== "web" && (
+            <div className="flex min-w-0 items-center gap-1 rounded-lg bg-white/10 p-0.5">
+              {liveHere ? (
+                <button onClick={() => pickDevice("simulator")} className={clsx(seg, live ? "bg-emerald-400/20 text-white" : "text-white/60 hover:text-white")} title={`The ${platform === "android" ? "Android emulator" : "iOS Simulator"} running on this computer`}>
+                  <span className="relative flex size-2">
+                    <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+                    <span className="relative inline-flex size-2 rounded-full bg-emerald-400" />
+                  </span>
+                  <span className="truncate">
+                    {platform === "android" ? "Emulator" : "Simulator"} · {liveHere.name}
+                  </span>
                 </button>
-              ))}
+              ) : (
+                !native && <span className="px-2.5 py-1 text-[11.5px] text-white/40">No {platform === "android" ? "emulator" : "Simulator"} running</span>
+              )}
+              {previews.length > 0 && (
+                <>
+                  <span className="mx-1 h-4 w-px bg-white/15" />
+                  <span className="pl-1 text-[10.5px] uppercase tracking-wide text-white/35">Web preview</span>
+                  {previews.map((d) => (
+                    <button key={d.id} onClick={() => pickDevice(d.id)} className={clsx(seg, "text-[11.5px]", device?.id === d.id ? "bg-white/20 text-white" : "text-white/60 hover:text-white")}>
+                      {d.label}
+                    </button>
+                  ))}
+                </>
+              )}
             </div>
           )}
           {!live && (
@@ -272,28 +329,11 @@ export function PlayMode({ state, scheme, startPath, onClose, onSimButton, onDev
             </>
           )}
         </div>
-        {!live && (
-          <div className="pointer-events-none absolute left-1/2 -translate-x-1/2 text-[12.5px] text-white/80">
-            {/* The page on screen, by name (the URL path means little to the user). */}
-            {route ? state.screens[route]?.title : cleanPath(path)}
-          </div>
-        )}
-        <div className="flex items-center gap-2">
-          {/* Preview platform: Web, iOS or Android. Native projects only run in the iOS Simulator. */}
-          <div className="flex rounded-lg bg-white/10 p-0.5">
-            {(["web", "ios", "android"] as const).map((m) => (
-              <button
-                key={m}
-                disabled={native && m !== "ios"}
-                onClick={() => {
-                  setPlatform(m);
-                  save(m, deviceId);
-                }}
-                className={clsx(seg, platform === m ? "bg-white/20 text-white" : "text-white/60", "disabled:cursor-not-allowed disabled:opacity-30")}>
-                {m === "web" ? "Web" : m === "ios" ? "iOS" : "Android"}
-              </button>
-            ))}
-          </div>
+        <div className="flex items-center gap-3">
+          {!live && (
+            // The page on screen, by name (the URL path means little to the user).
+            <span className="truncate text-white/70">{route ? state.screens[route]?.title : cleanPath(path)}</span>
+          )}
           <button onClick={dismiss} aria-label="Close" className="grid size-8 cursor-pointer place-items-center rounded-md hover:bg-white/10">
             <X size={16} />
           </button>
@@ -309,7 +349,7 @@ export function PlayMode({ state, scheme, startPath, onClose, onSimButton, onDev
       </div>
       <p className="pb-3 text-center text-[11px] text-white/40">
         {live
-          ? "The live iOS Simulator: click to tap, drag or use the trackpad to scroll. Esc to close."
+          ? `The live ${sim.device?.platform === "android" ? "Android emulator" : "iOS Simulator"}: click to tap, drag or use the trackpad to scroll. Esc to close.`
           : platform === "web"
             ? "Your app as a website, in a desktop browser. Esc to close."
             : `The web build of your app in ${platform === "ios" ? "an iOS" : "an Android"} device frame. Esc to close.`}
