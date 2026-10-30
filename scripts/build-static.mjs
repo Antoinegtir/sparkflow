@@ -3,7 +3,8 @@
 import { execSync } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync, renameSync, rmSync } from "node:fs";
 
-const ASIDE = ["app/api", "app/[app]", "app/p", "app/s", "proxy.ts"];
+// The proxy test imports proxy.ts, which the static export sets aside.
+const ASIDE = ["app/api", "app/[app]", "app/p", "app/s", "proxy.ts", "tests/share-proxy.test.ts"];
 const STASH = ".static-stash";
 rmSync(STASH, { recursive: true, force: true });
 mkdirSync(STASH);
