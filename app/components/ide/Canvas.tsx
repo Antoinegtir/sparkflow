@@ -663,6 +663,10 @@ function Flow(p: Props) {
       onNodeClick={(e, n) => n.type === "phone" && tool === "comment" && place(e, n.id)}
       nodesDraggable={tool !== "hand"}
       elementsSelectable={tool !== "hand"}
+      // Move: dragging the empty canvas draws a selection (pan with two fingers, the wheel or the middle
+      // button). Hand: dragging anywhere pans, nothing moves or opens.
+      panOnDrag={tool === "hand" ? true : [1, 2]}
+      selectionOnDrag={tool === "move"}
       nodes={[...groups, ...nodes, ...extras]}
       edges={edges}
       nodeTypes={nodeTypes}

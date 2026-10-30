@@ -278,8 +278,10 @@ html:has([data-landing]) { scroll-behavior: smooth; }
 @media (prefers-reduced-motion: reduce) { .skeleton-bone, .skeleton-part, .plan-outline, .plan-page, .plan-link { animation: none; } }
 
 /* Canvas tools: the cursor tells what a click does. */
-.canvas-tool-hand .react-flow__pane, .canvas-tool-hand .react-flow__node { cursor: grab; }
-.canvas-tool-hand .react-flow__pane:active { cursor: grabbing; }
+/* Over React Flow's own pane cursors (grab while it may pan), set for each tool. */
+.canvas-tool-move .react-flow__pane { cursor: default !important; }
+.canvas-tool-hand .react-flow__pane, .canvas-tool-hand .react-flow__node, .canvas-tool-hand .react-flow__node * { cursor: grab !important; }
+.canvas-tool-hand .react-flow__pane.dragging, .canvas-tool-hand:active .react-flow__pane, .canvas-tool-hand:active .react-flow__node * { cursor: grabbing !important; }
 .canvas-tool-frame .react-flow__pane { cursor: crosshair; }
 .canvas-tool-text .react-flow__pane { cursor: text; }
 .canvas-tool-comment .react-flow__pane, .canvas-tool-comment .react-flow__node-phone, .canvas-tool-comment .react-flow__node-phone button { cursor: crosshair; }
