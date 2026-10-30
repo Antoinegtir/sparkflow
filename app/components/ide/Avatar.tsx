@@ -2,10 +2,7 @@
 
 import clsx from "clsx";
 import { useState } from "react";
-import type { Person } from "@/lib/shared/share";
-
-// Only GitHub's avatar host is trusted: any other src (set by a server or a guest) could track viewers.
-const AVATAR_HOST = "https://avatars.githubusercontent.com/";
+import { trustedAvatar, type Person } from "@/lib/shared/share";
 
 const initials = (name: string) =>
   name
@@ -25,7 +22,7 @@ function hue(seed: string) {
 /** A person's picture: their GitHub avatar, else initials on a color hashed from `seed`. */
 export function Avatar({ person, seed, size = 20, ring, className, title }: { person?: Person; seed: string; size?: number; ring?: boolean; className?: string; title?: string }) {
   const [broken, setBroken] = useState(false);
-  const src = person?.avatar && person.avatar.startsWith(AVATAR_HOST) && !broken ? person.avatar : null;
+  const src = !broken ? trustedAvatar(person?.avatar) : null;
   const name = person?.name ?? "?";
   const style = { width: size, height: size, fontSize: Math.max(8, Math.round(size * 0.42)) };
   const cls = clsx("inline-grid shrink-0 place-items-center overflow-hidden rounded-full select-none", ring && "ring-2 ring-spark-500", className);

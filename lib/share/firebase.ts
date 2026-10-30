@@ -1,7 +1,7 @@
 import { chmodSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { FIREBASE_CONFIG, FIREBASE_PROJECT } from "../shared/firebase-config";
-import type { Person } from "../shared/share";
+import { trustedAvatar, type Person } from "../shared/share";
 import { repoRoot } from "../sandbox/util";
 import { shareHome } from "./paths";
 
@@ -13,6 +13,9 @@ export interface ProofIdentity {
   uid: string;
   gh: string;
   email: string;
+  /** Their profile name and picture (settings/account), from their token's claims. */
+  name?: string;
+  avatar?: string;
 }
 
 type Owner = { uid: string; gh: string; email: string; name: string; avatar: string | null };
@@ -115,7 +118,11 @@ export async function readProof(proofId: string): Promise<ProofIdentity> {
   const f = doc?.fields;
   const at = Date.parse(f?.at?.timestampValue ?? "");
   if (!Number.isFinite(at) || Date.now() - at > 5 * 60_000) throw new Error("Sparkflow sharing: proof expired");
-  const id = { uid: str(f, "uid"), gh: str(f, "gh"), email: str(f, "email") };
+  const id: ProofIdentity = { uid: str(f, "uid"), gh: str(f, "gh"), email: str(f, "email") };
+  const name = str(f, "name").trim().slice(0, 80);
+  const avatar = trustedAvatar(str(f, "avatar"));
+  if (name) id.name = name;
+  if (avatar) id.avatar = avatar;
   if (!id.uid || (id.gh && !GH.test(id.gh))) throw new Error("Sparkflow sharing: bad proof");
   return id;
 }
@@ -157,10 +164,13 @@ export async function publishBeacon(url: string | null) {
   if (now) writeServer({ ...now, url: safe });
 }
 
-export const avatarFor = (gh: string | undefined | null) => (gh && GH.test(gh) ? `https://avatars.githubusercontent.com/u/${gh}?v=4` : null);
+const githubAvatar = (gh: string | undefined | null) => (gh && GH.test(gh) ? `https://avatars.githubusercontent.com/u/${gh}?v=4` : null);
 
-/** Name without the GitHub API (v1): the email's local part, else "GitHub user <id>". */
-export const nameFor = (id: ProofIdentity) => (id.email ? id.email.split("@")[0] : id.gh ? `GitHub user ${id.gh}` : "Guest").slice(0, 80);
+/** Their own picture (profile), else their GitHub one. */
+export const avatarFor = (id: ProofIdentity) => id.avatar ?? githubAvatar(id.gh);
+
+/** Their profile name, else the email's local part, else "GitHub user <id>". */
+export const nameFor = (id: ProofIdentity) => (id.name || (id.email ? id.email.split("@")[0] : id.gh ? `GitHub user ${id.gh}` : "Guest")).slice(0, 80);
 
 export function readOwner(): (Person & { uid: string; email: string }) | null {
   const o = readServer()?.owner;
@@ -171,7 +181,7 @@ export function readOwner(): (Person & { uid: string; email: string }) | null {
 export async function setOwner(id: ProofIdentity): Promise<Person> {
   await ensureServerIdentity();
   const s = readServer()!;
-  const owner: Owner = { uid: id.uid, gh: id.gh, email: id.email, name: nameFor(id), avatar: avatarFor(id.gh) };
+  const owner: Owner = { uid: id.uid, gh: id.gh, email: id.email, name: nameFor(id), avatar: avatarFor(id) };
   writeServer({ ...s, owner });
   return readOwner()!;
 }

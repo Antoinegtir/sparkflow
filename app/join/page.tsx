@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { entryFrom } from "@/app/components/SharedShell";
 import { SignIn } from "@/app/components/SignIn";
-import type { Person, PreviewResult } from "@/lib/shared/share";
+import { trustedAvatar, type Person, type PreviewResult } from "@/lib/shared/share";
 import { requireSignIn } from "@/lib/web/auth";
 import { devHint, entryId, joinInvite, parseInvite, previewInvite, saveShared, ShareError, watchServer, writeProof } from "@/lib/web/share";
 
@@ -37,9 +37,9 @@ function takeInvite(): Invite | null {
 
 function Face({ person }: { person: Person | null }) {
   const name = person?.name ?? "Someone";
-  // Only GitHub's avatar host: a picture URL from anywhere else could track who opens the link.
-  if (person?.avatar?.startsWith("https://avatars.githubusercontent.com/")) {
-    return <img src={person.avatar} alt="" className="size-12 rounded-full" referrerPolicy="no-referrer" />;
+  // Only known hosts: a picture URL from anywhere else could track who opens the link.
+  if (trustedAvatar(person?.avatar)) {
+    return <img src={person!.avatar!} alt="" className="size-12 rounded-full" referrerPolicy="no-referrer" />;
   }
   const initials = name.split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase();
   return <div className="grid size-12 place-items-center rounded-full bg-spark-500/20 text-sm font-medium text-spark-300">{initials || "?"}</div>;

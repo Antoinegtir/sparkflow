@@ -38,10 +38,13 @@ service cloud.firestore {
         allow create: if request.auth != null
           && request.auth.token.firebase.sign_in_provider in ['github.com','google.com']
           && proofId.matches('[A-Za-z0-9_-]{22,64}')
-          && request.resource.data.keys().hasOnly(['uid','gh','email','at'])
+          && request.resource.data.keys().hasOnly(['uid','gh','email','name','avatar','at'])
           && request.resource.data.uid == request.auth.uid
           && request.resource.data.gh == request.auth.token.firebase.identities.get('github.com', [''])[0]
           && request.resource.data.email == request.auth.token.get('email', '')
+          // Their profile name and picture (settings/account): only what their token says.
+          && (!('name' in request.resource.data) || request.resource.data.name == request.auth.token.get('name', ''))
+          && (!('avatar' in request.resource.data) || request.resource.data.avatar == request.auth.token.get('picture', ''))
           && request.resource.data.at == request.time;
         allow get, delete: if request.auth != null && request.auth.uid == serverUid;
       }

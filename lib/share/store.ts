@@ -132,9 +132,9 @@ export const redeemInvite = (invite: string, ident: ProofIdentity) =>
     if (m && !m.revokedAt) return { projectId: f.projectId, role: m.role };
     if (m) {
       if (f.inv.createdAt <= m.revokedAt!) return { error: "revoked" };
-      Object.assign(m, { role: f.inv.role, revokedAt: null, joinedAt: Date.now(), via: f.inv.id, gh: ident.gh, email: ident.email, avatar: avatarFor(ident.gh) });
+      Object.assign(m, { role: f.inv.role, revokedAt: null, joinedAt: Date.now(), via: f.inv.id, gh: ident.gh, email: ident.email, name: nameFor(ident), avatar: avatarFor(ident) });
     } else {
-      p.members.push({ uid: ident.uid, gh: ident.gh, email: ident.email, name: nameFor(ident), avatar: avatarFor(ident.gh), role: f.inv.role, joinedAt: Date.now(), via: f.inv.id, revokedAt: null });
+      p.members.push({ uid: ident.uid, gh: ident.gh, email: ident.email, name: nameFor(ident), avatar: avatarFor(ident), role: f.inv.role, joinedAt: Date.now(), via: f.inv.id, revokedAt: null });
     }
     f.inv.uses++;
     return { projectId: f.projectId, role: f.inv.role };

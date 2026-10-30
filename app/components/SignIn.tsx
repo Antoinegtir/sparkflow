@@ -2,10 +2,11 @@
 
 import clsx from "clsx";
 import type { User } from "firebase/auth";
-import { Loader2, LogOut } from "lucide-react";
+import { Loader2, LogOut, UserRound } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { SIGNIN_CLOSED, SIGNIN_EVENT, signIn, signOutUser, watchUser, type Provider, type SignInRequest } from "@/lib/web/auth";
+import { PROFILE_EVENT } from "@/lib/web/profile";
 
 function GoogleIcon() {
   return (
@@ -39,6 +40,13 @@ export function SignIn() {
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => watchUser(setUser), []);
+  // A new name or picture (settings/accounts): same user object, redrawn.
+  const [, redraw] = useState(0);
+  useEffect(() => {
+    const on = () => redraw((n) => n + 1);
+    addEventListener(PROFILE_EVENT, on);
+    return () => removeEventListener(PROFILE_EVENT, on);
+  }, []);
   useEffect(() => {
     const ask = (e: Event) => {
       const { reason, anchor } = (e as CustomEvent<SignInRequest>).detail;
@@ -102,6 +110,9 @@ export function SignIn() {
           <button type="button" className={item} onClick={() => void signOutUser().then(() => setOpen(false))}>
             <LogOut size={15} /> Sign out
           </button>
+          <a href="/settings/accounts" className={item} onClick={() => setOpen(false)}>
+            <UserRound size={15} /> Profile
+          </a>
         </>
       ) : (
         <>

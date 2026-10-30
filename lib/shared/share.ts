@@ -1,6 +1,19 @@
 import { z } from "zod";
 
 /** Sharing a project with other people: roles, the people shown on avatars, and the API shapes. */
+
+/**
+ * Avatar pictures from known hosts only (any other src, set by a server or a guest, could track viewers):
+ * GitHub, Google, and photos people upload to their own folder of Sparkflow's storage bucket.
+ */
+export const trustedAvatar = (url: string | null | undefined): string | null =>
+  typeof url === "string" &&
+  url.length < 2000 &&
+  (url.startsWith("https://avatars.githubusercontent.com/") ||
+    url.startsWith("https://lh3.googleusercontent.com/") ||
+    url.startsWith("https://firebasestorage.googleapis.com/v0/b/sparkflow-ai.firebasestorage.app/o/users%2F"))
+    ? url
+    : null;
 export type Role = "edit" | "comment" | "view";
 export type AnyRole = Role | "owner";
 

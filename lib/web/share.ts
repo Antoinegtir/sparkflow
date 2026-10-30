@@ -110,6 +110,9 @@ export async function writeProof(serverUid: string): Promise<string> {
       uid: user.uid,
       gh: fb?.identities?.["github.com"]?.[0] ?? "",
       email: typeof claims.email === "string" ? claims.email : "",
+      // Their profile (settings/account), as their token states it: the rules check both against it.
+      ...(typeof claims.name === "string" && claims.name ? { name: claims.name } : {}),
+      ...(typeof claims.picture === "string" && claims.picture ? { avatar: claims.picture } : {}),
       at: serverTimestamp(),
     });
     return proofId;
