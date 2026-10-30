@@ -60,13 +60,11 @@ class ModalProjectSandbox implements Sandbox {
     const tunnels = await this.sb.tunnels(60_000);
     const https = tunnels[8081];
     const tcp = tunnels[8082];
-    await this.exec(
-      // setsid: in their own session, so they outlive this exec (its process group is ended when it returns).
-      `pkill -f 'expo start' || true; pkill socat || true;
-       EXPO_PACKAGER_PROXY_URL=${q(https.url.replace(/^https:/, "http:"))} BROWSER=none EXPO_NO_TELEMETRY=1 setsid nohup npx expo start --port 8081 > /tmp/metro.log 2>&1 < /dev/null &
-       setsid nohup socat TCP-LISTEN:8082,fork,reuseaddr TCP:127.0.0.1:8081 > /dev/null 2>&1 < /dev/null &
-       sleep 1`,
-    );
+    await this.exec("pkill -f 'expo start' || true; pkill socat || true");
+    // Long-running processes are execs of their own, left running (an exec's children end with it).
+    const proxyUrl = https.url.replace(/^https:/, "http:");
+    await this.sb.exec(["bash", "-lc", `EXPO_PACKAGER_PROXY_URL=${q(proxyUrl)} BROWSER=none EXPO_NO_TELEMETRY=1 exec npx expo start --port 8081 > /tmp/metro.log 2>&1`], { workdir: "/app" } as never);
+    await this.sb.exec(["bash", "-lc", "exec socat TCP-LISTEN:8082,fork,reuseaddr TCP:127.0.0.1:8081 > /dev/null 2>&1"], { workdir: "/app" } as never);
     const deadline = Date.now() + 180_000;
     for (;;) {
       const r = await this.exec("curl -s http://127.0.0.1:8081/status", { timeoutSec: 10 });
