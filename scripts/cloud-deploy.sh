@@ -9,7 +9,8 @@ PROJECT="${GCP_PROJECT:-sparkflow-ai}"
 REGION="${GCP_REGION:-europe-west1}"
 SERVICE="${CLOUD_SERVICE:-sparkflow}"
 BUCKET="${CLOUD_BUCKET:-sparkflow-ai-cloud-data}"
-IMAGE="$REGION-docker.pkg.dev/$PROJECT/sparkflow/server:$(git rev-parse --short HEAD)"
+# One image repository (europe-west1) serves every region.
+IMAGE="${REPO_REGION:-europe-west1}-docker.pkg.dev/$PROJECT/sparkflow/server:$(git rev-parse --short HEAD)"
 
 # Global builds: a regional one needs a private pool on this project.
 gcloud builds submit --project "$PROJECT" --tag "$IMAGE" .
