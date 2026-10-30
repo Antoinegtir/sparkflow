@@ -16,7 +16,7 @@ import { useSimDevice } from "@/lib/web/sim-device";
 import { useIsPhone } from "@/lib/web/phone";
 import { DesktopNote } from "./DesktopNote";
 import { requireSignIn, watchUser } from "@/lib/web/auth";
-import { apiFetch, appHref, BACKEND_EVENT, backendUrl, openOnBackend } from "@/lib/web/backend";
+import { apiFetch, appHref, BACKEND_EVENT, backendUrl, isCloud, openOnBackend, setBackend } from "@/lib/web/backend";
 import { loadSavedApps, saveApps, type SavedApp } from "@/lib/web/cloud-apps";
 
 const COVER_W = 132;
@@ -120,7 +120,8 @@ export function ProjectGrid() {
       const list: ProjectSummary[] = await res.json();
       setProjects(list);
       setSaved(null);
-      if (uid && Date.now() - lastSave.current > SAVE_EVERY) {
+      // The account mirrors your Mac's apps; the cloud's are kept there already (and are other ones).
+      if (uid && !isCloud() && Date.now() - lastSave.current > SAVE_EVERY) {
         lastSave.current = Date.now();
         void saveApps(uid, list).catch(() => {});
       }
@@ -164,7 +165,20 @@ export function ProjectGrid() {
         <div>
           <h2 className="landing-head text-2xl font-semibold text-ink-100">Your apps</h2>
           <p className="mt-1 text-sm text-ink-500">
-            {saved?.length
+            {isCloud() ? (
+              <>
+                {projects?.length ?? 0} app{projects?.length === 1 ? "" : "s"} in the cloud ·{" "}
+                <button
+                  onClick={() => {
+                    // Back to the Mac: forget the cloud session, the connect page links sparkflow again.
+                    setBackend(null);
+                    location.href = "/connect";
+                  }}
+                  className="cursor-pointer text-spark-400 hover:text-spark-300">
+                  Use my Mac instead
+                </button>
+              </>
+            ) : saved?.length
               ? `${saved.length} app${saved.length > 1 ? "s" : ""} saved to your account · start sparkflow to open them`
               : projects?.length
                 ? `${projects.length} app${projects.length > 1 ? "s" : ""} on this machine`
