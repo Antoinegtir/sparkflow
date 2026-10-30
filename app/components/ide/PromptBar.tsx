@@ -4,6 +4,8 @@ import clsx from "clsx";
 import type { SimFind } from "./LayoutTree";
 import { ArrowUp, Crosshair, ImagePlus, LayoutGrid, Loader2, Mic, Square, X } from "lucide-react";
 import { MaterialIcon } from "./FileTree";
+import { MetaLogo } from "../MetaLogo";
+import { DEFAULT_PHASE_MODEL, modelName } from "@/lib/shared/models";
 import { useEffect, useRef, useState } from "react";
 import type { MediaInput, Phase, ProjectState } from "@/lib/shared";
 import { can, useAccess } from "@/lib/web/access";
@@ -36,6 +38,7 @@ function PhasePipeline({ state, onRetry }: { state: ProjectState; onRetry: () =>
   const running = state.status === "running";
   const idx = PHASES.findIndex((p) => p.id === state.phase);
   const screen = state.phaseRoute ? state.screens[state.phaseRoute]?.title : undefined;
+  const model = modelName(state.phaseModel ?? DEFAULT_PHASE_MODEL[state.phase]);
   if (!running) {
     const tone = state.status === "failed" ? "text-red-400" : state.status === "stopped" ? "text-amber-400" : "text-emerald-400";
     return (
@@ -57,6 +60,12 @@ function PhasePipeline({ state, onRetry }: { state: ProjectState; onRetry: () =>
         <span key={p.id} className="flex items-center gap-1">
           {i > 0 && <span className="text-ink-700">→</span>}
           <span className={clsx(i === idx && "animate-pulse-soft font-medium text-spark-400", i < idx && "text-ink-300")}>{p.label}</span>
+          {/* The Meta model doing the current step. */}
+          {i === idx && model && (
+            <span className="flex shrink-0 items-center gap-1 rounded-full border border-spark-500/30 bg-spark-500/10 px-1.5 py-px text-[10.5px] text-spark-300">
+              <MetaLogo className="size-3" /> {model}
+            </span>
+          )}
         </span>
       ))}
       {(screen || state.phaseDetail) && (

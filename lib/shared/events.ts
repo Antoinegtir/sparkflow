@@ -18,7 +18,8 @@ export type AgentEvent =
   | { type: "files_changed"; files: string[] }
   | { type: "preview_ready"; webUrl: string; expoGoUrl: string | null }
   | { type: "run_status"; status: RunStatus; message?: string }
-  | { type: "phase"; phase: Phase; route?: string; detail?: string }
+  /** `model`: the Meta model doing this step (lib/shared/models.ts). */
+  | { type: "phase"; phase: Phase; route?: string; detail?: string; model?: string }
   | { type: "nav"; edges: NavEdge[] }
   | { type: "tree"; files: string[] }
   | ({ type: "usage" } & Usage)

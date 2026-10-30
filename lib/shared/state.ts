@@ -50,6 +50,8 @@ export type ProjectState = ProjectMeta & {
   phase: Phase;
   phaseRoute?: string;
   phaseDetail?: string;
+  /** The Meta model doing the current step. */
+  phaseModel?: string;
   plan?: AppPlan;
   order: string[];
   screens: Record<string, ScreenState>;
@@ -58,6 +60,10 @@ export type ProjectState = ProjectMeta & {
   preview?: { webUrl: string; expoGoUrl: string | null };
   usage: Usage;
   logs: { seq: number; ts: number; level: "info" | "error"; message: string; route?: string }[];
+  /** The agent loop's steps (planner, builder, verifier…) with the model doing each, for Activity. */
+  steps: { seq: number; ts: number; phase: Phase; route?: string; detail?: string; model?: string }[];
+  /** Each verifier verdict as it came: a page passing or failing its criteria, attempt by attempt. */
+  checks: { seq: number; ts: number; route: string; attempt: number; passed: number; total: number; ok: boolean; defects: number }[];
   timeline: TimelineEntry[];
   commits: { sha: string; message: string; routes: string[]; ts: number }[];
   lastSeq: number;
@@ -77,6 +83,8 @@ export function initialState(meta: ProjectMeta): ProjectState {
     tree: [],
     usage: { inputTokens: 0, outputTokens: 0, cachedTokens: 0, costUsd: 0, calls: 0 },
     logs: [],
+    steps: [],
+    checks: [],
     timeline: [],
     commits: [],
     lastSeq: 0,
@@ -145,9 +153,14 @@ export function applyEvent(state: ProjectState, ev: StoredEvent): ProjectState {
         .slice(-MAX_HISTORY);
       break;
     }
-    case "verdict":
+    case "verdict": {
       screen(e.verdict.route).verdict = e.verdict;
+      const v = e.verdict;
+      const passed = v.criteria.filter((c) => c.pass).length;
+      const ok = v.criteria.every((c) => c.pass) && !v.defects.some((d) => d.severity === "high");
+      s.checks = [...(s.checks ?? []), { seq: e.seq, ts: e.ts, route: v.route, attempt: e.attempt, passed, total: v.criteria.length, ok, defects: v.defects.length }].slice(-MAX_LOGS);
       break;
+    }
     case "quality":
       screen(e.route).quality = { ...e.report, version: e.version };
       break;
@@ -181,6 +194,8 @@ export function applyEvent(state: ProjectState, ev: StoredEvent): ProjectState {
       s.phase = e.phase;
       s.phaseRoute = e.route;
       s.phaseDetail = e.detail;
+      s.phaseModel = e.model;
+      if (e.phase !== "idle") s.steps = [...(s.steps ?? []), { seq: e.seq, ts: e.ts, phase: e.phase, route: e.route, detail: e.detail, model: e.model }].slice(-MAX_LOGS);
       break;
     case "nav":
       s.edges = mergeEdges(

@@ -17,6 +17,7 @@ import {
   type AppPlan,
   type CreateProjectRequest,
   type MediaInput,
+  type Phase,
   type ProjectMeta,
   type ProjectSummary,
   type PromptRequest,
@@ -132,7 +133,7 @@ export class Orchestrator {
         // A run cut short by a server restart is reported as stopped.
         if (rt.state.status === "running") {
           rt.emit({ type: "run_status", status: "stopped", message: "Interrupted (server restart)" });
-          rt.emit({ type: "phase", phase: "idle" });
+          this.phase(rt, { phase: "idle" });
         }
         rt.meter = new UsageMeter(this.provider, this.cfg.maxCostUsd, (u) => rt.emit({ type: "usage", ...u }), rt.state.usage);
         void this.pruneDeleted(rt).catch(() => {});
@@ -148,6 +149,12 @@ export class Orchestrator {
       p.catch(() => this.runtimes.delete(id));
     }
     return p;
+  }
+
+  /** A step of the agent loop, with the Meta model doing it (shown in Activity and the prompt bar). */
+  private phase(rt: ProjectRuntime, e: { phase: Phase; route?: string; detail?: string; model?: string }) {
+    const role = e.phase === "planner" || e.phase === "builder" || e.phase === "verifier" ? e.phase : null;
+    return rt.emit({ type: "phase", ...e, ...(e.model || !role ? {} : { model: this.provider.modelFor(role) }) });
   }
 
   /** Refreshes the project's cloud copy soon (none until this server has its Firebase identity). */
@@ -229,7 +236,7 @@ export class Orchestrator {
         rt.emit({ type: "run_status", status: aborted ? "stopped" : "failed", message });
       } finally {
         clearTimeout(timer);
-        rt.emit({ type: "phase", phase: "idle" });
+        this.phase(rt, { phase: "idle" });
         await rt.sandbox?.persist?.().catch(() => {});
         await rt.flush();
         this.guestRuns.delete(rt);
@@ -372,18 +379,19 @@ export class Orchestrator {
 
   private async generate(rt: ProjectRuntime, prompt: string) {
     const deps = this.deps(rt);
-    rt.emit({ type: "phase", phase: "sandbox" });
+    this.phase(rt, { phase: "sandbox" });
     const sb = await this.sandbox(rt);
     const preview = sb.startDevServer().then(
       (p) => (rt.emit({ type: "preview_ready", webUrl: p.webUrl, expoGoUrl: p.expoGoUrl }), p),
       (err) => (rt.log(`Preview failed to start: ${(err as Error).message.split("\n")[0]}`, undefined, "error"), null),
     );
 
-    rt.emit({ type: "phase", phase: "planner" });
+    this.phase(rt, { phase: "planner" });
     const image = await this.store.readInput(rt.meta.id, "image");
     const audio = await this.store.readInput(rt.meta.id, "audio");
     let segments: string | undefined;
     if (image && metaMediaAvailable(this.provider)) {
+      this.phase(rt, { phase: "planner", detail: "segmenting the sketch", model: "sam-3.1" });
       rt.log("Segmenting the sketch with SAM 3.1…");
       try {
         const segs = await segmentUI(image, undefined, rt.abort?.signal);
@@ -394,6 +402,8 @@ export class Orchestrator {
         rt.log(`Segmentation failed, planning from the image only (${(err as Error).message})`, undefined, "error");
       }
     }
+    // The planner, listening to the voice memo when there is one (an audio-capable Muse model).
+    this.phase(rt, { phase: "planner", detail: audio ? "listening and planning" : "planning the pages", model: this.provider.modelFor("planner", { hasAudio: !!audio }) });
     rt.log(`Planning with ${this.provider.modelFor("planner", { hasAudio: !!audio })}…`);
     const plan = await runPlanner(deps, { prompt, image, audio, segments });
     rt.emit({ type: "plan", plan });
@@ -409,7 +419,7 @@ export class Orchestrator {
 
     const rules = await sb.readFile("AGENT_RULES.md").catch(() => "");
     const system = builderSystem(rules, plan, prompt);
-    rt.emit({ type: "phase", phase: "builder", detail: "foundation" });
+    this.phase(rt, { phase: "builder", detail: "foundation" });
     const ctx = await this.toolCtx(rt);
     const files = await this.readFiles(sb, ["theme.json", "lib/storage.ts", "lib/store.ts", "app/_layout.tsx", ...plan.screens.map((s) => s.file).filter((f) => f.endsWith("_layout.tsx"))]);
     await runBuilderTask(deps, ctx, { system, task: foundationTask(plan, files), maxTurns: this.cfg.maxBuilderTurns });
@@ -421,7 +431,7 @@ export class Orchestrator {
 
     for (const s of plan.screens) await this.buildScreen(rt, system, s);
 
-    rt.emit({ type: "phase", phase: "verifier", detail: "final pass" });
+    this.phase(rt, { phase: "verifier", detail: "final pass" });
     await this.refreshShots(rt, plan.screens.map((s) => s.route), false);
     await this.updateNav(rt);
     const passed = plan.screens.filter((s) => rt.state.screens[s.route]?.status === "done").length;
@@ -449,7 +459,7 @@ export class Orchestrator {
     const sb = await this.sandbox(rt);
     const version = (rt.state.screens[s.route]?.version ?? 0) + 1;
     rt.emit({ type: "screen_status", route: s.route, status: "building", version, attempt: 1 });
-    rt.emit({ type: "phase", phase: "builder", route: s.route, detail: s.title });
+    this.phase(rt, { phase: "builder", route: s.route, detail: s.title });
     const preview = rt.state.preview?.webUrl ?? "";
     const files = await this.readFiles(sb, [s.file, ...SHARED_FILES]);
     const ctx = await this.toolCtx(rt);
@@ -514,7 +524,7 @@ export class Orchestrator {
     } catch (err) {
       throw new Error(`The demo app's plan is invalid: ${(err as Error).message}`);
     }
-    rt.emit({ type: "phase", phase: "sandbox" });
+    this.phase(rt, { phase: "sandbox" });
     const sb = await this.sandbox(rt);
     rt.emit({ type: "plan", plan });
     for (const s of plan.screens) rt.emit({ type: "screen_status", route: s.route, status: "building", version: 1, attempt: 1 });
@@ -527,7 +537,7 @@ export class Orchestrator {
     rt.emit({ type: "preview_ready", webUrl: p.webUrl, expoGoUrl: p.expoGoUrl });
 
     // Same capture as a generated app; verdicts only when a model is configured.
-    rt.emit({ type: "phase", phase: "verifier", detail: "capturing pages" });
+    this.phase(rt, { phase: "verifier", detail: "capturing pages" });
     for (const s of plan.screens) rt.emit({ type: "screen_status", route: s.route, status: "verifying", version: 1, attempt: 1 });
     const results = await sb.inspect({ targets: plan.screens.map((s) => ({ name: s.route, path: s.previewPath ?? previewPathFor(s.route) })) });
     const judge = this.provider.name !== "mock";
@@ -580,7 +590,7 @@ export class Orchestrator {
     for (let attempt = 1; attempt <= this.cfg.maxAttempts; attempt++) {
       await this.compileGate(rt, system, s.route);
       rt.emit({ type: "screen_status", route: s.route, status: "verifying", version, attempt });
-      rt.emit({ type: "phase", phase: "verifier", route: s.route, detail: s.title });
+      this.phase(rt, { phase: "verifier", route: s.route, detail: s.title });
       const [r] = await sb.inspect({ targets: [{ name: s.route, path: s.previewPath ?? previewPathFor(s.route) }] });
       const url = r.screenshot ? await this.store.saveShot(rt.meta.id, await this.shotName(rt, s.route, version), r.screenshot) : null;
       if (url) rt.emit({ type: "screenshot", route: s.route, url, version });
@@ -600,7 +610,7 @@ export class Orchestrator {
         return false;
       }
       rt.emit({ type: "screen_status", route: s.route, status: "building", version, attempt: attempt + 1 });
-      rt.emit({ type: "phase", phase: "builder", route: s.route, detail: `fix ${attempt}/${this.cfg.maxAttempts - 1}` });
+      this.phase(rt, { phase: "builder", route: s.route, detail: `fix ${attempt}/${this.cfg.maxAttempts - 1}` });
       const files = await this.readFiles(sb, [s.file, ...SHARED_FILES]);
       const ctx = await this.toolCtx(rt);
       await runBuilderTask(this.deps(rt), ctx, {
@@ -714,7 +724,7 @@ export class Orchestrator {
 
   private async iterate(rt: ProjectRuntime, req: PromptRequest) {
     const sb = await this.sandbox(rt);
-    rt.emit({ type: "phase", phase: "sandbox" });
+    this.phase(rt, { phase: "sandbox" });
     const p = await sb.startDevServer();
     if (rt.state.preview?.webUrl !== p.webUrl) rt.emit({ type: "preview_ready", webUrl: p.webUrl, expoGoUrl: p.expoGoUrl });
     let plan = rt.state.plan;
@@ -743,7 +753,7 @@ export class Orchestrator {
     }
     const version = focused ? (rt.state.screens[focused.route]?.version ?? 0) + 1 : 0;
     if (focused) rt.emit({ type: "screen_status", route: focused.route, status: "building", version, attempt: 1 });
-    rt.emit({ type: "phase", phase: "builder", route: focused?.route, detail: focused?.title ?? "whole app" });
+    this.phase(rt, { phase: "builder", route: focused?.route, detail: focused?.title ?? "whole app" });
 
     const layouts = plan.screens.map((s) => s.file).filter((f) => f.endsWith("_layout.tsx"));
     const files = await this.readFiles(sb, [
@@ -817,7 +827,7 @@ export class Orchestrator {
       changed.filter((f) => !goneFiles.has(f)),
     ).filter((r) => r !== focused?.route && !added.some((a) => a.route === r));
     if (others.length) {
-      rt.emit({ type: "phase", phase: "verifier", detail: "re-capturing impacted pages" });
+      this.phase(rt, { phase: "verifier", detail: "re-capturing impacted pages" });
       await this.refreshShots(rt, others, true);
     }
     const msg = `${focused?.title ?? "App"}: ${req.text.trim().slice(0, 60) || "voice request"}`;
@@ -1522,7 +1532,7 @@ export class Orchestrator {
     const chosen = all.length <= 14 ? all : ["App.tsx", "index.ts", ...picks.map((p) => p.file).filter((f): f is string => !!f)];
     const files = await this.readFiles(sb, chosen);
     if (focused) rt.emit({ type: "screen_status", route: focused.route, status: "building", version: screen?.version ?? 1 });
-    rt.emit({ type: "phase", phase: "builder", route: focused?.route, detail: focused?.title });
+    this.phase(rt, { phase: "builder", route: focused?.route, detail: focused?.title });
     const ctx = await this.toolCtx(rt, { unrestricted: true, local: true, nativeApp: true });
     const tools: ToolName[] = ["list_files", "read_file", "write_file", "apply_patch", "delete_file", "typecheck", "skill", "finish"];
     const pkg = await sb.readFile("package.json").catch(() => "");

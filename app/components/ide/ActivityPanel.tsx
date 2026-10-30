@@ -1,12 +1,11 @@
 "use client";
 
+import { AgentActivity } from "./AgentActivity";
 import clsx from "clsx";
 import { FolderOpen, Plus } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { NavEdge, ProjectState, MediaInput } from "@/lib/shared";
-import type { Person } from "@/lib/shared/share";
 import { can, useAccess } from "@/lib/web/access";
-import { Avatar } from "./Avatar";
 import { CodeEditor } from "./CodeEditor";
 import { MaterialIcon } from "./FileTree";
 import { ReleaseLog } from "./ReleaseMenu";
@@ -67,7 +66,7 @@ export function ActivityPanel(p: Props) {
           <div className="flex h-full min-h-0 flex-col">
             {owner && <ReleaseLog projectId={p.projectId} />}
             <div className="min-h-0 flex-1">
-              <Activity state={p.state} people={access.people} />
+              <AgentActivity state={p.state} people={access.people} />
             </div>
           </div>
         )}
@@ -80,76 +79,6 @@ export function ActivityPanel(p: Props) {
           ))}
       </div>
     </section>
-  );
-}
-
-function Activity({ state, people }: { state: ProjectState; people: Record<string, Person> }) {
-  // Avatars only once the app is shared with someone: alone, every prompt is yours.
-  const shared = Object.keys(people).some((k) => k !== "owner");
-  const ref = useRef<HTMLDivElement>(null);
-  const stick = useRef(true);
-  const items = useMemo(() => {
-    const logs = state.logs.map((l) => ({ kind: "log" as const, seq: l.seq, l }));
-    const tl = state.timeline.map((t) => ({ kind: "timeline" as const, seq: t.seq, t }));
-    return [...logs, ...tl].sort((a, b) => a.seq - b.seq);
-  }, [state.logs, state.timeline]);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (el && stick.current) el.scrollTop = el.scrollHeight;
-  }, [items.length]);
-
-  return (
-    <div
-      ref={ref}
-      onScroll={(e) => {
-        const el = e.currentTarget;
-        stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
-      }}
-      className="h-full space-y-1.5 overflow-y-auto p-3">
-      {(state.prompt || state.inputs.image || state.inputs.audio) && (
-        <Bubble who="user">
-          {state.prompt || <em className="text-ink-400">No text</em>}
-          {(state.inputs.image || state.inputs.audio) && (
-            <span className="ml-1 text-ink-400">
-              {state.inputs.image && "+ sketch "}
-              {state.inputs.audio && "+ voice memo"}
-            </span>
-          )}
-        </Bubble>
-      )}
-      {items.map((it) =>
-        it.kind === "log" ? (
-          <p
-            key={`l${it.seq}`}
-            className={clsx("break-words font-mono text-[11px] leading-relaxed", it.l.level === "error" ? "text-red-400" : it.l.message.startsWith("✓") ? "text-emerald-400" : "text-ink-500")}>
-            {it.l.message}
-          </p>
-        ) : (
-          <Bubble
-            key={`t${it.seq}`}
-            who={it.t.kind}
-            by={shared && it.t.kind === "user" ? ((it.t as { by?: string }).by ?? "owner") : undefined}
-            people={people} sub={[it.t.route && state.screens[it.t.route]?.title, it.t.kind === "user" && it.t.testId].filter(Boolean).join(" · ")}>
-            {it.t.text}
-          </Bubble>
-        ),
-      )}
-    </div>
-  );
-}
-
-function Bubble({ who, sub, by, people, children }: { who: "user" | "agent"; sub?: string; by?: string; people?: Record<string, Person>; children: React.ReactNode }) {
-  return (
-    <div className={clsx("flex flex-col py-1", who === "user" ? "items-end" : "items-start")}>
-      {by && (
-        <span className="mb-0.5 flex items-center gap-1 px-1 text-[10.5px] text-ink-500">
-          {people?.[by]?.name ?? "Someone"} <Avatar person={people?.[by]} seed={by} size={14} />
-        </span>
-      )}
-      <div className={clsx("max-w-[92%] rounded-2xl px-3 py-2 text-[12.5px] leading-relaxed", who === "user" ? "rounded-br-md bg-spark-500 text-white" : "rounded-bl-md bg-ink-800 text-ink-100")}>{children}</div>
-      {sub && <span className="mt-0.5 px-1 text-[10.5px] text-ink-500">{sub}</span>}
-    </div>
   );
 }
 
