@@ -297,6 +297,21 @@ export function IDE({ id, slug: initialSlug, initialPage, access: given, basePat
     },
     [api, focused, selections],
   );
+  // Requests made while the agent works (assets to integrate, one after the other): run in order as it frees up.
+  const [queue, setQueue] = useState<string[]>([]);
+  const busy = state?.status === "running";
+  const enqueue = (text: string) => {
+    if (!busy && !queue.length) return void send(text, undefined, undefined, null);
+    setQueue((q) => [...q, text]);
+    api.setToast(`Queued for Muse · ${queue.length + 1} waiting`);
+  };
+  useEffect(() => {
+    if (busy || !queue.length) return;
+    const [next, ...rest] = queue;
+    setQueue(rest);
+    void send(next, undefined, undefined, null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busy, queue.length]);
   const runFlow = (a: FlowAction) => {
     if (!state || !can(access, "agent")) return;
     const { text, route } = flowPrompt(a, (r) => state.screens[r]?.title ?? r);
@@ -551,7 +566,8 @@ export function IDE({ id, slug: initialSlug, initialPage, access: given, basePat
           state={state}
           focused={focused}
           onOpenPage={open}
-          onAsk={(text) => void send(text)}
+          onAsk={enqueue}
+          queued={queue.length}
           active={file.path}
           reveal={reveal}
           onOpenFile={(p) => {

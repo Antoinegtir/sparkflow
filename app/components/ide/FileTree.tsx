@@ -127,13 +127,15 @@ type Props = {
   onOpenFile: (path: string) => void;
   /** Sends a request to the agent (what to do with files just imported). */
   onAsk?: (text: string) => void;
+  /** Requests waiting for the agent to be free. */
+  queued?: number;
   /** The file open in the code view, and a counter bumped to reveal it in Source. */
   active?: string | null;
   reveal?: number;
 };
 
 /** Explorer: pages (with status), assets (Finder-like, drag & drop) and source files. */
-export function FileTree({ projectId, state, focused, onOpenPage, onOpenFile, onAsk, active, reveal }: Props) {
+export function FileTree({ projectId, state, focused, onOpenPage, onOpenFile, onAsk, queued = 0, active, reveal }: Props) {
   const [files, setFiles] = useState<string[]>(state.tree);
   const [cwd, setCwd] = useState("assets");
   const [selected, setSelected] = useState<string | null>(null);
@@ -501,7 +503,7 @@ export function FileTree({ projectId, state, focused, onOpenPage, onOpenFile, on
           )}
           {!entries.length && <p className="px-4 py-2 text-[11.5px] text-ink-500">{writable ? "Empty folder. Drop files here." : "Empty folder."}</p>}
           <div className="flex items-center justify-between px-3 pt-1.5 text-[10.5px] text-ink-600">
-            <span>{upload ?? error ?? (writable ? "Enter to rename · drag onto a folder" : "")}</span>
+            <span>{upload ?? error ?? (queued ? `${queued} request${queued > 1 ? "s" : ""} queued for Muse` : writable ? "Enter to rename · drag onto a folder" : "")}</span>
             {selected && writable && (
               <button
                 onClick={() => {
