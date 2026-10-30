@@ -96,14 +96,15 @@ export function ToolBar({ tool, onTool, allowed }: { tool: Tool; onTool: (t: Too
       {GROUPS.some(ok) && rule}
       {GROUPS.some(ok) && (
       <div className="relative">
-        {button(groupTool, "pr-1")}
+        {button(groupTool)}
+        {/* A small corner mark inside the button (as in tool groups): it opens Frame or Section. */}
         <button
           type="button"
           onClick={() => setMenu((m) => !m)}
           aria-label="Frame or section"
           aria-expanded={menu}
-          className={clsx("absolute top-1/2 -right-1 grid h-6 w-3.5 -translate-y-1/2 cursor-pointer place-items-center rounded-md text-ink-400 hover:bg-ink-700 hover:text-ink-100", menu && "bg-ink-700 text-ink-100")}>
-          <ChevronDown size={11} strokeWidth={2.4} className="-rotate-90" />
+          className="absolute right-0 bottom-0 grid size-4 cursor-pointer place-items-end p-[3px]">
+          <span className={clsx("block size-0 border-t-[5px] border-l-[5px] border-t-transparent", tool === groupTool.id ? "border-l-white/80" : "border-l-ink-400")} style={{ transform: "rotate(90deg)" }} />
         </button>
         {menu && (
           <div role="menu" className="absolute top-0 left-full z-30 ml-3 w-52 rounded-xl border border-[var(--line)] bg-ink-950 p-1.5 shadow-2xl">
