@@ -2,8 +2,8 @@
 
 import clsx from "clsx";
 import type { SimFind } from "./LayoutTree";
-import { ArrowUp, Crosshair, FileCode2, FileText, Image as ImageIcon, ImagePlus, LayoutGrid, Loader2, Mic, Square, X } from "lucide-react";
-import { ReactLogo } from "../ReactLogo";
+import { ArrowUp, Crosshair, ImagePlus, LayoutGrid, Loader2, Mic, Square, X } from "lucide-react";
+import { MaterialIcon } from "./FileTree";
 import { useEffect, useRef, useState } from "react";
 import type { MediaInput, Phase, ProjectState } from "@/lib/shared";
 import { can, useAccess } from "@/lib/web/access";
@@ -168,7 +168,7 @@ export function PromptBar(p: Props) {
             <span key={s.key} className="flex max-w-[260px] items-center gap-1 rounded-md border border-spark-500/40 bg-spark-500/10 px-1.5 py-0.5 text-[11px] text-ink-200">
               <span className="grid size-4 place-items-center rounded bg-spark-500 text-[9px] font-bold text-white">{i + 1}</span>
               {/* A file added as context (Code view, imported asset): its kind, then its name (and lines). */}
-              {s.key.startsWith("file:") && s.file && <FileKind file={s.file} />}
+              {s.key.startsWith("file:") && s.file && <MaterialIcon name={s.file.split("/").pop() ?? s.file} />}
               <span className="truncate font-mono">{s.key.startsWith("file:") ? s.label : s.file ? `${s.file.split("/").pop()}${s.line ? `:${s.line}` : ""}` : s.label}</span>
               {s.text && <span className="truncate text-ink-400">“{s.text.slice(0, 24)}”</span>}
               <button aria-label="Remove" onClick={() => p.onRemoveSelection(s.key)} className="cursor-pointer text-ink-400 hover:text-ink-100">
@@ -280,12 +280,4 @@ function IconBtn({ children, label, onClick, disabled, active }: { children: Rea
       {children}
     </button>
   );
-}
-
-/** The kind of a file added as context: a picture, React (Native) code, other code, or anything else. */
-function FileKind({ file }: { file: string }) {
-  if (/\.(png|jpe?g|gif|webp|svg|heic)$/i.test(file)) return <ImageIcon size={12} className="shrink-0 text-emerald-300" />;
-  if (/\.(tsx|jsx)$/i.test(file)) return <ReactLogo className="size-3 shrink-0" />;
-  if (/\.(ts|js|mjs|cjs|json|css)$/i.test(file)) return <FileCode2 size={12} className="shrink-0 text-sky-300" />;
-  return <FileText size={12} className="shrink-0 text-ink-400" />;
 }
