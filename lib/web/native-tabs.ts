@@ -65,7 +65,7 @@ async function readTabsRaw(udid: string): Promise<Tab[]> {
     // Probes that land between items return the bar itself.
     if (!label || seen.has(label) || el.type === "Application" || /tab bar/i.test(label)) continue;
     seen.add(label);
-    tabs.push({ label, ...center(el), selected: isSelected(el) });
+    tabs.push({ label, ...center(el), selected: isSelected(el), index: tabs.length + 1 });
   }
   return tabs;
 }
@@ -100,10 +100,12 @@ const wordMatch = (label: string, title: string) => new RegExp(`\\b${title.repla
  * Selects a tab. Re-tapping the selected tab pops a pushed screen. The minimized iOS 26 tab bar shows a single
  * tab: tap it to expand, then retry once (never tap another tab to expand it).
  */
-export async function goToTab(udid: string, title: string) {
+export async function goToTab(udid: string, title: string, index?: number) {
   for (let attempt = 0; attempt < 2; attempt++) {
     const tabs = await readTabs(udid);
-    const t = tabs.find((x) => x.label.toLowerCase() === title.toLowerCase()) ?? tabs.find((x) => wordMatch(x.label, title));
+    // By label, else by position: a tab can be labelled in the app's language ("Réglages" for Settings).
+    const byPlace = index && tabs.length > 1 ? [...tabs].sort((a, b) => a.x - b.x)[index - 1] : undefined;
+    const t = tabs.find((x) => x.label.toLowerCase() === title.toLowerCase()) ?? tabs.find((x) => wordMatch(x.label, title)) ?? byPlace;
     if (t) {
       // Tap unless it surely shows already (several tabs marked selected means it can't be told).
       const sure = shownTab(udid, tabs) === t && tabs.filter((x) => x.selected).length === 1;

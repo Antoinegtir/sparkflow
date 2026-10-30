@@ -34,6 +34,9 @@ async function findOnScreen(udid: string, f: SimFind | undefined, wholeFallback 
 export function SimulatorView({
   page,
   onPageChange,
+  projectId,
+  route,
+  onRoute,
   frozen,
   frozenLabel,
   inspect,
@@ -41,8 +44,12 @@ export function SimulatorView({
   highlights,
   selected,
 }: {
-  page?: { title: string; parent?: string } | null;
+  page?: { title: string; parent?: string; tab?: number } | null;
   onPageChange?: (p: { title: string; parent?: string; tab?: number }) => void;
+  /** A generated app: its page on screen is told by its content, and reported as a route. */
+  projectId?: string;
+  route?: string;
+  onRoute?: (route: string) => void;
   frozen?: boolean;
   frozenLabel?: string;
   inspect?: boolean;
@@ -58,6 +65,9 @@ export function SimulatorView({
   const pending = useRef<Blob | null>(null);
   const frozenRef = useRef(frozen);
   const shown = useRef<string | null>(null);
+  // When the IDE last chose a page, and whether the page change under way came from the device itself.
+  const navAt = useRef(0);
+  const fromDevice = useRef(false);
   const [ripples, setRipples] = useState<{ id: number; x: number; y: number }[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [hover, setHover] = useState<{ el: NonNullable<El>; box: Area } | null>(null);
@@ -194,23 +204,54 @@ export function SimulatorView({
     // Another page: the outlines of this one go at once, not when the page has changed.
     setSelBoxes([]);
     setBoxes([]);
+    // The page the Simulator reported needs no tap; one chosen here does.
+    if (fromDevice.current) return void (fromDevice.current = false);
+    navAt.current = Date.now();
     void fetch(`/api/sim/${udid}/tab`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(page) }).catch(() => {});
   }, [udid, page]);
 
-  // Simulator → IDE: after each lift, ask which page is showing.
-  const afterLift = useCallback(() => {
-    setTimeout(() => setRefind((n) => n + 1), 600);
-    if (!udid || !onPageChange) return;
-    setTimeout(async () => {
-      const r = await fetch(`/api/sim/${udid}/tab`).then((x) => x.json()).catch(() => null);
-      const sel = r?.selected as { title: string; parent?: string; tab?: number } | null;
-      if (!sel) return;
+  // Simulator → IDE: after each lift, and every 2 s for what happens in the Simulator window itself,
+  // ask which page shows. A generated app's page is told by its content (its testIDs), so a tab named in
+  // another language or a tab bar that marks every visited tab as selected can't mislead it.
+  const routeRef = useRef(route);
+  routeRef.current = route;
+  const asking = useRef(false);
+  const askPage = useCallback(async () => {
+    if (!udid || (!onPageChange && !onRoute) || asking.current) return;
+    asking.current = true;
+    try {
+      const r = await fetch(`/api/sim/${udid}/tab${projectId ? `?project=${encodeURIComponent(projectId)}` : ""}`)
+        .then((x) => x.json())
+        .catch(() => null);
+      // Right after the IDE chose a page, the Simulator may still show the one before.
+      if (!r || Date.now() - navAt.current < 2500) return;
+      if (r.route && onRoute) {
+        if (r.route === routeRef.current) return;
+        fromDevice.current = true;
+        // Cleared if the new page needs no page change below (a page reached by link, not a tab).
+        setTimeout(() => (fromDevice.current = false), 1000);
+        onRoute(r.route);
+        return;
+      }
+      const sel = r.selected as { title: string; parent?: string; tab?: number } | null;
+      if (!sel || !onPageChange) return;
       const key = `${sel.parent ?? ""}/${sel.title}`;
       if (key === shown.current) return;
       shown.current = key;
       onPageChange(sel);
-    }, 450);
-  }, [udid, onPageChange]);
+    } finally {
+      asking.current = false;
+    }
+  }, [udid, onPageChange, onRoute, projectId]);
+  const afterLift = useCallback(() => {
+    setTimeout(() => setRefind((n) => n + 1), 600);
+    setTimeout(() => void askPage(), 450);
+  }, [askPage]);
+  useEffect(() => {
+    if (!udid || frozen || inspect) return;
+    const t = setInterval(() => !document.hidden && void askPage(), 2000);
+    return () => clearInterval(t);
+  }, [udid, frozen, inspect, askPage]);
 
   // ---- touches ----
   // Live finger (idb): every gesture of this view goes through one ordered queue.

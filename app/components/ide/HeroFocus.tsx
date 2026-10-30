@@ -335,11 +335,12 @@ export function HeroFocus(p: Props) {
   const older = p.compare != null ? s.history.find((v) => v.version === p.compare) : undefined;
   const nativePage = useMemo(() => {
     // A generated app's tab pages are reached by their tab (its title is the tab's label).
-    if (webSim) return tabPage ? { title: s.title } : null;
+    // Its place in the tab bar too, for a tab labelled in the app's language ("Réglages" for Settings).
+    if (webSim) return tabPage ? { title: s.title, tab: p.state.order.filter((r) => r.includes("/(tabs)/")).indexOf(s.route) + 1 } : null;
     if (!p.state.native) return null;
     const parentRoute = p.state.edges.find((e) => e.to === s.route)?.from;
     return { title: s.title, ...(parentRoute ? { parent: p.state.screens[parentRoute]?.title } : {}) };
-  }, [native, webSim, tabPage, s.route, s.title, p.state.edges, p.state.screens]);
+  }, [native, webSim, tabPage, s.route, s.title, p.state.edges, p.state.screens, p.state.order]);
 
   const screenContent = (
     <>
@@ -353,6 +354,12 @@ export function HeroFocus(p: Props) {
               <SimulatorView
                 page={nativePage}
                 onPageChange={onSimPage}
+                projectId={p.state.id}
+                route={s.route}
+                onRoute={(r) => {
+                  fromSim.current = true;
+                  p.onNavigate(r);
+                }}
                 frozen={!!p.simFrozen}
                 frozenLabel={p.simFrozen ?? undefined}
                 inspect={p.inspect}
