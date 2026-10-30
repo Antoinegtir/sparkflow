@@ -95,15 +95,7 @@ export function TopBar(p: Props) {
         </button>
         )}
         {owner && !native && <ReleaseMenu projectId={s.id} onDevice={p.onDevice} onSwitching={p.onDeviceSwitching} />}
-      </div>
-      <div className="flex items-center gap-1.5">
-        {/* Panel open: Commands starts just right of its edge, over the panel. */}
-        <button
-          onClick={p.onPalette}
-          style={p.panelWidth ? { left: `calc(100% - ${p.panelWidth}px + 12px)` } : undefined}
-          className={clsx("hidden cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1.5 text-[12px] text-ink-400 hover:bg-ink-800 hover:text-ink-100 lg:flex", p.panelWidth && "absolute top-1/2 -translate-y-1/2")}>
-          <Command size={13} /> Commands <kbd className="rounded border border-[var(--line)] px-1 font-mono text-[10px]">⌘K</kbd>
-        </button>
+        {/* Beside Ship, not on the right: Commands sits over the panel's edge there and they overlapped. */}
         {owner && p.onShare && (
           <button onClick={p.onShare} title="Share this app" className="flex cursor-pointer items-center gap-1.5 rounded-lg px-1.5 py-1 text-[12px] text-ink-300 hover:bg-ink-800 hover:text-ink-100">
             {others.length > 0 ? (
@@ -116,6 +108,15 @@ export function TopBar(p: Props) {
             ) : (
               <UserPlus size={14} />
             )}
+      </div>
+      <div className="flex items-center gap-1.5">
+        {/* Panel open: Commands starts just right of its edge, over the panel. */}
+        <button
+          onClick={p.onPalette}
+          style={p.panelWidth ? { left: `calc(100% - ${p.panelWidth}px + 12px)` } : undefined}
+          className={clsx("hidden cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1.5 text-[12px] text-ink-400 hover:bg-ink-800 hover:text-ink-100 lg:flex", p.panelWidth && "absolute top-1/2 -translate-y-1/2")}>
+          <Command size={13} /> Commands <kbd className="rounded border border-[var(--line)] px-1 font-mono text-[10px]">⌘K</kbd>
+        </button>
             Share
           </button>
         )}
