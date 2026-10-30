@@ -1,7 +1,7 @@
 "use client";
 
 import clsx from "clsx";
-import { ChevronDown, ChevronRight, CornerDownRight, File, FolderPlus, GripVertical, Home, LayoutGrid, Trash2 } from "lucide-react";
+import { ArrowUp, ChevronDown, ChevronRight, CornerDownRight, File, FileUp, FolderPlus, FolderUp, GripVertical, Home, LayoutGrid, Sparkles, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
 import { can, useAccess } from "@/lib/web/access";
 import type { ProjectState } from "@/lib/shared";
@@ -10,6 +10,35 @@ import { StatusDot } from "./ui";
 
 const ASSET_MIME = "application/x-sparkflow-asset";
 const IMAGE = /\.(png|jpe?g|gif|webp|svg)$/i;
+
+/** A file with the folder it sits in, relative to where it was dropped or picked ("" at the top). */
+type Picked = { file: File; dir: string };
+
+/** Everything in a Finder drop, folders walked through (their files keep their folder path). */
+async function droppedFiles(dt: DataTransfer): Promise<Picked[]> {
+  const entries = [...dt.items].map((i) => i.webkitGetAsEntry?.()).filter((e): e is FileSystemEntry => !!e);
+  if (!entries.length) return [...dt.files].map((file) => ({ file, dir: "" }));
+  const out: Picked[] = [];
+  const walk = async (e: FileSystemEntry, dir: string): Promise<void> => {
+    if (e.isFile) out.push({ file: await new Promise<File>((ok, ko) => (e as FileSystemFileEntry).file(ok, ko)), dir });
+    else if (e.isDirectory) {
+      const reader = (e as FileSystemDirectoryEntry).createReader();
+      const sub = dir ? `${dir}/${e.name}` : e.name;
+      // readEntries returns a batch at a time, until an empty one.
+      for (;;) {
+        const batch = await new Promise<FileSystemEntry[]>((ok, ko) => reader.readEntries(ok, ko));
+        if (!batch.length) break;
+        for (const c of batch) await walk(c, sub);
+      }
+    }
+  };
+  for (const e of entries) await walk(e, "");
+  return out.filter((p) => !p.file.name.startsWith("."));
+}
+
+/** Files picked with the folder picker keep their path inside the picked folder. */
+const pickedFiles = (list: FileList | null): Picked[] =>
+  [...(list ?? [])].filter((f) => !f.name.startsWith(".")).map((file) => ({ file, dir: (file.webkitRelativePath || "").split("/").slice(0, -1).join("/") }));
 
 /** The landing's folder emoji (as on "Import from a React Native project"); it tilts open when dragged onto. */
 function FolderIcon({ open, size = 44 }: { open?: boolean; size?: number }) {
@@ -95,13 +124,15 @@ type Props = {
   focused: string | null;
   onOpenPage: (route: string) => void;
   onOpenFile: (path: string) => void;
+  /** Sends a request to the agent (what to do with files just imported). */
+  onAsk?: (text: string) => void;
   /** The file open in the code view, and a counter bumped to reveal it in Source. */
   active?: string | null;
   reveal?: number;
 };
 
 /** Explorer: pages (with status), assets (Finder-like, drag & drop) and source files. */
-export function FileTree({ projectId, state, focused, onOpenPage, onOpenFile, active, reveal }: Props) {
+export function FileTree({ projectId, state, focused, onOpenPage, onOpenFile, onAsk, active, reveal }: Props) {
   const [files, setFiles] = useState<string[]>(state.tree);
   const [cwd, setCwd] = useState("assets");
   const [selected, setSelected] = useState<string | null>(null);
@@ -110,6 +141,11 @@ export function FileTree({ projectId, state, focused, onOpenPage, onOpenFile, ac
   const [error, setError] = useState<string | null>(null);
   const [dropping, setDropping] = useState(false);
   const [hoverFolder, setHoverFolder] = useState<string | null>(null);
+  // What was just imported, until the user says what to do with it (or dismisses it).
+  const [imported, setImported] = useState<string[] | null>(null);
+  const [ask, setAsk] = useState("");
+  const pickFiles = useRef<HTMLInputElement>(null);
+  const pickFolder = useRef<HTMLInputElement>(null);
   const native = !!state.native;
   // Adding, renaming, moving and deleting files: editors and the owner only.
   const writable = can(useAccess(), "files.write");
@@ -173,25 +209,41 @@ export function FileTree({ projectId, state, focused, onOpenPage, onOpenFile, ac
     await refresh();
   };
 
-  const uploadFiles = async (list: FileList | File[], dir = cwd) => {
-    const arr = [...list];
-    if (!arr.length || !writable) return;
+  const uploadFiles = async (list: Picked[], dir = cwd) => {
+    if (!list.length || !writable) return;
     setUpload("Adding…");
     setError(null);
-    const form = new FormData();
-    for (const f of arr) form.append("files", f);
-    form.append("dir", dir);
-    const res = await fetch(`/api/projects/${projectId}/files`, { method: "POST", body: form });
-    const json = await res.json();
-    if (!res.ok) {
-      setUpload(null);
-      setError(json.error ?? "Upload failed");
-      return;
+    // One request per folder, so a dropped or picked folder keeps its structure under `dir`.
+    const byDir = new Map<string, File[]>();
+    for (const p of list) byDir.set(p.dir, [...(byDir.get(p.dir) ?? []), p.file]);
+    const added: string[] = [];
+    for (const [sub, files] of byDir) {
+      const form = new FormData();
+      for (const f of files) form.append("files", f);
+      form.append("dir", sub ? `${dir}/${sub}` : dir);
+      const res = await fetch(`/api/projects/${projectId}/files`, { method: "POST", body: form });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setUpload(null);
+        setError(json.error ?? "Upload failed");
+        await refresh();
+        return;
+      }
+      added.push(...json.added);
     }
-    setUpload(`Added ${json.added.map((a: string) => a.split("/").pop()).join(", ")}`);
-    setTimeout(() => setUpload(null), 2500);
+    setUpload(null);
     await refresh();
-    if (json.added[0]) onOpenFile(json.added[0]);
+    // Ask what they're for: the app icon, an image for a page, a font…
+    setImported(added);
+    setAsk("");
+  };
+
+  const askAbout = () => {
+    const text = ask.trim();
+    if (!text || !imported?.length || !onAsk) return;
+    onAsk(`I added ${imported.length === 1 ? "this file" : "these files"} to the project: ${imported.join(", ")}. ${text}`);
+    setImported(null);
+    setAsk("");
   };
 
   const newFolder = async () => {
@@ -220,7 +272,7 @@ export function FileTree({ projectId, state, focused, onOpenPage, onOpenFile, ac
     if (internal) {
       if (internal === target || target.startsWith(internal + "/")) return;
       await op({ type: "move", from: internal, to: `${target}/${internal.split("/").pop()}` });
-    } else await uploadFiles(e.dataTransfer.files, target);
+    } else await uploadFiles(await droppedFiles(e.dataTransfer), target);
   };
 
   const crumbs = cwd.split("/");
@@ -303,9 +355,28 @@ export function FileTree({ projectId, state, focused, onOpenPage, onOpenFile, ac
               );
             })}
             {writable && (
-            <button onClick={() => void newFolder()} title="New folder" className="ml-auto cursor-pointer rounded p-1 text-ink-500 hover:bg-ink-800 hover:text-ink-200">
-              <FolderPlus size={13} />
-            </button>
+              <span className="ml-auto flex items-center">
+                <button onClick={() => pickFiles.current?.click()} title="Import files from Finder" className="cursor-pointer rounded p-1 text-ink-500 hover:bg-ink-800 hover:text-ink-200">
+                  <FileUp size={13} />
+                </button>
+                <button onClick={() => pickFolder.current?.click()} title="Import a folder from Finder" className="cursor-pointer rounded p-1 text-ink-500 hover:bg-ink-800 hover:text-ink-200">
+                  <FolderUp size={13} />
+                </button>
+                <button onClick={() => void newFolder()} title="New folder" className="cursor-pointer rounded p-1 text-ink-500 hover:bg-ink-800 hover:text-ink-200">
+                  <FolderPlus size={13} />
+                </button>
+                <input ref={pickFiles} type="file" multiple hidden onChange={(e) => (void uploadFiles(pickedFiles(e.target.files)), (e.target.value = ""))} />
+                <input
+                  ref={(el) => {
+                    pickFolder.current = el;
+                    // Not a React prop: the folder picker.
+                    el?.setAttribute("webkitdirectory", "");
+                  }}
+                  type="file"
+                  hidden
+                  onChange={(e) => (void uploadFiles(pickedFiles(e.target.files)), (e.target.value = ""))}
+                />
+              </span>
             )}
           </div>
           <div
@@ -374,6 +445,40 @@ export function FileTree({ projectId, state, focused, onOpenPage, onOpenFile, ac
               );
             })}
           </div>
+          {imported && onAsk && (
+            // Right after an import: what should Muse do with it? (Set it as the app icon, put it on a page…)
+            <div className="mx-2 mt-2 rounded-lg border border-spark-500/40 bg-spark-500/5 p-2">
+              <div className="flex items-center gap-1.5 text-[11px] text-ink-300">
+                <Sparkles size={12} className="shrink-0 text-spark-400" />
+                <span className="min-w-0 flex-1 truncate">
+                  What should Muse do with {imported.length === 1 ? imported[0].split("/").pop() : `these ${imported.length} files`}?
+                </span>
+                <button onClick={() => setImported(null)} title="Nothing for now" className="cursor-pointer rounded p-0.5 text-ink-500 hover:text-ink-200">
+                  <X size={12} />
+                </button>
+              </div>
+              <div className="mt-1.5 flex items-end gap-1.5">
+                <textarea
+                  autoFocus
+                  rows={2}
+                  value={ask}
+                  onChange={(e) => setAsk(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      askAbout();
+                    }
+                    if (e.key === "Escape") setImported(null);
+                  }}
+                  placeholder={IMAGE.test(imported[0] ?? "") ? "Make it the app icon, or put it at the top of the Notes page…" : "Where it goes in the app…"}
+                  className="min-w-0 flex-1 resize-none rounded-md bg-ink-900 px-2 py-1.5 text-[12px] text-ink-100 outline-none placeholder:text-ink-600"
+                />
+                <button onClick={askAbout} disabled={!ask.trim()} title="Ask Muse" className="grid size-7 shrink-0 cursor-pointer place-items-center rounded-md bg-spark-500 text-white disabled:cursor-not-allowed disabled:opacity-40">
+                  <ArrowUp size={14} />
+                </button>
+              </div>
+            </div>
+          )}
           {!entries.length && <p className="px-4 py-2 text-[11.5px] text-ink-500">{writable ? "Empty folder. Drop files here." : "Empty folder."}</p>}
           <div className="flex items-center justify-between px-3 pt-1.5 text-[10.5px] text-ink-600">
             <span>{upload ?? error ?? (writable ? "Enter to rename · drag onto a folder" : "")}</span>

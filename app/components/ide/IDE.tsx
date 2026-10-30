@@ -551,6 +551,7 @@ export function IDE({ id, slug: initialSlug, initialPage, access: given, basePat
           state={state}
           focused={focused}
           onOpenPage={open}
+          onAsk={(text) => void send(text)}
           active={file.path}
           reveal={reveal}
           onOpenFile={(p) => {
