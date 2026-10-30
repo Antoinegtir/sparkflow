@@ -1,7 +1,7 @@
 "use client";
 
 import clsx from "clsx";
-import { ArrowUp, ChevronDown, ChevronRight, CornerDownRight, File, FileUp, FolderPlus, FolderUp, GripVertical, Home, LayoutGrid, Sparkles, Trash2, X } from "lucide-react";
+import { ArrowUp, ChevronDown, ChevronRight, CornerDownRight, File, FileUp, FolderUp, GripVertical, Home, LayoutGrid, Sparkles, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
 import { can, useAccess } from "@/lib/web/access";
 import type { ProjectState } from "@/lib/shared";
@@ -144,6 +144,7 @@ export function FileTree({ projectId, state, focused, onOpenPage, onOpenFile, on
   // What was just imported, until the user says what to do with it (or dismisses it).
   const [imported, setImported] = useState<string[] | null>(null);
   const [ask, setAsk] = useState("");
+  const [importMenu, setImportMenu] = useState(false);
   const pickFiles = useRef<HTMLInputElement>(null);
   const pickFolder = useRef<HTMLInputElement>(null);
   const native = !!state.native;
@@ -244,15 +245,6 @@ export function FileTree({ projectId, state, focused, onOpenPage, onOpenFile, on
     onAsk(`I added ${imported.length === 1 ? "this file" : "these files"} to the project: ${imported.join(", ")}. ${text}`);
     setImported(null);
     setAsk("");
-  };
-
-  const newFolder = async () => {
-    let n = 1;
-    const names = new Set(entries.map((e) => e.path));
-    while (names.has(`${cwd}/untitled folder${n > 1 ? ` ${n}` : ""}`)) n++;
-    const p = `${cwd}/untitled folder${n > 1 ? ` ${n}` : ""}`;
-    await op({ type: "mkdir", path: p });
-    setRenaming(p);
   };
 
   const rename = async (from: string, name: string) => {
@@ -356,15 +348,30 @@ export function FileTree({ projectId, state, focused, onOpenPage, onOpenFile, on
             })}
             {writable && (
               <span className="ml-auto flex items-center">
-                <button onClick={() => pickFiles.current?.click()} title="Import files from Finder" className="cursor-pointer rounded p-1 text-ink-500 hover:bg-ink-800 hover:text-ink-200">
-                  <FileUp size={13} />
-                </button>
-                <button onClick={() => pickFolder.current?.click()} title="Import a folder from Finder" className="cursor-pointer rounded p-1 text-ink-500 hover:bg-ink-800 hover:text-ink-200">
-                  <FolderUp size={13} />
-                </button>
-                <button onClick={() => void newFolder()} title="New folder" className="cursor-pointer rounded p-1 text-ink-500 hover:bg-ink-800 hover:text-ink-200">
-                  <FolderPlus size={13} />
-                </button>
+                {/* One button: a browser picker takes files or a folder, never both, so it asks which. */}
+                <span className="relative">
+                  <button onClick={() => setImportMenu((m) => !m)} title="Import from Finder" aria-expanded={importMenu} className="cursor-pointer rounded p-1 text-ink-500 hover:bg-ink-800 hover:text-ink-200">
+                    <FileUp size={13} />
+                  </button>
+                  {importMenu && (
+                    <span className="absolute right-0 top-full z-30 mt-1 flex w-36 flex-col rounded-lg border border-[var(--line)] bg-ink-950 p-1 shadow-xl" onMouseLeave={() => setImportMenu(false)}>
+                      {[
+                        { label: "Files…", icon: <FileUp size={13} />, ref: pickFiles },
+                        { label: "Folder…", icon: <FolderUp size={13} />, ref: pickFolder },
+                      ].map((x) => (
+                        <button
+                          key={x.label}
+                          onClick={() => {
+                            setImportMenu(false);
+                            x.ref.current?.click();
+                          }}
+                          className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12px] text-ink-200 hover:bg-spark-500 hover:text-white">
+                          {x.icon} {x.label}
+                        </button>
+                      ))}
+                    </span>
+                  )}
+                </span>
                 <input ref={pickFiles} type="file" multiple hidden onChange={(e) => (void uploadFiles(pickedFiles(e.target.files)), (e.target.value = ""))} />
                 <input
                   ref={(el) => {
