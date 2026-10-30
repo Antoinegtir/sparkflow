@@ -93,23 +93,34 @@ export function ScrollVideo({ src, className, children }: { src: string; classNa
       const m = Math.sign(dist) * Math.min(Math.abs(v0 * duration), Math.abs(dist) * 2);
       const t0 = performance.now();
       gliding = true;
+      glideDir = Math.sign(dist);
+      // The landing's CSS smooth scrolling would turn each frame's jump into its own animation (Safari).
+      document.documentElement.style.scrollBehavior = "auto";
       const step = (now: number) => {
         const t = Math.min(1, (now - t0) / duration);
         const t2 = t * t;
         const t3 = t2 * t;
         // Starts at speed v0, lands on `to` with zero speed.
         const y = from * (2 * t3 - 3 * t2 + 1) + m * (t3 - 2 * t2 + t) + to * (3 * t2 - 2 * t3);
-        scrollTo({ top: y, behavior: "instant" });
+        // Two-number form: Safari doesn't know behavior "instant".
+        scrollTo(scrollX, y);
         if (t < 1 && gliding) glideRaf = requestAnimationFrame(step);
-        else gliding = false;
+        else stop();
       };
       glideRaf = requestAnimationFrame(step);
     };
-    // Any user input during the glide hands control straight back.
-    const interrupt = () => {
-      if (!gliding) return;
+    let glideDir = 0;
+    const stop = () => {
       gliding = false;
       cancelAnimationFrame(glideRaf);
+      document.documentElement.style.scrollBehavior = "";
+    };
+    // Any user input during the glide hands control straight back, except Safari's trackpad momentum:
+    // its trailing wheel events (same direction) would otherwise cancel the glide as soon as it starts.
+    const interrupt = (e?: Event) => {
+      if (!gliding) return;
+      if (e instanceof WheelEvent && Math.sign(e.deltaY) === glideDir) return;
+      stop();
     };
     const settle = () => {
       // Not on phones and tablets: a finger scroll has its own momentum, a glide on top fights it.
@@ -215,7 +226,7 @@ export function ScrollVideo({ src, className, children }: { src: string; classNa
       cancelAnimationFrame(raf);
       removeEventListener("scroll", onScroll);
       clearTimeout(idle);
-      cancelAnimationFrame(glideRaf);
+      stop();
       removeEventListener("wheel", interrupt);
       removeEventListener("touchstart", interrupt);
       removeEventListener("keydown", interrupt);
