@@ -989,11 +989,21 @@ export class Orchestrator {
   }
 
   /** Shows the project's folder in Finder (or the Linux file manager), or opens it in VS Code. */
-  async revealProject(id: string, app: "finder" | "vscode" = "finder") {
+  async revealProject(id: string, app: "finder" | "vscode" = "finder", file?: string) {
     const dir = await this.projectFolder(id);
     if (!dir) throw new Error("This project has no folder on this computer");
+    // A file of the project (never outside its folder): selected in Finder, opened in VS Code.
+    const target = file ? path.resolve(dir, file) : null;
+    const inside = target && target.startsWith(path.resolve(dir) + path.sep) && existsSync(target) ? target : null;
     // isMac(), read at run time: the build inlines process.platform (releases are built on Linux).
-    const [cmd, args] = app === "vscode" ? (isMac() ? ["open", ["-a", "Visual Studio Code", dir]] : ["code", [dir]]) : [isMac() ? "open" : "xdg-open", [dir]];
+    const [cmd, args] =
+      app === "vscode"
+        ? isMac()
+          ? ["open", ["-a", "Visual Studio Code", dir, ...(inside ? [inside] : [])]]
+          : ["code", [dir, ...(inside ? ["-g", inside] : [])]]
+        : isMac()
+          ? ["open", inside ? ["-R", inside] : [dir]]
+          : ["xdg-open", [inside ? path.dirname(inside) : dir]];
     const child = spawn(cmd as string, args as string[], { detached: true, stdio: "ignore" });
     child.on("error", () => {});
     child.unref();

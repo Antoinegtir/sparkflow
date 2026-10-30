@@ -255,8 +255,8 @@ function CodeView({ projectId, state, file, line, onReveal, onFile }: { projectI
         {owner && (
         <button
           // sparkflow opens the folder in VS Code on this computer.
-          onClick={() => void fetch(`/api/projects/${projectId}/reveal?app=vscode`, { method: "POST" })}
-          title="Open the project in VS Code"
+          onClick={() => void fetch(`/api/projects/${projectId}/reveal?app=vscode${file ? `&path=${encodeURIComponent(file)}` : ""}`, { method: "POST" })}
+          title={file ? `Open ${name} in VS Code` : "Open the project in VS Code"}
           aria-label="Open the project in VS Code"
           className="grid size-7 shrink-0 cursor-pointer place-items-center rounded-md border border-[var(--line)] hover:bg-ink-800">
           <svg viewBox="0 0 24 24" className="size-4" aria-hidden>
@@ -266,8 +266,8 @@ function CodeView({ projectId, state, file, line, onReveal, onFile }: { projectI
         )}
         {owner && (
         <button
-          onClick={() => void fetch(`/api/projects/${projectId}/reveal`, { method: "POST" })}
-          title="Show the project in Finder"
+          onClick={() => void fetch(`/api/projects/${projectId}/reveal${file ? `?path=${encodeURIComponent(file)}` : ""}`, { method: "POST" })}
+          title={file ? `Show ${name} in Finder` : "Show the project in Finder"}
           aria-label="Show the project in Finder"
           className="grid size-7 shrink-0 cursor-pointer place-items-center rounded-md border border-[var(--line)] text-ink-200 hover:bg-ink-800">
           <FolderOpen size={14} />
