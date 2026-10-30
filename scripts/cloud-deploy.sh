@@ -11,7 +11,8 @@ SERVICE="${CLOUD_SERVICE:-sparkflow}"
 BUCKET="${CLOUD_BUCKET:-sparkflow-ai-cloud-data}"
 IMAGE="$REGION-docker.pkg.dev/$PROJECT/sparkflow/server:$(git rev-parse --short HEAD)"
 
-gcloud builds submit --project "$PROJECT" --region "$REGION" --tag "$IMAGE" .
+# Global builds: a regional one needs a private pool on this project.
+gcloud builds submit --project "$PROJECT" --tag "$IMAGE" .
 gcloud run deploy "$SERVICE" --project "$PROJECT" --region "$REGION" --image "$IMAGE" \
   --execution-environment gen2 --cpu 2 --memory 4Gi --no-cpu-throttling \
   --min-instances "${CLOUD_MIN_INSTANCES:-0}" --max-instances 1 --concurrency 80 --timeout 3600 --session-affinity \

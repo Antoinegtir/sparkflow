@@ -137,6 +137,8 @@ export class ModalDriver {
         .fromRegistry(`mcr.microsoft.com/playwright:v${PLAYWRIGHT}-noble`)
         .dockerfileCommands([
           "RUN apt-get update && apt-get install -y git socat curl && rm -rf /var/lib/apt/lists/*",
+          // Commands run in /app (sh): it must exist before the template is unpacked there.
+          "RUN mkdir -p /app",
           `RUN mkdir -p /opt/sparkflow && cd /opt/sparkflow && npm init -y >/dev/null && npm i playwright@${PLAYWRIGHT}`,
           "RUN git config --global user.name Sparkflow && git config --global user.email agent@sparkflow.dev && git config --global init.defaultBranch main",
         ]);
