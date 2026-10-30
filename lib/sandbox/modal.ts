@@ -61,9 +61,11 @@ class ModalProjectSandbox implements Sandbox {
     const https = tunnels[8081];
     const tcp = tunnels[8082];
     await this.exec(
+      // setsid: in their own session, so they outlive this exec (its process group is ended when it returns).
       `pkill -f 'expo start' || true; pkill socat || true;
-       EXPO_PACKAGER_PROXY_URL=${q(https.url.replace(/^https:/, "http:"))} BROWSER=none EXPO_NO_TELEMETRY=1 nohup npx expo start --port 8081 > /tmp/metro.log 2>&1 &
-       nohup socat TCP-LISTEN:8082,fork,reuseaddr TCP:127.0.0.1:8081 > /dev/null 2>&1 &`,
+       EXPO_PACKAGER_PROXY_URL=${q(https.url.replace(/^https:/, "http:"))} BROWSER=none EXPO_NO_TELEMETRY=1 setsid nohup npx expo start --port 8081 > /tmp/metro.log 2>&1 < /dev/null &
+       setsid nohup socat TCP-LISTEN:8082,fork,reuseaddr TCP:127.0.0.1:8081 > /dev/null 2>&1 < /dev/null &
+       sleep 1`,
     );
     const deadline = Date.now() + 180_000;
     for (;;) {
