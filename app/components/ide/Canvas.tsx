@@ -91,7 +91,20 @@ export function ScreenContent({ screen, scanning, light }: { screen: ScreenState
     <div className={clsx("relative h-full w-full overflow-hidden", light ? "bg-white" : "bg-ink-800")}>
       {s.screenshotUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img key={s.screenshotUrl} src={s.screenshotUrl} alt={s.title} className={clsx("animate-fade-in h-full w-full object-cover object-top transition", s.deviceLoading && "scale-105 blur-md")} draggable={false} />
+        <img
+          key={s.screenshotUrl}
+          src={s.screenshotUrl}
+          alt={s.title}
+          // A capture from before 0.3.42 is taller than the room between the bars (390×844, the whole
+          // screen): fitted whole rather than cropped, so its bottom (tab bar, floating button) stays in view.
+          onLoad={(e) => {
+            const img = e.currentTarget;
+            const tall = img.naturalHeight / img.naturalWidth > (img.clientHeight / img.clientWidth) * 1.03;
+            img.style.objectFit = tall ? "fill" : "";
+          }}
+          className={clsx("animate-fade-in h-full w-full object-cover object-top transition", s.deviceLoading && "scale-105 blur-md")}
+          draggable={false}
+        />
       ) : (
         <PageSkeleton light={!!light} status={s.status} />
       )}
