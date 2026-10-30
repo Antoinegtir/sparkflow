@@ -1,8 +1,8 @@
 "use client";
 
 import clsx from "clsx";
-import { ChevronDown, ChevronRight, CornerDownRight, File, FolderPlus, Home, LayoutGrid, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
+import { ChevronDown, ChevronRight, CornerDownRight, File, FolderPlus, GripVertical, Home, LayoutGrid, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
 import type { ProjectState } from "@/lib/shared";
 import { History } from "./History";
 import { StatusDot } from "./ui";
@@ -18,21 +18,74 @@ function FolderIcon({ open, size = 44 }: { open?: boolean; size?: number }) {
   );
 }
 
-function Section({ title, count, children, defaultOpen = true, className, openKey }: { title: string; count?: number; children: React.ReactNode; defaultOpen?: boolean; className?: string; openKey?: number }) {
+function Section({
+  title,
+  count,
+  children,
+  defaultOpen = true,
+  className,
+  openKey,
+  handle,
+}: {
+  title: string;
+  count?: number;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+  className?: string;
+  openKey?: number;
+  /** The grip that drags the section to another place in the explorer. */
+  handle?: ReactNode;
+}) {
   const [open, setOpen] = useState(defaultOpen);
   // Opens again when something inside asks to be shown.
   useEffect(() => {
     if (openKey) setOpen(true);
   }, [openKey]);
   return (
-    <div className={clsx("border-b border-[var(--line)]", className)}>
-      <button onClick={() => setOpen((o) => !o)} className="flex w-full cursor-pointer items-center gap-1 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-ink-500 hover:text-ink-300">
-        {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />} {title}
-        {count != null && <span className="ml-auto font-normal normal-case text-ink-600">{count}</span>}
-      </button>
+    <div data-section className={clsx("border-b border-[var(--line)] bg-[var(--panel)]", className)}>
+      <div className="group/section relative">
+        {handle}
+        <button onClick={() => setOpen((o) => !o)} className="flex w-full cursor-pointer items-center gap-1 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-ink-500 hover:text-ink-300">
+          {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />} {title}
+          {count != null && <span className="ml-auto font-normal normal-case text-ink-600">{count}</span>}
+        </button>
+      </div>
       {open && <div className="pb-2">{children}</div>}
     </div>
   );
+}
+
+const SECTION_MIME = "application/x-sparkflow-section";
+const ORDER_KEY = "sparkflow.explorer.order";
+type SectionId = "pages" | "assets" | "source" | "history";
+const DEFAULT_ORDER: SectionId[] = ["pages", "assets", "source", "history"];
+
+/**
+ * The explorer's sections in the order the user dragged them to, kept in this browser. A saved order
+ * missing a section (or from an older version) gets the missing ones at the end.
+ */
+function useSectionOrder() {
+  const [order, setOrder] = useState<SectionId[]>(DEFAULT_ORDER);
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(ORDER_KEY) ?? "[]") as string[];
+      const known = saved.filter((x): x is SectionId => (DEFAULT_ORDER as string[]).includes(x));
+      if (known.length) setOrder([...new Set([...known, ...DEFAULT_ORDER])]);
+    } catch {}
+  }, []);
+  const move = useCallback((id: SectionId, target: SectionId, after: boolean) => {
+    if (id === target) return;
+    setOrder((o) => {
+      const rest = o.filter((x) => x !== id);
+      const at = rest.indexOf(target) + (after ? 1 : 0);
+      const next = [...rest.slice(0, at), id, ...rest.slice(at)];
+      try {
+        localStorage.setItem(ORDER_KEY, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  }, []);
+  return { order, move };
 }
 
 type Props = {
@@ -178,22 +231,34 @@ export function FileTree({ projectId, state, focused, onOpenPage, onOpenFile, ac
   const [allSource, setAllSource] = useState(false);
   useEffect(() => setAllSource(false), [focused]);
 
-  return (
-    <aside
-      className="flex min-h-0 flex-1 flex-col border-r border-[var(--line)] bg-[var(--panel)]"
-      onDragOver={(e) => {
-        if (e.dataTransfer.types.includes("Files")) {
-          e.preventDefault();
-          setDropping(true);
-        }
+  // ---- sections, in the order dragged to with their grip ----
+  const { order, move } = useSectionOrder();
+  const [dragging, setDragging] = useState<SectionId | null>(null);
+  const [over, setOver] = useState<{ id: SectionId; after: boolean } | null>(null);
+  const grip = (id: SectionId) => (
+    <span
+      draggable
+      title="Drag to reorder"
+      aria-label="Drag to reorder"
+      onDragStart={(e) => {
+        e.dataTransfer.setData(SECTION_MIME, id);
+        e.dataTransfer.effectAllowed = "move";
+        // The whole section follows the pointer, not just the grip.
+        const section = e.currentTarget.closest<HTMLElement>("[data-section]");
+        if (section) e.dataTransfer.setDragImage(section, 16, 16);
+        setDragging(id);
       }}
-      onDragLeave={(e) => !e.currentTarget.contains(e.relatedTarget as Node) && setDropping(false)}
-      onDrop={dropOn(cwd)}>
-      <div className="flex h-9 shrink-0 items-center gap-2 border-b border-[var(--line)] px-3 text-[11px] font-semibold uppercase tracking-wide text-ink-400">
-        Explorer {native && <span className="rounded bg-sky-400/15 px-1.5 py-0.5 text-[10px] text-sky-300">iOS</span>}
-      </div>
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        <Section title="Pages" count={state.order.length}>
+      onDragEnd={() => {
+        setDragging(null);
+        setOver(null);
+      }}
+      className="absolute top-1/2 left-0 z-10 grid h-6 w-3 -translate-y-1/2 cursor-grab place-items-center text-ink-600 opacity-0 transition group-hover/section:opacity-100 hover:text-ink-300 active:cursor-grabbing">
+      <GripVertical size={12} />
+    </span>
+  );
+  const sections: Record<SectionId, ReactNode> = {
+    pages: (
+        <Section handle={grip("pages")} title="Pages" count={state.order.length}>
           {!pages.length && <p className="px-4 py-1 text-[12px] text-ink-500">Waiting for the plan…</p>}
           {pages.map(({ route, depth }, i) => {
             const s = state.screens[route];
@@ -213,8 +278,9 @@ export function FileTree({ projectId, state, focused, onOpenPage, onOpenFile, ac
             );
           })}
         </Section>
-
-        <Section title="Assets" count={assetFiles.filter((f) => !f.endsWith(".keep")).length} className={clsx("relative", dropping && "marching-ants")}>
+    ),
+    assets: (
+        <Section handle={grip("assets")} title="Assets" count={assetFiles.filter((f) => !f.endsWith(".keep")).length} className={clsx("relative", dropping && "marching-ants")}>
           <div className="flex items-center gap-1 px-3 pb-1.5 text-[11.5px]">
             {crumbs.map((c, i) => {
               const p = crumbs.slice(0, i + 1).join("/");
@@ -319,8 +385,9 @@ export function FileTree({ projectId, state, focused, onOpenPage, onOpenFile, ac
           </div>
           {error && <p className="px-3 text-[11px] text-red-400">{error}</p>}
         </Section>
-
-        <Section title={pageFile && !allSource ? "Source · this page" : "Source"} count={pageFile && !allSource ? pageFiles.length : source.length} openKey={reveal}>
+    ),
+    source: (
+        <Section handle={grip("source")} title={pageFile && !allSource ? "Source · this page" : "Source"} count={pageFile && !allSource ? pageFiles.length : source.length} openKey={reveal}>
           {pageFile && !allSource ? (
             // A focused page only lists the files it is built from, in their folders.
             <div className="pb-1">
@@ -340,12 +407,58 @@ export function FileTree({ projectId, state, focused, onOpenPage, onOpenFile, ac
             </>
           )}
         </Section>
-
-        {!native && (
-          <Section title="History" count={state.commits.length}>
+    ),
+    history: native ? null : (
+          <Section handle={grip("history")} title="History" count={state.commits.length}>
             <History state={state} onOpenPage={onOpenPage} />
           </Section>
-        )}
+    ),
+  };
+
+  return (
+    <aside
+      className="flex min-h-0 flex-1 flex-col border-r border-[var(--line)] bg-[var(--panel)]"
+      onDragOver={(e) => {
+        if (e.dataTransfer.types.includes("Files")) {
+          e.preventDefault();
+          setDropping(true);
+        }
+      }}
+      onDragLeave={(e) => !e.currentTarget.contains(e.relatedTarget as Node) && setDropping(false)}
+      onDrop={dropOn(cwd)}>
+      <div className="flex h-9 shrink-0 items-center gap-2 border-b border-[var(--line)] px-3 text-[11px] font-semibold uppercase tracking-wide text-ink-400">
+        Explorer {native && <span className="rounded bg-sky-400/15 px-1.5 py-0.5 text-[10px] text-sky-300">iOS</span>}
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {order.map((id) => {
+          const node = sections[id];
+          if (!node) return null;
+          return (
+            // A drop on the top half of a section puts the dragged one before it, on the bottom half after it.
+            <div
+              key={id}
+              className={clsx("relative", dragging === id && "opacity-40")}
+              onDragOver={(e) => {
+                if (!e.dataTransfer.types.includes(SECTION_MIME)) return;
+                e.preventDefault();
+                e.stopPropagation();
+                const r = e.currentTarget.getBoundingClientRect();
+                setOver({ id, after: e.clientY > r.top + r.height / 2 });
+              }}
+              onDrop={(e) => {
+                if (!e.dataTransfer.types.includes(SECTION_MIME)) return;
+                e.preventDefault();
+                e.stopPropagation();
+                const from = e.dataTransfer.getData(SECTION_MIME) as SectionId;
+                if (from && over) move(from, id, over.after);
+                setOver(null);
+                setDragging(null);
+              }}>
+              {over?.id === id && dragging && dragging !== id && <div className={clsx("pointer-events-none absolute inset-x-2 z-10 h-0.5 rounded-full bg-spark-500", over.after ? "-bottom-px" : "-top-px")} />}
+              {node}
+            </div>
+          );
+        })}
       </div>
       <div className="shrink-0 border-t border-[var(--line)] px-3 py-1.5 font-mono text-[10.5px] text-ink-500">
         {native ? "imported · read-only" : headSha ? `Saved automatically · ${state.commits.length} versions` : "Nothing saved yet"}
