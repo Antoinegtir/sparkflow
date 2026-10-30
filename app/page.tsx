@@ -104,7 +104,9 @@ export default function Home() {
       </div>
       <DemoNotice />
       <LandingPresence />
-      <footer className="relative mx-auto max-w-5xl border-t border-ink-800 px-6 pb-10 pt-6">
+      {/* A solid black block across the whole width, over the dot grid. */}
+      <footer className="relative z-10 border-t border-ink-800 bg-black">
+        <div className="mx-auto max-w-5xl px-6 pb-14 pt-12">
         <div className="flex flex-col items-center justify-between gap-3 text-[12.5px] text-ink-400 sm:flex-row">
           {/* On phones the logo sits above the copyright, which stays on one line. */}
           <span className="flex flex-col items-center gap-2 sm:flex-row">
@@ -130,6 +132,7 @@ export default function Home() {
         <p className="mt-4 text-center text-[11px] text-ink-600 sm:text-left">
           Apple and the Apple logo are trademarks of Apple Inc. Android robot © Google, CC BY 3.0. Sparkflow is not affiliated with Apple or Google.
         </p>
+        </div>
       </footer>
     </main>
   );
