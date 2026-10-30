@@ -6,7 +6,7 @@ import { Loader2, LogOut } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { SIGNIN_CLOSED, SIGNIN_EVENT, signIn, signOutUser, watchUser, type Provider, type SignInRequest } from "@/lib/web/auth";
-import { PROFILE_EVENT } from "@/lib/web/profile";
+import { PROFILE_EVENT, restoreProfile } from "@/lib/web/profile";
 
 function GoogleIcon() {
   return (
@@ -40,7 +40,14 @@ export function SignIn({ extra }: { extra?: { label: string; icon: React.ReactNo
   const ref = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => watchUser(setUser), []);
+  useEffect(
+    () =>
+      watchUser((u) => {
+        setUser(u);
+        if (u) void restoreProfile(u);
+      }),
+    [],
+  );
   // A new name or picture (Settings › Account): same user object, redrawn.
   const [, redraw] = useState(0);
   useEffect(() => {

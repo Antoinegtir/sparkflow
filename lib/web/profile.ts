@@ -1,8 +1,9 @@
 "use client";
 
 import { updateProfile, type User } from "firebase/auth";
+import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 import { getDownloadURL, getStorage, ref, uploadBytes } from "firebase/storage";
-import { auth, firebaseApp } from "./auth";
+import { auth, db, firebaseApp } from "./auth";
 
 /** Fired after the profile changes, so the topbar avatar redraws (Firebase only reports sign-in changes). */
 export const PROFILE_EVENT = "sparkflow:profile";
@@ -33,6 +34,8 @@ export async function saveProfile(p: { name?: string; photo?: File | null; provi
     changes.photoURL = await getDownloadURL(r);
   } else if (p.providerPhoto) changes.photoURL = providerPhoto(user);
   await updateProfile(user, changes);
+  // Kept in Firestore too (users/{uid}), so it comes back on any sign-in even if the provider resets it.
+  await setDoc(doc(db(), "users", user.uid), { name: user.displayName ?? "", avatar: user.photoURL ?? "", updatedAt: serverTimestamp() });
   // A fresh token, so the next proofs carry the new name and picture.
   await user.getIdToken(true);
   dispatchEvent(new Event(PROFILE_EVENT));
@@ -41,3 +44,21 @@ export async function saveProfile(p: { name?: string; photo?: File | null; provi
 
 /** The picture of the provider they signed in with (GitHub or Google), to go back to it. */
 export const providerPhoto = (user: User) => user.providerData.find((d) => d.photoURL)?.photoURL ?? null;
+
+/**
+ * On sign-in: the profile saved in Firestore wins over what the provider (GitHub, Google) set, so a
+ * picture or name changed in Sparkflow sticks. Nothing saved yet: nothing to do.
+ */
+export async function restoreProfile(user: User) {
+  try {
+    const d = (await getDoc(doc(db(), "users", user.uid))).data() as { name?: string; avatar?: string } | undefined;
+    if (!d) return;
+    const changes: { displayName?: string; photoURL?: string | null } = {};
+    if (d.name && d.name !== user.displayName) changes.displayName = d.name;
+    if (d.avatar && d.avatar !== user.photoURL) changes.photoURL = d.avatar;
+    if (!Object.keys(changes).length) return;
+    await updateProfile(user, changes);
+    await user.getIdToken(true);
+    dispatchEvent(new Event(PROFILE_EVENT));
+  } catch {}
+}
