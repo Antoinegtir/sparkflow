@@ -11,6 +11,9 @@ export const GET = handle(async (req: Request, { params }: RouteCtx) => {
   requireOwner(req);
   const { id } = await params;
   await orchestrator().store.readMeta(id);
+  // The server's identity is made here too, not only with the first invite: the owner's name and avatar
+  // (on their comments) are registered against it before anyone is invited. Offline, the list still loads.
+  await ensureServerIdentity().catch(() => null);
   return Response.json(await listShare(id));
 });
 

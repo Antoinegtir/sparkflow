@@ -132,14 +132,14 @@ export function ShareDialog({ projectId, appName, onClose, onChanged }: { projec
           <section className="space-y-2">
             <h3 className="text-[11px] font-medium tracking-wide text-ink-400 uppercase">Invite link</h3>
             <div className="flex flex-wrap items-center gap-2">
-              <select value={role} onChange={(e) => setRole(e.target.value as Role)} className="rounded-md border border-[var(--line)] bg-ink-900 px-2 py-1.5">
+              <select value={role} onChange={(e) => setRole(e.target.value as Role)} className="select-chevron cursor-pointer rounded-md border border-[var(--line)] bg-ink-900 py-1.5 pl-2.5">
                 {ROLES.map((r) => (
                   <option key={r} value={r}>
                     {ROLE_LABEL[r]}
                   </option>
                 ))}
               </select>
-              <select value={String(days)} onChange={(e) => setDays(e.target.value === "null" ? null : (Number(e.target.value) as 1 | 7 | 30))} className="rounded-md border border-[var(--line)] bg-ink-900 px-2 py-1.5" aria-label="Expires after">
+              <select value={String(days)} onChange={(e) => setDays(e.target.value === "null" ? null : (Number(e.target.value) as 1 | 7 | 30))} className="select-chevron cursor-pointer rounded-md border border-[var(--line)] bg-ink-900 py-1.5 pl-2.5" aria-label="Expires after">
                 {EXPIRY.map((x) => (
                   <option key={x.label} value={String(x.value)}>
                     {x.label}
@@ -210,7 +210,7 @@ export function ShareDialog({ projectId, appName, onClose, onChanged }: { projec
                 <select
                   value={m.role}
                   onChange={(e) => void call(`/api/projects/${projectId}/share/members/${m.uid}`, { method: "PATCH", body: JSON.stringify({ role: e.target.value }) })}
-                  className="rounded-md border border-[var(--line)] bg-ink-900 px-1.5 py-1"
+                  className="select-chevron cursor-pointer rounded-md border border-[var(--line)] bg-ink-900 py-1 pl-2"
                   aria-label={`${m.name}'s role`}>
                   {ROLES.map((r) => (
                     <option key={r} value={r}>

@@ -374,7 +374,8 @@ const [serverStep, tunnelStep, reachStep] = steps;
 // Something already answers on the port: most likely Sparkflow running in another terminal. Say so
 // and stop before opening a tunnel, rather than failing halfway with its logs.
 let taken = await fetch(`http://127.0.0.1:${PORT}/api/projects`, { signal: AbortSignal.timeout(1500) }).then(
-  (r) => (r.ok && /json/.test(r.headers.get("content-type") ?? "") ? "sparkflow" : "other"),
+  // Sparkflow answers in JSON, even when it refuses a request without its token (403).
+  (r) => (/json/.test(r.headers.get("content-type") ?? "") ? "sparkflow" : "other"),
   () => null,
 );
 const busy = (who) =>
@@ -460,15 +461,16 @@ server.stdout.on("data", onServerOutput);
 server.stderr.on("data", onServerOutput);
 server.on("exit", (code, signal) => serverStep.state !== "fail" && fail(serverStep, signal ? `stopped (${signal})` : `stopped (exit ${code})`));
 
-// Where the open Sparkflow tab is (straight from this machine, so no token needed).
+// Where the open Sparkflow tab is. With the token: a request from a script carries no browser fetch
+// metadata, so the server refuses it as owner-by-locality once a token is set.
 async function pollPresence() {
-  report = await fetch(`http://127.0.0.1:${PORT}/api/presence`).then((r) => (r.ok ? r.json() : null), () => null);
+  report = await fetch(`http://127.0.0.1:${PORT}/api/presence`, { headers: { "x-sparkflow-token": token } }).then((r) => (r.ok ? r.json() : null), () => null);
 }
 
 // Ready once it answers HTTP locally.
 (async function waitServer() {
   for (let i = 0; i < 120; i++) {
-    const up = await fetch(`http://127.0.0.1:${PORT}/api/projects`).then(() => true).catch(() => false);
+    const up = await fetch(`http://127.0.0.1:${PORT}/api/projects`, { headers: { "x-sparkflow-token": token } }).then(() => true).catch(() => false);
     if (up) {
       serverStep.state = "ok";
       serverStep.detail = `localhost:${PORT}`;
