@@ -108,6 +108,9 @@ export function TopBar(p: Props) {
             ) : (
               <UserPlus size={14} />
             )}
+            Share
+          </button>
+        )}
       </div>
       <div className="flex items-center gap-1.5">
         {/* Panel open: Commands starts just right of its edge, over the panel. */}
@@ -117,9 +120,6 @@ export function TopBar(p: Props) {
           className={clsx("hidden cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1.5 text-[12px] text-ink-400 hover:bg-ink-800 hover:text-ink-100 lg:flex", p.panelWidth && "absolute top-1/2 -translate-y-1/2")}>
           <Command size={13} /> Commands <kbd className="rounded border border-[var(--line)] px-1 font-mono text-[10px]">⌘K</kbd>
         </button>
-            Share
-          </button>
-        )}
         {owner && p.onSettings && (
           <button onClick={p.onSettings} title="App settings" aria-label="App settings" className="grid size-8 cursor-pointer place-items-center rounded-lg text-ink-400 hover:bg-ink-800 hover:text-ink-100">
             <Settings size={15} />
