@@ -348,7 +348,7 @@ function PlanningSteps() {
  * screen): its top and its bottom are kept at full size and the middle of the scroll is left out, so the
  * header, the tab bar and a floating button all show without squashing anything.
  */
-function Capture({ url, title, blurred }: { url: string; title: string; blurred: boolean }) {
+export function Capture({ url, title, blurred }: { url: string; title: string; blurred: boolean }) {
   const [tall, setTall] = useState(false);
   // From the file itself, not the layout: 844/390 ≈ 2.16 for an old full-screen iPhone capture, while
   // captures of the room between the bars stay under 2.1 (iPhone 759/393 ≈ 1.93, Pixel 855/412 ≈ 2.08).

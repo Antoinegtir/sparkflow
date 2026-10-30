@@ -20,6 +20,7 @@ import type { Selection } from "./PromptBar";
 import { SimulatorView, type SimPick } from "./SimulatorView";
 import { describe } from "./History";
 import { CompareSlider, CupertinoSpinner, PhoneFrame, SafeAreaScreen, scoreClass, SeFrame, StatusPill, type SafeAreas } from "./ui";
+import { Capture } from "./Canvas";
 
 const SIDE_W = 380;
 const SPRING = { type: "spring" as const, stiffness: 210, damping: 28, mass: 0.9 };
@@ -367,10 +368,8 @@ export function HeroFocus(p: Props) {
             <div className="relative h-full bg-white" onPointerDown={() => setInteracted(true)}>
               {/* While the live preview loads: the last capture, between the same safe areas, blurred under an iOS spinner. */}
               <SafeAreaScreen dark={p.scheme === "dark"} areas={device.areas} surface={surface}>
-                {s.screenshotUrl && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={s.screenshotUrl} alt="" className="absolute inset-0 h-full w-full object-cover object-top" />
-                )}
+                {/* Same as on the canvas: an old full-screen capture keeps its tab bar and floating button. */}
+                {s.screenshotUrl && <Capture url={s.screenshotUrl} title="" blurred={false} />}
                 <div
                   className={clsx(
                     "pointer-events-none absolute inset-0 grid place-items-center backdrop-blur-md transition-opacity duration-300",
