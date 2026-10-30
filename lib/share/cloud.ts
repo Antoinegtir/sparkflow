@@ -7,7 +7,7 @@ import { shareHome } from "./paths";
 import { activeMemberUids } from "./store";
 
 /**
- * A read-only copy of a shared project in the cloud, so the people it is shared with still see its
+ * A read-only copy of each project in the cloud, so its owner and the people it is shared with still see its
  * pages when this Mac is offline: the page list, links and latest screenshots in Cloud Storage under
  * servers/{serverUid}/projects/{projectId}/, and a Firestore document there listing who may read them
  * (the rules check it). Refreshed a few seconds after anything changes; only screenshots not sent yet
@@ -51,14 +51,12 @@ async function upload(path: string, body: Buffer | string, contentType: string, 
 
 const shotName = (url?: string | null) => (url ? (url.split("/").pop()?.split("?")[0] ?? null) : null);
 
-/** Sends the project's current pages to its cloud copy. Nothing while it isn't shared with anyone. */
+/** Sends the project's current pages to its cloud copy (readable by its owner and members). */
 export async function publishSnapshot(pid: string, state: ProjectState, readShot: (name: string) => Promise<Buffer>) {
   const uid = serverUid();
   if (!uid) return;
   const members = [...new Set([...(await activeMemberUids(pid)), ...(readOwner()?.uid ? [readOwner()!.uid] : [])])];
   const prev = readManifest(pid);
-  // Never shared (or only the owner): no copy. Shared before: kept up to date, members included (a removed one loses access).
-  if (!prev && members.length <= 1) return;
   const sent = new Set(prev?.shots ?? []);
   const screens: CloudSnapshot["screens"] = {};
   for (const r of state.order) {

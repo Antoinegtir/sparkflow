@@ -135,10 +135,12 @@ export class Orchestrator {
         }
         rt.meter = new UsageMeter(this.provider, this.cfg.maxCostUsd, (u) => rt.emit({ type: "usage", ...u }), rt.state.usage);
         void this.pruneDeleted(rt).catch(() => {});
-        // Shared projects keep a read-only copy in the cloud (pages, links, screenshots) for when this Mac is off.
+        // Every project keeps a read-only copy in the cloud (pages, links, screenshots) for when this Mac is off.
         rt.listeners.add((e) => {
           if (["plan", "screenshot", "dark_shot", "nav", "renamed", "run_status"].includes(e.type)) this.cloudSync(id);
         });
+        // Once on load too: projects made before the cloud copy existed get theirs.
+        if (rt.state.order.length) this.cloudSync(id);
         return rt;
       })();
       this.runtimes.set(id, p);
@@ -147,7 +149,7 @@ export class Orchestrator {
     return p;
   }
 
-  /** Refreshes a shared project's cloud copy soon (nothing happens for a project shared with no one). */
+  /** Refreshes the project's cloud copy soon (none until this server has its Firebase identity). */
   cloudSync(id: string) {
     scheduleSnapshot(id, async () => {
       const rt = await this.runtime(id);
