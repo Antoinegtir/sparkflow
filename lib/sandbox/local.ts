@@ -4,7 +4,7 @@ import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises"
 import os from "node:os";
 import { isMac } from "@/lib/web/platform";
 import path from "node:path";
-import type { ExecResult, InspectJob, InspectTargetResult, Preview, Sandbox, SandboxDriver } from "./types";
+import { DEFAULT_VIEWPORT, type ExecResult, type InspectJob, type InspectTargetResult, type Preview, type Sandbox, type SandboxDriver } from "./types";
 import { childEnv, dataDir, stateDir, findFreePort, IGNORED_DIRS, lanIp, LineBuffer, repoRoot, templateDir } from "./util";
 
 const MAX_OUTPUT = 256 * 1024;
@@ -80,7 +80,7 @@ export async function runInspector(job: InspectJob & { baseUrl: string }): Promi
   const dir = path.join(stateDir(), "inspect", `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`);
   await mkdir(dir, { recursive: true });
   try {
-    await writeFile(path.join(dir, "job.json"), JSON.stringify(job));
+    await writeFile(path.join(dir, "job.json"), JSON.stringify({ viewport: DEFAULT_VIEWPORT, ...job }));
     const script = path.join(repoRoot(), "lib", "sandbox", "runtime", "inspect.mjs");
     const timeout = Math.round((job.navigationTimeoutMs ?? 120000) / 1000) + 45 * job.targets.length + 30;
     const r = await execIn(repoRoot(), `node ${JSON.stringify(script)} ${JSON.stringify(dir)}`, timeout);

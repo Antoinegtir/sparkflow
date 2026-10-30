@@ -5,7 +5,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { ModalClient, type App, type Image, type Sandbox as ModalSandbox, type Volume } from "modal";
 import { execIn, walk } from "./local";
-import type { ExecResult, InspectJob, InspectTargetResult, Preview, Sandbox, SandboxDriver } from "./types";
+import { DEFAULT_VIEWPORT, type ExecResult, type InspectJob, type InspectTargetResult, type Preview, type Sandbox, type SandboxDriver } from "./types";
 import { LineBuffer, stateDir, repoRoot, templateDir } from "./util";
 
 const PLAYWRIGHT = "1.64.1";
@@ -87,7 +87,7 @@ class ModalProjectSandbox implements Sandbox {
   async inspect(job: InspectJob): Promise<InspectTargetResult[]> {
     await this.startDevServer();
     const dir = `/tmp/inspect-${Date.now()}`;
-    await this.writeFile(`${dir}/job.json`, JSON.stringify({ ...job, baseUrl: "http://127.0.0.1:8081" }));
+    await this.writeFile(`${dir}/job.json`, JSON.stringify({ viewport: DEFAULT_VIEWPORT, ...job, baseUrl: "http://127.0.0.1:8081" }));
     const r = await this.exec(`cd /opt/sparkflow && node inspect.mjs ${dir}`, { timeoutSec: 120 + 45 * job.targets.length + 30 });
     if (!r.stdout.includes("SPARKFLOW_INSPECT_DONE")) throw new Error(`Inspector failed: ${(r.stderr || r.stdout).slice(-1500)}`);
     const raw = JSON.parse(await this.readFile(`${dir}/result.json`));

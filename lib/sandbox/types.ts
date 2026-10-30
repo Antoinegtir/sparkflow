@@ -11,6 +11,9 @@ export type InspectStep =
   | { action: "wait"; ms: number }
   | { action: "goto"; path: string };
 
+/** The iPhone preview between its status bar and home indicator, as the canvas and focus view show it. */
+export const DEFAULT_VIEWPORT = { width: 393, height: 759 };
+
 export type InspectJob = {
   targets: { name: string; path: string; steps?: InspectStep[]; shotAfterEachStep?: boolean; record?: boolean }[];
   viewport?: { width: number; height: number };

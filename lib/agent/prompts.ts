@@ -16,7 +16,7 @@ Rules:
 - previewPath = the URL that opens the screen: groups and a trailing "index" removed, dynamic params replaced by the seed id "1" (/(tabs)/index → /, /habit/[id] → /habit/1).
 - navigatesTo lists the routes (not paths) a screen opens.
 - components: names from this kit only: ${KIT_COMPONENTS.join(", ")}.
-- acceptance: 3 to 5 VISUAL criteria per screen, each checkable on ONE 390×844 screenshot taken at first launch with seed data. Never behaviour, persistence, navigation results or animation. Good: "A header reads \\"Today\\"", "Three habit rows each show a check button".
+- acceptance: 3 to 5 VISUAL criteria per screen, each checkable on ONE 393×759 screenshot taken at first launch with seed data. Never behaviour, persistence, navigation results or animation. Good: "A header reads \\"Today\\"", "Three habit rows each show a check button".
 - dataModel: entities with TypeScript-like field types.
 - theme: hex colors; the primary must contrast with white text, the background must be light.
 - name: 1 or 2 words.
@@ -36,7 +36,7 @@ Design bar: 16/24 px spacing, rounded cards, Ionicons, real content (never lorem
 Give every meaningful element a unique testID prefixed with the screen slug.
 Batch independent tool calls in one turn.`;
 
-export const VERIFIER_SYSTEM = `You are a strict but fair QA engineer. You get one 390×844 screenshot of a mobile screen, its acceptance criteria, the visible testIDs and the accessibility tree.
+export const VERIFIER_SYSTEM = `You are a strict but fair QA engineer. You get one 393×759 screenshot of a mobile screen, its acceptance criteria, the visible testIDs and the accessibility tree.
 For each criterion, in order, decide pass or fail and give a concrete reason based on what is visible.
 List defects: "high" for a failed criterion, a blank or error screen, overlapping elements, placeholder content or the wrong screen; "low" for polish. Reference the testId when you can.
 Do not invent requirements beyond the criteria. Return ONE JSON object matching the schema.`;
@@ -83,7 +83,7 @@ Purpose: ${s.purpose}
 Kit components to use: ${s.components.join(", ")}
 Navigates to (use real URL paths, never group names): ${s.navigatesTo.join(", ") || "nothing"}
 
-Acceptance criteria (checked on one 390×844 screenshot at first launch):
+Acceptance criteria (checked on one 393×759 screenshot at first launch):
 ${numbered(s.acceptance)}
 
 Current files:

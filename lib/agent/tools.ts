@@ -186,7 +186,7 @@ export const TOOLS = {
     run: async (ctx, a) => ctx.sandbox.devServerLogs(a.lines ?? 120) || "(no output)",
   }),
   screenshot: def({
-    description: "Open a route (planned route or URL path) at 390×844 and return a screenshot, issues and testIDs.",
+    description: "Open a route (planned route or URL path) at 393×759 and return a screenshot, issues and testIDs.",
     schema: z.object({ route: z.string() }),
     run: async (ctx, a) => {
       const [r] = await ctx.sandbox.inspect({ targets: [{ name: "shot", path: pathFor(ctx, a.route) }] });
