@@ -350,6 +350,16 @@ function PlanningSteps() {
  */
 function Capture({ url, title, blurred }: { url: string; title: string; blurred: boolean }) {
   const [tall, setTall] = useState(false);
+  const ref = useRef<HTMLImageElement>(null);
+  const measure = useCallback(() => {
+    const img = ref.current;
+    if (!img?.naturalWidth || !img.clientWidth) return;
+    setTall(img.naturalHeight / img.naturalWidth > (img.clientHeight / img.clientWidth) * 1.03);
+  }, []);
+  // A cached image can finish loading before React listens for it: check once mounted too.
+  useEffect(() => {
+    if (ref.current?.complete) measure();
+  }, [url, measure]);
   const cls = clsx("animate-fade-in absolute inset-0 transition", blurred && "scale-105 blur-md");
   return (
     <>
@@ -358,10 +368,8 @@ function Capture({ url, title, blurred }: { url: string; title: string; blurred:
         key={url}
         src={url}
         alt={title}
-        onLoad={(e) => {
-          const img = e.currentTarget;
-          setTall(img.naturalHeight / img.naturalWidth > (img.clientHeight / img.clientWidth) * 1.03);
-        }}
+        ref={ref}
+        onLoad={measure}
         className={clsx(cls, "h-full w-full object-cover object-top", tall && "opacity-0")}
         draggable={false}
       />
