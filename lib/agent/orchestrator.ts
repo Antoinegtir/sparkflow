@@ -188,7 +188,7 @@ export class Orchestrator {
         if (err instanceof BudgetExceededError) rt.log(err.message, undefined, "error");
         else if (!aborted) rt.log(`Run failed: ${message}`, undefined, "error");
         // Nothing may keep spinning on the canvas.
-        for (const s of Object.values(rt.state.screens)) {
+        for (const s of rt.state.order.map((r) => rt.state.screens[r]).filter(Boolean)) {
           if (s.status === "building" || s.status === "verifying") rt.emit({ type: "screen_status", route: s.route, status: "failed", version: s.version, attempt: s.attempt });
         }
         rt.emit({ type: "run_status", status: aborted ? "stopped" : "failed", message });
@@ -606,6 +606,36 @@ export class Orchestrator {
   }
 
   /** A changed screen file impacts its route only; any other non-asset file impacts every route. */
+  /** Which of these files exist, in one exec; a failed check says none (so nothing is taken as deleted). */
+  private async existing(sb: Sandbox, files: string[]) {
+    if (!files.length) return new Set<string>();
+    const out = await sb.exec(files.map((f) => `[ -e ${shq(f)} ] && printf '%s\\n' ${shq(f)}`).join("; ") + "; true").catch(() => ({ stdout: "" }));
+    return new Set(out.stdout.split("\n").filter((f) => files.includes(f)));
+  }
+
+  /**
+   * Files missing now that were there before (`existedBefore`) or that git saw deleted, since `head` or in
+   * history. Each check prints its own file name, git reads the paths literally (`[id].tsx` isn't a glob),
+   * and a failed exec says none.
+   */
+  private async deletedFiles(sb: Sandbox, files: string[], existedBefore: Set<string>, head: string) {
+    if (!files.length) return new Set<string>();
+    const checks = files.map((f) => {
+      const q = shq(f);
+      const was = existedBefore.has(f)
+        ? "true"
+        : `[ -n "$(git diff --name-only --diff-filter=D ${shq(head)} -- ${q})$(git log -1 --format=%h --diff-filter=D -- ${q})" ]`;
+      return `if [ ! -e ${q} ] && ${was}; then printf '%s\\n' ${q}; fi`;
+    });
+    const out = await sb.exec(`export GIT_LITERAL_PATHSPECS=1; ${checks.join("; ")}; true`).catch(() => ({ stdout: "" }));
+    return new Set(out.stdout.split("\n").filter((f) => files.includes(f)));
+  }
+
+  /** Still a page of the app (a run may have deleted it while a capture was going). */
+  private live(rt: ProjectRuntime, route: string) {
+    return !!rt.state.screens[route] && rt.state.order.includes(route);
+  }
+
   private impactedRoutes(rt: ProjectRuntime, changed: string[]) {
     const plan = rt.state.plan;
     if (!plan) return [];
@@ -679,6 +709,9 @@ export class Orchestrator {
     const rules = await sb.readFile("AGENT_RULES.md").catch(() => "");
     const system = builderSystem(rules, plan);
     const ctx = await this.toolCtx(rt);
+    // Page files there before the agent works: one missing afterwards was deleted by it (even if never committed).
+    const pageFiles = plan.screens.filter((sc) => !sc.file.endsWith("_layout.tsx")).map((sc) => sc.file);
+    const existedBefore = await this.existing(sb, pageFiles);
     const summary = await runBuilderTask(this.deps(rt), ctx, {
       system,
       task: userPromptTask({ text: req.text, voice: !!req.audio, plan, focused, picks, files }),
@@ -710,26 +743,41 @@ export class Orchestrator {
         previewPath: previewPathFor(route),
       });
     }
-    if (added.length) {
-      plan = { ...plan, screens: [...plan.screens, ...added] };
-      rt.emit({ type: "plan", plan });
+    // Pages the agent deleted leave the plan, with the links to them: the file is missing now, and it was
+    // there when this run started or git saw it deleted (an earlier run). A page never written yet (a
+    // stopped first build) is neither, and stays; a failed check removes nothing.
+    const candidates = plan.screens.filter((sc) => !sc.file.endsWith("_layout.tsx"));
+    const deleted = await this.deletedFiles(sb, candidates.map((sc) => sc.file), existedBefore, head);
+    const goneFiles = new Set(candidates.filter((sc) => deleted.has(sc.file)).map((sc) => sc.file));
+    const gone = new Set(plan.screens.filter((sc) => goneFiles.has(sc.file)).map((sc) => sc.route));
+    if (added.length || gone.size) {
+      plan = {
+        ...plan,
+        screens: [...plan.screens.filter((sc) => !gone.has(sc.route)).map((sc) => (gone.size ? { ...sc, navigatesTo: sc.navigatesTo.filter((r) => !gone.has(r)) } : sc)), ...added],
+      };
+      rt.emit({ type: "plan", plan, ...(gone.size ? { removed: [...gone] } : {}) });
     }
     const request = req.text.trim() || summary || "the voice request";
     const extra = [`The user's request is visibly satisfied: "${request.slice(0, 200)}"`];
     const fsys = builderSystem(rules, plan);
-    if (focused) await this.verifyLoop(rt, fsys, focused, version, extra);
+    const kept = focused && !gone.has(focused.route) ? focused : undefined;
+    if (kept) await this.verifyLoop(rt, fsys, kept, version, extra);
     for (const s of added) {
       rt.emit({ type: "screen_status", route: s.route, status: "building", version: 1, attempt: 1 });
       await this.verifyLoop(rt, fsys, s, 1);
     }
-    const others = this.impactedRoutes(rt, changed).filter((r) => r !== focused?.route && !added.some((a) => a.route === r));
+    // A deleted page's file isn't a change to the pages that remain (it would make every page "impacted").
+    const others = this.impactedRoutes(
+      rt,
+      changed.filter((f) => !goneFiles.has(f)),
+    ).filter((r) => r !== focused?.route && !added.some((a) => a.route === r));
     if (others.length) {
       rt.emit({ type: "phase", phase: "verifier", detail: "re-capturing impacted pages" });
       await this.refreshShots(rt, others, true);
     }
     const msg = `${focused?.title ?? "App"}: ${req.text.trim().slice(0, 60) || "voice request"}`;
     const sha = await gitCommit(sb, msg);
-    if (sha) rt.emit({ type: "commit", sha, message: msg, routes: [...(focused ? [focused.route] : []), ...added.map((a) => a.route), ...others] });
+    if (sha) rt.emit({ type: "commit", sha, message: msg, routes: [...(kept ? [kept.route] : []), ...added.map((a) => a.route), ...others] });
     await this.updateNav(rt);
     await this.emitTree(rt);
     rt.emit({ type: "agent_message", text: summary || "Done.", route: focused?.route });
@@ -854,7 +902,8 @@ export class Orchestrator {
     let n = 0;
     for (const [i, s] of screens.entries()) {
       const r = results[i];
-      if (!r?.screenshot) continue;
+      // A page a run deleted meanwhile is skipped (an event for it would bring it back).
+      if (!r?.screenshot || !this.live(rt, s.route)) continue;
       const v = rt.state.screens[s.route].version;
       const url = await this.store.saveShot(rt.meta.id, await this.shotName(rt, s.route, v, "-dark"), r.screenshot);
       rt.emit({ type: "dark_shot", route: s.route, url, version: v, report: r.audit ?? undefined });
@@ -883,7 +932,8 @@ export class Orchestrator {
     let n = 0;
     for (const [i, s] of screens.entries()) {
       const r = results[i];
-      if (!r?.screenshot) continue;
+      // A page a run deleted meanwhile is skipped (an event for it would bring it back).
+      if (!r?.screenshot || !this.live(rt, s.route)) continue;
       const v = rt.state.screens[s.route].version;
       const url = await this.store.saveShot(rt.meta.id, await this.shotName(rt, s.route, v, `-${deviceId}${dark ? "-dark" : ""}`), r.screenshot);
       rt.emit({ type: "device_shot", route: s.route, device: deviceId, dark, url, version: v });
@@ -1249,6 +1299,7 @@ export class Orchestrator {
       const s = rt.state.screens[route];
       if (!s) continue;
       const url = await this.store.saveShot(id, await this.shotName(rt, route, s.version, `-${device}${dark ? "-dark" : ""}`), png);
+      if (!this.live(rt, route)) continue;
       rt.emit({ type: "device_shot", route, device, dark, url, version: s.version });
     }
     await rt.flush();
@@ -1264,7 +1315,8 @@ export class Orchestrator {
         const s = rt.state.screens[route];
         if (!s) continue;
         const name = `${routeSlug(route)}-v${s.version}-${slug(opts.device)}${opts.dark ? "-dark" : ""}-${Date.now()}.png`;
-        rt.emit({ type: "device_shot", route, device: opts.device, dark: !!opts.dark, url: await this.store.saveShot(id, name, p.png), version: s.version });
+        const url = await this.store.saveShot(id, name, p.png);
+        if (this.live(rt, route)) rt.emit({ type: "device_shot", route, device: opts.device, dark: !!opts.dark, url, version: s.version });
       }
       return;
     }

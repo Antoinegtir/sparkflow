@@ -115,6 +115,7 @@ export function applyEvent(state: ProjectState, ev: StoredEvent): ProjectState {
       s.name = s.customName ?? e.plan.name;
       s.order = e.plan.screens.map((p) => p.route);
       const screens = { ...s.screens };
+      for (const r of e.removed ?? []) delete screens[r];
       for (const p of e.plan.screens) {
         const cur = screens[p.route] ?? blankScreen(p.route);
         screens[p.route] = { ...cur, title: p.title, file: p.file, previewPath: p.previewPath ?? previewPathFor(p.route) };

@@ -220,6 +220,16 @@ export function IDE({ id, slug: initialSlug, initialPage, access: given, basePat
     setClosing(true);
   }, []);
 
+  // The focused page was deleted (by the agent): back to all pages. The focus view is already gone (it only
+  // shows pages in the app), so nothing would end an animated close: reset at once.
+  useEffect(() => {
+    if (!focused || !state || state.order.includes(focused)) return;
+    setInspect(false);
+    setFocused(null);
+    setClosing(false);
+    setCompare(null);
+  }, [focused, state?.order]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Picks belong to the page they were made on: leaving it (from the explorer, the preview or a tap in
   // the Simulator) drops them, so they never outline something on another page.
   useEffect(() => setSelections([]), [focused]);
@@ -333,6 +343,12 @@ export function IDE({ id, slug: initialSlug, initialPage, access: given, basePat
     if (busy || inFlight.current || !queue.length) return;
     const [next, ...rest] = queue;
     setQueue(rest);
+    // About a page that's gone since (deleted by a run): dropped, rather than run on the whole app.
+    if (next.route && state && !state.order.includes(next.route)) {
+      next.done(false);
+      api.setToast("A queued request was about a page that no longer exists: dropped");
+      return;
+    }
     const mine = Date.now();
     const gen = stopGen.current;
     inFlight.current = mine;

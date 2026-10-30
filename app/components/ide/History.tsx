@@ -54,7 +54,8 @@ export function History({ state, onOpenPage }: { state: ProjectState; onOpenPage
       <ol className="relative">
         {shown.map((c, i) => {
           const e = describe(c, title);
-          const route = c.routes.find((r) => state.screens[r]);
+          // Only a page that still exists can be opened from its change.
+          const route = c.routes.find((r) => state.order.includes(r) && state.screens[r]);
           return (
             <li key={c.sha}>
               <button

@@ -9,7 +9,8 @@ export type NavEdge = { from: string; to: string; source: "plan" | "code" };
 export type Usage = { inputTokens: number; outputTokens: number; cachedTokens: number; costUsd: number; calls: number };
 
 export type AgentEvent =
-  | { type: "plan"; plan: AppPlan }
+  /** `removed`: pages deleted from the app, forgotten (a page added later on the same route starts fresh). */
+  | { type: "plan"; plan: AppPlan; removed?: string[] }
   | { type: "screen_status"; route: string; status: ScreenStatus; version: number; attempt?: number }
   | { type: "screenshot"; route: string; url: string; version: number }
   | { type: "verdict"; verdict: Verdict; attempt: number }

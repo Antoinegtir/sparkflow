@@ -44,4 +44,20 @@ describe("state reducer", () => {
     expect(s.screens["/a"].history).toEqual([{ version: 1, url: "2", ts: 3 }]);
     expect(s.edges).toEqual([{ from: "/a", to: "/b", source: "plan" }]);
   });
+  it("forgets a deleted page, so a page added later on its route starts fresh", () => {
+    seq = 0;
+    const page = (route: string, file: string) => ({ route, file, title: route, purpose: "", components: [], navigatesTo: [], acceptance: [] });
+    const theme = { primary: "#000", background: "#fff" };
+    const s = foldEvents(meta, [
+      ev({ type: "plan", plan: { name: "App", theme, dataModel: [], screens: [page("/a", "app/a.tsx"), page("/p", "app/p.tsx")] } }),
+      ev({ type: "screenshot", route: "/p", url: "old", version: 1 }),
+      ev({ type: "screen_status", route: "/p", status: "building", version: 2 }),
+      ev({ type: "plan", plan: { name: "App", theme, dataModel: [], screens: [page("/a", "app/a.tsx")] }, removed: ["/p"] }),
+    ]);
+    expect(s.order).toEqual(["/a"]);
+    expect(s.screens["/p"]).toBeUndefined();
+    const again = applyEvent(s, ev({ type: "plan", plan: { name: "App", theme, dataModel: [], screens: [page("/a", "app/a.tsx"), page("/p", "app/p.tsx")] } }));
+    expect(again.screens["/p"].history).toEqual([]);
+    expect(again.screens["/p"].status).toBe("pending");
+  });
 });
