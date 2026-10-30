@@ -1,5 +1,6 @@
 "use client";
 
+import { PEOPLE_EVENT } from "./CanvasTools";
 import clsx from "clsx";
 import { Check, Copy, Link2, Loader2, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -51,6 +52,13 @@ export function ShareDialog({ projectId, appName, onClose, onChanged }: { projec
       return null;
     }
   }, [projectId]);
+
+  // Someone's name or picture changed (the board's people map was refreshed): the list follows.
+  useEffect(() => {
+    const on = () => void load();
+    addEventListener(PEOPLE_EVENT, on);
+    return () => removeEventListener(PEOPLE_EVENT, on);
+  }, [load]);
 
   // The owner's name and avatar come from a signed proof, once (or again if the server forgot it).
   useEffect(() => {
