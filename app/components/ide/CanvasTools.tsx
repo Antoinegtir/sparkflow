@@ -27,7 +27,24 @@ const ADD: ToolDef[] = [
   { id: "comment", icon: MessageCircle, label: "Comment", key: "C" },
 ];
 const ALL = [...MOVE, ...GROUPS, ...ADD];
-const keyLabel = (t: ToolDef) => (t.shift ? `⇧${t.key}` : t.key);
+
+/** A tool's shortcut as keycaps: a real Shift key beside the letter, not a ⇧ glyph. */
+function Keys({ t, small }: { t: ToolDef; small?: boolean }) {
+  const cap = clsx(
+    "inline-flex items-center justify-center gap-1 rounded-[5px] border border-b-2 border-ink-600 bg-ink-800 font-sans leading-none text-ink-200",
+    small ? "h-[18px] min-w-[18px] px-1 text-[10px]" : "h-5 min-w-5 px-1.5 text-[11px]",
+  );
+  return (
+    <span className="inline-flex items-center gap-1">
+      {t.shift && (
+        <kbd className={cap} aria-label="Shift">
+          <span aria-hidden>⇧</span> shift
+        </kbd>
+      )}
+      <kbd className={cap}>{t.key}</kbd>
+    </span>
+  );
+}
 
 /**
  * The tools, in a floating bar on the canvas's left edge, like Figma's bottom bar. V H F ⇧S P T C pick
@@ -82,7 +99,9 @@ export function ToolBar({ tool, onTool, allowed }: { tool: Tool; onTool: (t: Too
       <t.icon size={17} strokeWidth={1.9} />
       {!menu && (
         <span className="pointer-events-none absolute left-full z-20 ml-2 whitespace-nowrap rounded-md bg-ink-950 px-2 py-1 text-[11px] text-ink-200 opacity-0 shadow-lg transition group-hover:opacity-100">
-          {t.label} <span className="ml-1 font-mono text-ink-500">{keyLabel(t)}</span>
+          <span className="flex items-center gap-2">
+            {t.label} <Keys t={t} small />
+          </span>
         </span>
       )}
     </button>
@@ -107,7 +126,7 @@ export function ToolBar({ tool, onTool, allowed }: { tool: Tool; onTool: (t: Too
           <span className={clsx("block size-0 border-t-[5px] border-l-[5px] border-t-transparent", tool === groupTool.id ? "border-l-white/80" : "border-l-ink-400")} style={{ transform: "rotate(90deg)" }} />
         </button>
         {menu && (
-          <div role="menu" className="absolute top-0 left-full z-30 ml-3 w-52 rounded-xl border border-[var(--line)] bg-ink-950 p-1.5 shadow-2xl">
+          <div role="menu" className="absolute top-0 left-full z-30 ml-3 w-56 rounded-xl border border-[var(--line)] bg-ink-950 p-1.5 shadow-2xl">
             {GROUPS.map((t) => (
               <button
                 key={t.id}
@@ -119,7 +138,7 @@ export function ToolBar({ tool, onTool, allowed }: { tool: Tool; onTool: (t: Too
                 <Check size={14} className={groupTool.id === t.id ? "opacity-100" : "opacity-0"} />
                 <t.icon size={16} strokeWidth={1.9} />
                 <span className="flex-1 text-left">{t.label}</span>
-                <span className="font-mono text-[11.5px] text-ink-400">{keyLabel(t)}</span>
+                <Keys t={t} />
               </button>
             ))}
           </div>
