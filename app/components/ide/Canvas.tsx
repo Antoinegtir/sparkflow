@@ -4,7 +4,7 @@ import "@xyflow/react/dist/style.css";
 import {
   Background,
   BackgroundVariant,
-  ConnectionMode,
+  ConnectionMode, SelectionMode,
   Controls,
   Handle,
   MarkerType,
@@ -35,13 +35,14 @@ export type PhoneData = { screen: ScreenState; hidden: boolean; scanning: boolea
 const SIDES = { top: Position.Top, bottom: Position.Bottom, left: Position.Left, right: Position.Right };
 
 /** One page on the canvas: title, frame (click to focus), status and scores. */
-export const PhoneNode = memo(function PhoneNode({ data }: NodeProps<Node<PhoneData>>) {
+export const PhoneNode = memo(function PhoneNode({ data, selected }: NodeProps<Node<PhoneData>>) {
   const s = data.screen;
   const busy = s.status === "building" || s.status === "verifying";
   const h = data.ipad ? Math.round(PHONE_W * 1.33) : PHONE_H;
   const criteria = s.verdict?.criteria;
   return (
-    <div className="flex flex-col items-center gap-2" style={{ width: NODE_W }} data-phone={s.route}>
+    // Selected (a box drawn with Move): outlined, like frames and text.
+    <div className={clsx("flex flex-col items-center gap-2 rounded-2xl", selected && "outline-2 outline-offset-4 outline-spark-500")} style={{ width: NODE_W }} data-phone={s.route}>
       {(["top", "bottom", "left", "right"] as const).map((p) => (
         <Handle key={`t-${p}`} id={`t-${p}`} type="target" position={SIDES[p]} className="!size-2 !border-0 !bg-transparent" />
       ))}
@@ -342,6 +343,7 @@ function Flow(p: Props) {
     type: "phone",
     position: posOf(s.route),
     measured: sizes.current.get(s.route),
+    selected: selected.has(s.route),
     data: { screen: s, hidden: p.hiddenRoute === s.route, scanning: p.scanning.has(s.route), ipad: p.ipad, native: p.native, dark: p.dark, device: p.device, skin: p.skin, onOpen: open },
   }));
   const title = (r?: string) => (r ? p.screens.find((s) => s.route === r)?.title : undefined);
@@ -503,7 +505,8 @@ function Flow(p: Props) {
     for (const c of changes) {
       if (c.type === "add" || c.type === "replace") continue;
       if (c.type === "select") {
-        if (!/^(area|text|comment):/.test(c.id)) continue;
+        // Pages too, so a box around a frame and its pages selects (and drags) them all.
+        if (c.id.startsWith("page:")) continue;
         sel ??= new Set(selected);
         if (c.selected) sel.add(c.id);
         else sel.delete(c.id);
@@ -554,6 +557,8 @@ function Flow(p: Props) {
         if (c.position) setNewPage(c.position);
         continue;
       }
+      // A page inside a group being dragged moves with the group already.
+      if (drag.current && c.id in drag.current.routes) continue;
       lastDrag.current = Date.now();
       next ??= { ...moved };
       if (c.position) next[c.id] = c.position;
@@ -667,6 +672,8 @@ function Flow(p: Props) {
       // button). Hand: dragging anywhere pans, nothing moves or opens.
       panOnDrag={tool === "hand" ? true : [1, 2]}
       selectionOnDrag={tool === "move"}
+      // Touching the box is enough (a frame is rarely drawn all inside it).
+      selectionMode={SelectionMode.Partial}
       nodes={[...groups, ...nodes, ...extras]}
       edges={edges}
       nodeTypes={nodeTypes}
