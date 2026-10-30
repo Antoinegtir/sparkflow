@@ -164,9 +164,10 @@ export function PromptBar(p: Props) {
         </div>
         <div className="mb-2 flex flex-wrap items-center gap-1.5 px-1">
           <span className="rounded-md bg-ink-800 px-2 py-0.5 text-[11px] text-ink-300">{p.focusedTitle ? `Page · ${p.focusedTitle}` : "Whole app"}</span>
-          {p.selections.map((s, i) => (
+          {p.selections.map((s) => (
             <span key={s.key} className="flex max-w-[260px] items-center gap-1 rounded-md border border-spark-500/40 bg-spark-500/10 px-1.5 py-0.5 text-[11px] text-ink-200">
-              <span className="grid size-4 place-items-center rounded bg-spark-500 text-[9px] font-bold text-white">{i + 1}</span>
+              {/* Picked elements are numbered (they're outlined with that number on the page); files aren't. */}
+              {!s.key.startsWith("file:") && <span className="grid size-4 place-items-center rounded bg-spark-500 text-[9px] font-bold text-white">{p.selections.filter((x) => !x.key.startsWith("file:")).indexOf(s) + 1}</span>}
               {/* A file added as context (Code view, imported asset): its kind, then its name (and lines). */}
               {s.key.startsWith("file:") && s.file && <MaterialIcon name={s.file.split("/").pop() ?? s.file} />}
               <span className="truncate font-mono">{s.key.startsWith("file:") ? s.label : s.file ? `${s.file.split("/").pop()}${s.line ? `:${s.line}` : ""}` : s.label}</span>
