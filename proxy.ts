@@ -1,5 +1,6 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
+import { CLOUD, ownerOf, sessionOf, takeRun } from "./lib/cloud/mode";
 import { guestAccess, sharingActive } from "./lib/share/gate";
 
 /**
@@ -13,7 +14,7 @@ const ORIGINS = (process.env.SPARKFLOW_ORIGINS ?? "https://sparkflow-ai.web.app,
   .split(",")
   .map((o) => o.trim());
 const COOKIE = "sparkflow_token";
-const ACTOR_HEADERS = ["x-sparkflow-actor", "x-sparkflow-uid", "x-sparkflow-project", "x-sparkflow-role"];
+const ACTOR_HEADERS = ["x-sparkflow-actor", "x-sparkflow-uid", "x-sparkflow-project", "x-sparkflow-role", "x-sparkflow-cloud"];
 const PUBLIC = /^\/api\/share\/(join|session|preview)$/;
 
 function cors(req: NextRequest, res: NextResponse) {
@@ -83,6 +84,35 @@ const fail = (req: NextRequest, status: number, code?: string, guest = false) =>
   return cors(req, res);
 };
 
+/** Project routes that need the owner's Mac (Simulator, stores, GitHub CLI, Finder) or sharing: off in the cloud. */
+const MAC_ONLY = /^(reveal|release|sim-capture|capture|github|share|ticket|access)(\/|$)/;
+
+/**
+ * Sparkflow in the cloud (lib/cloud/mode.ts): a session key (from a Firebase sign-in) opens only the
+ * projects its person made, a daily number of runs, and nothing that needs a Mac.
+ */
+function cloudGate(req: NextRequest, headers: Headers, given: string | undefined) {
+  const { pathname } = req.nextUrl;
+  if (pathname === "/api/cloud/session" && req.method === "POST") return cors(req, pass(req, headers, { "x-sparkflow-actor": "public" }));
+  if (pathname === "/api/health") return cors(req, pass(req, headers, { "x-sparkflow-actor": "public" }));
+  if (!pathname.startsWith("/api/")) return fail(req, 404);
+  const s = sessionOf(given);
+  if (!s) return fail(req, 401, given?.startsWith("sfc_") ? "expired" : "signin");
+  const as = { "x-sparkflow-actor": "owner", "x-sparkflow-uid": s.uid, "x-sparkflow-cloud": "1" };
+  const runOut = () => cors(req, NextResponse.json({ error: "You've used today's agent runs in the cloud. Come back tomorrow, or install Sparkflow on your Mac.", code: "quota" }, { status: 429 }));
+  if (pathname === "/api/file-icon") return cors(req, pass(req, headers, as));
+  if (pathname === "/api/projects") {
+    if (req.method === "POST" && !takeRun(s.uid)) return runOut();
+    return cors(req, pass(req, headers, as));
+  }
+  const m = /^\/api\/projects\/([^/]+)(?:\/(.*))?$/.exec(pathname);
+  if (!m || ownerOf(decodeURIComponent(m[1])) !== s.uid) return fail(req, 404);
+  const rest = m[2] ?? "";
+  if (MAC_ONLY.test(rest)) return fail(req, 404, "mac-only");
+  if (rest === "prompt" && req.method === "POST" && !takeRun(s.uid)) return runOut();
+  return cors(req, pass(req, headers, as));
+}
+
 export function proxy(req: NextRequest) {
   if (req.method === "OPTIONS") return cors(req, new NextResponse(null, { status: 204 }));
 
@@ -94,6 +124,8 @@ export function proxy(req: NextRequest) {
   const given = header ?? query ?? req.cookies.get(COOKIE)?.value;
   const ticket = req.nextUrl.searchParams.get("t");
   const { pathname, search } = req.nextUrl;
+  // In the cloud, nobody is the owner by being local or by a token: only sessions, each to its own projects.
+  if (CLOUD) return cloudGate(req, headers, given);
 
   // Guests first, even from localhost, so guest mode can be tried on `next dev`.
   if (given?.startsWith("sfg_") || (!given && ticket?.startsWith("t1."))) {

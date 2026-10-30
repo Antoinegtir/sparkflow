@@ -1,5 +1,6 @@
 "use client";
 
+import { isCloud } from "@/lib/web/backend";
 import { AgentActivity } from "./AgentActivity";
 import clsx from "clsx";
 import { FolderOpen, Plus } from "lucide-react";
@@ -107,6 +108,8 @@ function CodeView({
   useEffect(() => setSel(null), [file]);
   const access = useAccess();
   const owner = access.role === "owner";
+  // Sparkflow in the cloud: no Finder, VS Code or GitHub CLI on that computer.
+  const cloud = isCloud();
   const writable = can(access, "files.write");
   // `saved` is the file as on disk; `draft` is the editor, saved automatically a moment after you stop typing.
   const [saved, setSaved] = useState<string | null>(null);
@@ -202,7 +205,7 @@ function CodeView({
             <span className="font-sans text-ink-500">No file open</span>
           )}
         </div>
-        {owner && (
+        {owner && !cloud && (
         <button
           // sparkflow opens the folder in VS Code on this computer.
           onClick={() => void fetch(`/api/projects/${projectId}/reveal?app=vscode${file ? `&path=${encodeURIComponent(file)}` : ""}`, { method: "POST" })}
@@ -214,7 +217,7 @@ function CodeView({
           </svg>
         </button>
         )}
-        {owner && (
+        {owner && !cloud && (
         <button
           onClick={() => void fetch(`/api/projects/${projectId}/reveal${file ? `?path=${encodeURIComponent(file)}` : ""}`, { method: "POST" })}
           title={file ? `Show ${name} in Finder` : "Show the project in Finder"}
@@ -223,7 +226,7 @@ function CodeView({
           <FolderOpen size={14} />
         </button>
         )}
-        {owner && !state.native && <GitHubSetup projectId={projectId} appName={state.name} />}
+        {owner && !state.native && !cloud && <GitHubSetup projectId={projectId} appName={state.name} />}
       </div>
       <div ref={scroller} className={clsx("relative min-h-0 flex-1", draft != null && file ? "overflow-hidden" : "overflow-auto")}>
         {file && onContext && (

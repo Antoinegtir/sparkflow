@@ -1,0 +1,81 @@
+import { createHash, randomBytes } from "node:crypto";
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import path from "node:path";
+import { dataDir } from "../sandbox/util";
+
+/**
+ * Sparkflow in the cloud (Cloud Run, sandboxes on Modal): anyone signed in on the site can build apps
+ * without installing it. Each person gets a session key after proving who they are with their Firebase
+ * sign-in, sees only the projects they made, and has a daily number of agent runs. Mac-only features
+ * (the iOS Simulator, the stores, GitHub, sharing) are off: the app shows in the web preview.
+ */
+export const CLOUD = process.env.SPARKFLOW_CLOUD === "1";
+
+/** Agent runs (new apps and changes) a person may start per day. */
+export const DAILY_RUNS = Number(process.env.SPARKFLOW_CLOUD_DAILY_RUNS ?? 12);
+const SESSION_DAYS = 7;
+
+type Session = { uid: string; email: string; name: string; exp: number };
+type Store = { sessions: Record<string, Session>; owners: Record<string, string>; runs: Record<string, { day: string; n: number }> };
+
+const file = () => path.join(dataDir(), "cloud", "state.json");
+const hash = (token: string) => createHash("sha256").update(token).digest("hex");
+const today = () => new Date().toISOString().slice(0, 10);
+
+// Read on each call (the proxy and the routes are separate module instances); small file.
+function load(): Store {
+  try {
+    const d = JSON.parse(readFileSync(file(), "utf8"));
+    return { sessions: d.sessions ?? {}, owners: d.owners ?? {}, runs: d.runs ?? {} };
+  } catch {
+    return { sessions: {}, owners: {}, runs: {} };
+  }
+}
+function save(d: Store) {
+  mkdirSync(path.dirname(file()), { recursive: true });
+  const tmp = `${file()}.${process.pid}.tmp`;
+  writeFileSync(tmp, JSON.stringify(d), { mode: 0o600 });
+  renameSync(tmp, file());
+}
+
+/** A new session key for a person who just proved their sign-in. Only its hash is kept. */
+export function createSession(user: { uid: string; email: string; name: string }): string {
+  const d = load();
+  const now = Date.now();
+  for (const [h, s] of Object.entries(d.sessions)) if (s.exp < now) delete d.sessions[h];
+  const token = `sfc_${randomBytes(24).toString("base64url")}`;
+  d.sessions[hash(token)] = { ...user, exp: now + SESSION_DAYS * 86_400_000 };
+  save(d);
+  return token;
+}
+
+export function sessionOf(token: string | null | undefined): Session | null {
+  if (!token?.startsWith("sfc_")) return null;
+  const s = load().sessions[hash(token)];
+  return s && s.exp > Date.now() ? s : null;
+}
+
+export const ownerOf = (projectId: string) => load().owners[projectId] ?? null;
+
+export function setProjectOwner(projectId: string, uid: string) {
+  const d = load();
+  d.owners[projectId] = uid;
+  save(d);
+}
+
+export const projectsOf = (uid: string) => new Set(Object.entries(load().owners).filter(([, u]) => u === uid).map(([p]) => p));
+
+/** Counts one agent run for today; false once the day's runs are used. */
+export function takeRun(uid: string): boolean {
+  const d = load();
+  const r = d.runs[uid]?.day === today() ? d.runs[uid] : { day: today(), n: 0 };
+  if (r.n >= DAILY_RUNS) return false;
+  d.runs[uid] = { day: r.day, n: r.n + 1 };
+  save(d);
+  return true;
+}
+
+export function runsLeft(uid: string) {
+  const r = load().runs[uid];
+  return DAILY_RUNS - (r?.day === today() ? r.n : 0);
+}

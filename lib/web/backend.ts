@@ -8,7 +8,8 @@
  */
 import { activeShare, activeShareBackend, guestSrc } from "./share";
 
-export type Backend = { url: string; token: string };
+/** `cloud`: Sparkflow in the cloud (Cloud Run + Modal) rather than the server on your Mac. */
+export type Backend = { url: string; token: string; cloud?: boolean };
 
 const KEY = "sparkflow.backend";
 export const BACKEND_EVENT = "sparkflow:backend";
@@ -44,8 +45,11 @@ export function getBackend(): Backend | null {
   if (!linked && activeShare()) return activeShareBackend();
   const b = linked ?? read();
   // Same computer: straight to `sparkflow` instead of a round trip through Cloudflare.
-  return b && direct ? { ...b, url: LOCAL_URL } : b;
+  return b && direct && !b.cloud ? { ...b, url: LOCAL_URL } : b;
 }
+
+/** The IDE talks to Sparkflow in the cloud: no Simulator, stores, GitHub or sharing there. */
+export const isCloud = () => !activeShare() && !!getBackend()?.cloud;
 
 /** Where `sparkflow` serves on this computer (see remote.mjs). */
 export const LOCAL_URL = "http://localhost:3002";

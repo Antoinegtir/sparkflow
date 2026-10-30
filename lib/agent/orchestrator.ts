@@ -114,7 +114,8 @@ export class Orchestrator {
     migrateDataDir();
     this.provider = createProvider();
     this.driverP = createDriver();
-    this.seedDemo().catch((err) => this.seedFailed(err));
+    // The cloud starts empty: each person's own apps only (no demo built for nobody).
+    if (process.env.SPARKFLOW_CLOUD !== "1") this.seedDemo().catch((err) => this.seedFailed(err));
   }
 
   async info() {
@@ -247,7 +248,8 @@ export class Orchestrator {
 
   // ---------- projects ----------
 
-  async createProject(req: CreateProjectRequest): Promise<ProjectMeta> {
+  /** `claim`: runs once the project exists, before its build (the cloud records whose it is). */
+  async createProject(req: CreateProjectRequest, claim?: (id: string) => unknown): Promise<ProjectMeta> {
     // Files dropped on the landing prompt: the first picture is the sketch the Planner looks at, text joins the prompt.
     if (req.attachments?.length) {
       const att = await prepareAttachments(req.attachments);
@@ -266,6 +268,7 @@ export class Orchestrator {
     await this.store.create(meta);
     if (req.image) await this.store.saveInput(id, "image", req.image);
     if (req.audio) await this.store.saveInput(id, "audio", req.audio);
+    await claim?.(id);
     const rt = await this.runtime(id);
     this.runExclusive(rt, () => this.generate(rt, req.prompt));
     return meta;

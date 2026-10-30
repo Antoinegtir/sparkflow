@@ -1,5 +1,6 @@
 "use client";
 
+import { isCloud } from "@/lib/web/backend";
 import clsx from "clsx";
 import { Command, Play, Settings, UserPlus, UserRound } from "lucide-react";
 import { useState } from "react";
@@ -43,6 +44,8 @@ export function TopBar(p: Props) {
   const native = !!s.native;
   const access = useAccess();
   const owner = access.role === "owner";
+  // Sparkflow in the cloud: the web preview only (no Simulator, stores or sharing there).
+  const cloud = isCloud();
   // The people the app is shared with (owner first), for the avatar stack.
   const others = Object.entries(access.people).filter(([k, x]) => k !== "owner" && !x.former) as [string, Person][];
   return (
@@ -85,7 +88,7 @@ export function TopBar(p: Props) {
       </div>
       {/* Over the canvas, ending at the right panel's edge rather than across its border. */}
       <div className="absolute top-1/2 flex -translate-y-1/2 items-center gap-1.5" style={{ right: p.panelWidth ? p.panelWidth + 12 : 180 }}>
-        {owner && <RunOn state={s} onDevice={p.onDevice} onSwitching={p.onDeviceSwitching} />}
+        {owner && !cloud && <RunOn state={s} onDevice={p.onDevice} onSwitching={p.onDeviceSwitching} />}
         {owner && (
         <button
           onClick={p.onPlay}
@@ -94,7 +97,7 @@ export function TopBar(p: Props) {
           <Play size={12} className="fill-current" /> Play
         </button>
         )}
-        {owner && !native && <ReleaseMenu projectId={s.id} onDevice={p.onDevice} onSwitching={p.onDeviceSwitching} />}
+        {owner && !native && !cloud && <ReleaseMenu projectId={s.id} onDevice={p.onDevice} onSwitching={p.onDeviceSwitching} />}
       </div>
       <div className="flex items-center gap-1.5">
         {/* Panel open: Commands starts just right of its edge, over the panel. */}
@@ -105,7 +108,7 @@ export function TopBar(p: Props) {
           <Command size={13} /> Commands <kbd className="rounded border border-[var(--line)] px-1 font-mono text-[10px]">⌘K</kbd>
         </button>
         {/* At the right, before the account menu (which holds App settings). */}
-        {owner && p.onShare && (
+        {owner && p.onShare && !cloud && (
           <button onClick={p.onShare} title="Share this app" className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg px-1.5 py-1 text-[12px] text-ink-300 hover:bg-ink-800 hover:text-ink-100">
             {others.length > 0 ? (
               <span className="flex -space-x-1.5">
