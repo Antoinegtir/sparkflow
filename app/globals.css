@@ -30,6 +30,9 @@
 /* Tall windows (Safari often shows more of the page): the hero grows with them instead of floating small. */
 @media (min-width: 1024px) and (min-height: 950px) { .hero-scale > * { zoom: 1.12; } }
 @media (min-width: 1024px) and (min-height: 1080px) { .hero-scale > * { zoom: 1.22; } }
+/* The cursor's light on the landing's ASCII field (AsciiField): same characters, white with a halo. */
+.ascii-hot { color: #fff; text-shadow: 0 0 6px rgba(255,255,255,.9), 0 0 14px rgba(255,255,255,.45); }
+.ascii-warm { color: rgba(255,255,255,.75); text-shadow: 0 0 6px rgba(255,255,255,.35); }
 .hero-logo {
   mix-blend-mode: screen;
   mask-image: radial-gradient(circle, black 55%, transparent 72%);

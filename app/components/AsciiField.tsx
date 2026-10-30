@@ -326,7 +326,13 @@ function chars(step: number, t: number, cols: number, rows: number) {
 function html(grid: string[], cols: number) {
   let out = "";
   grid.forEach((c, i) => {
-    out += c.startsWith(WHITE) ? `<span class="text-white">${escape(c.slice(1))}</span>` : escape(c);
+    out += c.startsWith(WHITE)
+      ? `<span class="text-white">${escape(c.slice(1))}</span>`
+      : c.startsWith(HOT)
+        ? `<span class="ascii-hot">${escape(c.slice(1))}</span>`
+        : c.startsWith(WARM)
+          ? `<span class="ascii-warm">${escape(c.slice(1))}</span>`
+          : escape(c);
     if (i % cols === cols - 1) out += "\n";
   });
   return out;
@@ -366,15 +372,22 @@ function flights(a: string[], b: string[], cols: number): Flight[] {
 
 const ease = (p: number) => (p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2);
 
-function transit(fs: Flight[], p: number, cols: number, rows: number) {
-  const grid = Array<string>(cols * rows).fill(" ");
+/**
+ * The new motif already plays underneath (live), revealed cell by cell as characters land on it; until
+ * then its cells stay empty and the flying ones cross over.
+ */
+function transit(fs: Flight[], p: number, cols: number, rows: number, live: string[]) {
+  const grid = live.slice();
+  const q = (f: Flight) => ease(Math.max(0, Math.min(1, (p - f.delay) / (1 - 0.35))));
+  for (const f of fs) if (q(f) < 1) grid[f.y1 * cols + f.x1] = " ";
   for (const f of fs) {
-    const q = ease(Math.max(0, Math.min(1, (p - f.delay) / (1 - 0.35))));
+    const k = q(f);
+    if (k >= 1) continue;
     // An arc: they lift a little off the straight line on the way.
-    const x = Math.round(f.x0 + (f.x1 - f.x0) * q + Math.sin(q * Math.PI) * (f.y1 - f.y0) * 0.15);
-    const y = Math.round(f.y0 + (f.y1 - f.y0) * q);
+    const x = Math.round(f.x0 + (f.x1 - f.x0) * k + Math.sin(k * Math.PI) * (f.y1 - f.y0) * 0.15);
+    const y = Math.round(f.y0 + (f.y1 - f.y0) * k);
     if (x < 0 || y < 0 || x >= cols || y >= rows) continue;
-    grid[y * cols + x] = q < 0.6 ? f.from : f.to;
+    grid[y * cols + x] = k < 0.6 ? f.from : f.to;
   }
   return grid;
 }
@@ -383,9 +396,12 @@ function transit(fs: Flight[], p: number, cols: number, rows: number) {
 type Lens = { x: number; y: number; cw: number; ch: number; on: number };
 const LENS_R = 90; // px
 
+const HOT = "\u0002";
+const WARM = "\u0003";
+
 /**
- * The cursor's lens on the field, in place of the dot grid's: what is under it is magnified (each cell
- * shows a character from closer to the cursor) and turns white, with a faint ring at its edge.
+ * The cursor's light on the field, in place of the dot grid's lens: the characters under it keep their
+ * shape and place, they only turn white with a white halo, strongest in the middle.
  */
 function lensed(grid: string[], cols: number, rows: number, l: Lens) {
   if (l.on < 0.02) return grid;
@@ -393,17 +409,11 @@ function lensed(grid: string[], cols: number, rows: number, l: Lens) {
   const R = LENS_R * l.on;
   for (let y = Math.max(0, Math.floor(l.y - R / l.ch)); y <= Math.min(rows - 1, Math.ceil(l.y + R / l.ch)); y++)
     for (let x = Math.max(0, Math.floor(l.x - R / l.cw)); x <= Math.min(cols - 1, Math.ceil(l.x + R / l.cw)); x++) {
-      const dx = (x - l.x) * l.cw;
-      const dy = (y - l.y) * l.ch;
-      const d = Math.hypot(dx, dy) / R;
-      if (d >= 1) continue;
-      // Magnify: up to 2x at the middle, none at the edge.
-      const k = 0.5 + 0.5 * d;
-      const sx = Math.round(l.x + (dx * k) / l.cw);
-      const sy = Math.round(l.y + (dy * k) / l.ch);
-      let c = sx >= 0 && sy >= 0 && sx < cols && sy < rows ? grid[sy * cols + sx] : " ";
-      if (c === " " && d > 0.88) c = "·";
-      out[y * cols + x] = c === " " || c.startsWith(WHITE) ? c : WHITE + c;
+      const d = Math.hypot((x - l.x) * l.cw, (y - l.y) * l.ch) / R;
+      const c = grid[y * cols + x];
+      if (d >= 1 || c === " ") continue;
+      const bare = c.startsWith(WHITE) ? c.slice(1) : c;
+      out[y * cols + x] = (d < 0.55 ? HOT : WARM) + bare;
     }
   return out;
 }
@@ -471,7 +481,7 @@ export function AsciiField({ step }: { step: number }) {
       if (stepRef.current !== shown) {
         const old = chars(shown, t, cols, rows);
         shown = stepRef.current;
-        fs = flights(old, chars(shown, t + TRANSITION, cols, rows), cols);
+        fs = flights(old, chars(shown, t, cols, rows), cols);
         changed = t;
       }
       lens.on += ((aim ? 1 : 0) - lens.on) * 0.25;
@@ -480,7 +490,7 @@ export function AsciiField({ step }: { step: number }) {
         lens.y += (aim.y - lens.y) * 0.45;
       }
       const p = (t - changed) / TRANSITION;
-      el.innerHTML = p < 1 && fs ? html(lensed(transit(fs, p, cols, rows), cols, rows, lens), cols) : frame(shown, t, cols, rows, lens);
+      el.innerHTML = p < 1 && fs ? html(lensed(transit(fs, p, cols, rows, chars(shown, t, cols, rows)), cols, rows, lens), cols) : frame(shown, t, cols, rows, lens);
     };
     el.innerHTML = frame(stepRef.current, 1.2, cols, rows);
     if (still)
