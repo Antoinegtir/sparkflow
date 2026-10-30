@@ -76,6 +76,22 @@ export function TopBar(p: Props) {
             {verified}/{s.order.length} pages verified
           </span>
         )}
+        {/* Right after the pages count: never under Commands, which sits over the right panel's edge. */}
+        {owner && p.onShare && (
+          <button onClick={p.onShare} title="Share this app" className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg px-1.5 py-1 text-[12px] text-ink-300 hover:bg-ink-800 hover:text-ink-100">
+            {others.length > 0 ? (
+              <span className="flex -space-x-1.5">
+                {others.slice(0, 3).map(([k, x]) => (
+                  <Avatar key={k} person={x} seed={k} size={20} className="ring-2 ring-[var(--panel)]" />
+                ))}
+                {others.length > 3 && <span className="grid size-5 place-items-center rounded-full bg-ink-700 text-[9.5px] ring-2 ring-[var(--panel)]">+{others.length - 3}</span>}
+              </span>
+            ) : (
+              <UserPlus size={14} />
+            )}
+            Share
+          </button>
+        )}
         {!owner && access.people.owner && (
           <span className="hidden shrink-0 items-center gap-1.5 text-[11.5px] text-ink-400 sm:flex">
             Shared by <Avatar person={access.people.owner} seed="owner" size={16} /> <span className="text-ink-200">{access.people.owner.name}</span> · {ROLE_TEXT[access.role as keyof typeof ROLE_TEXT]}
@@ -95,22 +111,6 @@ export function TopBar(p: Props) {
         </button>
         )}
         {owner && !native && <ReleaseMenu projectId={s.id} onDevice={p.onDevice} onSwitching={p.onDeviceSwitching} />}
-        {/* Beside Ship, not on the right: Commands sits over the panel's edge there and they overlapped. */}
-        {owner && p.onShare && (
-          <button onClick={p.onShare} title="Share this app" className="flex cursor-pointer items-center gap-1.5 rounded-lg px-1.5 py-1 text-[12px] text-ink-300 hover:bg-ink-800 hover:text-ink-100">
-            {others.length > 0 ? (
-              <span className="flex -space-x-1.5">
-                {others.slice(0, 3).map(([k, x]) => (
-                  <Avatar key={k} person={x} seed={k} size={20} className="ring-2 ring-[var(--panel)]" />
-                ))}
-                {others.length > 3 && <span className="grid size-5 place-items-center rounded-full bg-ink-700 text-[9.5px] ring-2 ring-[var(--panel)]">+{others.length - 3}</span>}
-              </span>
-            ) : (
-              <UserPlus size={14} />
-            )}
-            Share
-          </button>
-        )}
       </div>
       <div className="flex items-center gap-1.5">
         {/* Panel open: Commands starts just right of its edge, over the panel. */}
