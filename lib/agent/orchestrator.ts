@@ -103,6 +103,8 @@ export class Orchestrator {
   cfg = configFromEnv();
   private driverP: Promise<SandboxDriver>;
   private runtimes = new Map<string, Promise<ProjectRuntime>>();
+  /** Runs started by a shared-project guest; every tool context of such a run is restricted. */
+  private guestRuns = new WeakSet<ProjectRuntime>();
 
   constructor() {
     migrateDataDir();
@@ -163,6 +165,8 @@ export class Orchestrator {
       touched: new Set(),
       commit: (m) => gitCommit(sandbox, m),
       ...extra,
+      // Last, so no caller's extra (native runs pass unrestricted) can lift it.
+      ...(this.guestRuns.has(rt) ? { guest: true, unrestricted: false } : {}),
     };
   }
 
@@ -193,6 +197,7 @@ export class Orchestrator {
         rt.emit({ type: "phase", phase: "idle" });
         await rt.sandbox?.persist?.().catch(() => {});
         await rt.flush();
+        this.guestRuns.delete(rt);
         rt.running = false;
       }
     })();
@@ -617,9 +622,11 @@ export class Orchestrator {
 
   // ---------- iteration ----------
 
-  async prompt(id: string, req: PromptRequest) {
+  async prompt(id: string, req: PromptRequest, opts: { by?: string; guest?: boolean } = {}) {
     const rt = await this.runtime(id);
     if (rt.running) throw new BusyError();
+    if (opts.guest) this.guestRuns.add(rt);
+    else this.guestRuns.delete(rt);
     const extras = [req.audio && "🎤 voice memo", req.image && "🖼 image"].filter(Boolean).join(" + ");
     rt.emit({
       type: "user_prompt",
@@ -627,6 +634,7 @@ export class Orchestrator {
       text: `${req.text.trim()}${extras ? `${req.text.trim() ? " " : ""}(${extras})` : ""}`,
       route: req.route,
       testId: req.picks?.[0]?.testId ?? req.testId,
+      by: opts.by,
     });
     // The demo app whose build failed: any prompt (Retry included) rebuilds it from the overlay first.
     if (isDemoProject(rt.meta) && !isSeeded()) return this.runExclusive(rt, () => this.buildDemo(rt));
@@ -895,6 +903,13 @@ export class Orchestrator {
   private checkRel(rel: string) {
     if (!rel || rel.startsWith("/") || rel.split("/").includes("..")) throw new Error("Invalid path");
     return rel;
+  }
+
+  /** The project's folder on this Mac, or null when its sandbox is remote (shared-project path checks). */
+  async projectDir(id: string): Promise<string | null> {
+    const rt = await this.runtime(id);
+    if (rt.meta.native) return rt.meta.native.dir;
+    return ((await this.sandbox(rt)) as { dir?: string }).dir ?? null;
   }
 
   async readProjectFile(id: string, rel: string) {

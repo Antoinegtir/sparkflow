@@ -12,6 +12,7 @@ import { useDeviceSkin } from "@/lib/web/device-skin";
 import { RunOnMenu } from "./RunOn";
 import { SkinFrame } from "./SkinFrame";
 import { useSimDevice } from "@/lib/web/sim-device";
+import { can, useAccess } from "@/lib/web/access";
 import { openInSimulator } from "@/lib/web/sim-open";
 import { DotLens } from "../DotLens";
 import { DevClientOverlay } from "./DevClientOverlay";
@@ -101,6 +102,8 @@ export function HeroFocus(p: Props) {
   const [iframeReady, setIframeReady] = useState(false);
   const [surface, setSurface] = useState<string | null>(null);
   const busy = s.status === "building" || s.status === "verifying";
+  // People the app is shared with see the captures only: the live app (iframe, Simulator) is the owner's.
+  const guest = useAccess().role !== "owner";
 
   // A generated app in the live Simulator: opening another page takes the app there too.
   const simDevice = useSimDevice().device;
@@ -263,7 +266,7 @@ export function HeroFocus(p: Props) {
 
   // ---- web bridge ----
   const routes = p.state.order;
-  const src = p.state.preview && !native ? withScheme(p.state.preview.webUrl + s.previewPath, p.scheme) : null;
+  const src = p.state.preview && !native && !guest ? withScheme(p.state.preview.webUrl + s.previewPath, p.scheme) : null;
   const [srcLoaded, setSrcLoaded] = useState(src);
   if (src && !srcLoaded) setSrcLoaded(src);
   const post = (m: unknown) => iframe.current?.contentWindow?.postMessage(m, "*");
@@ -316,7 +319,7 @@ export function HeroFocus(p: Props) {
     const t = setTimeout(() => setGaveUp(true), 15000);
     return () => clearTimeout(t);
   }, [src]);
-  const loading = !native && !iframeReady && !gaveUp;
+  const loading = !native && !guest && !iframeReady && !gaveUp;
   // A file saved by hand from the code view: Expo's build-error sheet doesn't always go away once the
   // error is fixed, so reload the preview when Metro has had a moment to rebuild.
   const lastCommit = p.state.commits.at(-1);
@@ -349,7 +352,7 @@ export function HeroFocus(p: Props) {
             <SafeAreaScreen dark={p.scheme === "dark"} areas={device.areas} surface={surface}>
               <CompareSlider before={shotOf(older, p.scheme)} after={shotOf(s.history.find((h) => h.version === s.screenshotVersion) ?? { url: s.screenshotUrl! }, p.scheme)} beforeLabel={`v${older.version}`} afterLabel={`v${s.version} · now`} />
             </SafeAreaScreen>
-          ) : native ? (
+          ) : native && !guest ? (
             <div className="relative h-full" onPointerDown={() => setInteracted(true)}>
               <SimulatorView
                 page={nativePage}
@@ -503,6 +506,8 @@ function ToolRail(p: Omit<Props, "onDevice"> & { style: React.CSSProperties; onR
   }, [picker]);
   const native = !!p.state.native;
   const sim = useSimDevice();
+  const access = useAccess();
+  const owner = access.role === "owner";
   const [saving, setSaving] = useState(false);
 
   const screenshot = async () => {
@@ -543,7 +548,7 @@ function ToolRail(p: Omit<Props, "onDevice"> & { style: React.CSSProperties; onR
         </button>
       ))}
       <span className="my-0.5 h-px w-6 bg-[var(--line)]" />
-      {p.device && (
+      {p.device && owner && (
         // Preview device: iPhone, SE, iPad mini, Pixel or Galaxy.
         <div className="relative">
           <button
@@ -571,16 +576,18 @@ function ToolRail(p: Omit<Props, "onDevice"> & { style: React.CSSProperties; onR
       <button onClick={() => void screenshot()} disabled={saving || (!native && !p.screen.screenshotUrl)} title="Save a screenshot" aria-label="Save a screenshot" className={btn}>
         {saving ? <Loader2 size={15} className="animate-spin" /> : <Camera size={15} />}
       </button>
-      <button onClick={() => p.onInspect(!p.inspect)} disabled={p.state.status === "running"} title="Point at elements" aria-label="Point at elements" className={clsx(btn, p.inspect && "bg-spark-500/15 text-spark-400")}>
-        <Crosshair size={15} />
-      </button>
-      {(native || p.state.previewDevice === "simulator") && sim.device && (
+      {can(access, "agent") && (
+        <button onClick={() => p.onInspect(!p.inspect)} disabled={p.state.status === "running"} title="Point at elements" aria-label="Point at elements" className={clsx(btn, p.inspect && "bg-spark-500/15 text-spark-400")}>
+          <Crosshair size={15} />
+        </button>
+      )}
+      {owner && (native || p.state.previewDevice === "simulator") && sim.device && (
         // The real Simulator / emulator: Home leaves the app for the home screen.
         <button onClick={() => p.onSimButton("HOME", 100)} title="Home: leave the app" aria-label="Home" className={btn}>
           <House size={15} />
         </button>
       )}
-      {!native && (
+      {!native && owner && (
         <>
           <button onClick={p.onReload} title="Reload the preview" aria-label="Reload the preview" className={btn}>
             <RotateCw size={15} />
@@ -592,9 +599,11 @@ function ToolRail(p: Omit<Props, "onDevice"> & { style: React.CSSProperties; onR
           )}
         </>
       )}
-      <button onClick={p.onPlay} title="Play" aria-label="Play" className={btn}>
-        <Play size={15} />
-      </button>
+      {owner && (
+        <button onClick={p.onPlay} title="Play" aria-label="Play" className={btn}>
+          <Play size={15} />
+        </button>
+      )}
     </motion.div>
     </div>
   );
@@ -630,6 +639,9 @@ function SidePanel(p: Props & { srcReady: boolean }) {
   const plan = p.state.plan?.screens.find((x) => x.route === s.route);
   const native = !!p.state.native;
   const running = p.state.status === "running";
+  const access = useAccess();
+  const agent = can(access, "agent");
+  const owner = access.role === "owner";
   const criteria = s.verdict?.criteria ?? plan?.acceptance.map((text) => ({ text, pass: null as boolean | null, reason: "" })) ?? [];
   const q = s.quality;
   const grouped = useMemo(() => {
@@ -654,7 +666,7 @@ function SidePanel(p: Props & { srcReady: boolean }) {
           <h2 className="text-[16px] font-semibold text-ink-100">
             {s.title} <span className="font-mono text-[11px] font-normal text-ink-500">v{s.version}</span>
           </h2>
-          {!native && p.state.preview && (
+          {!native && owner && p.state.preview && (
             <a href={p.state.preview.webUrl + s.previewPath} target="_blank" rel="noreferrer" className="flex shrink-0 items-center gap-1 text-[11px] text-spark-400 hover:underline">
               Open <ExternalLink size={11} />
             </a>
@@ -711,7 +723,7 @@ function SidePanel(p: Props & { srcReady: boolean }) {
               No issue found in {q.checked.texts} texts and {q.checked.controls} controls.
             </p>
           )}
-          {!native && q.issues.length > 0 && (
+          {!native && agent && q.issues.length > 0 && (
             <button
               disabled={running}
               onClick={() => p.onSendPrompt(qualityFixPrompt(q, { dark: p.scheme === "dark" }))}
@@ -771,7 +783,7 @@ function SidePanel(p: Props & { srcReady: boolean }) {
               );
             })}
           </div>
-          {!native && p.compare != null ? (
+          {!native && agent && p.compare != null ? (
             <button
               disabled={running}
               onClick={() => {
@@ -809,7 +821,7 @@ function SidePanel(p: Props & { srcReady: boolean }) {
               );
             })}
           </ul>
-          {!native && commits.length > 1 && !running && (
+          {!native && agent && commits.length > 1 && !running && (
             <button onClick={p.onUndo} className="mt-1.5 flex cursor-pointer items-center gap-1.5 text-[11.5px] text-ink-400 hover:text-ink-100">
               <RotateCcw size={12} /> Undo last change
             </button>

@@ -1,13 +1,21 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { activeShare } from "./share";
 
 export const SIM_CHANGED = "sparkflow-sim-changed";
 export type SimDevice = { name: string; platform: "ios" | "android"; points: { width: number; height: number } | null; ipad: boolean; udid: string; input: string | null; stream: boolean };
 type SimInfo = { supported: boolean; devices: SimDevice[] };
 
 let shared: Promise<SimInfo> | null = null;
-const fetchSim = () => (shared ??= fetch("/api/sim", { cache: "no-store" }).then((r) => r.json()).catch(() => ({ supported: false, devices: [] })));
+const NONE: SimInfo = { supported: false, devices: [] };
+// The simulator belongs to the owner's computer: a shared project never asks for it.
+const fetchSim = () =>
+  (shared ??= activeShare()
+    ? Promise.resolve(NONE)
+    : fetch("/api/sim", { cache: "no-store" })
+        .then((r) => (r.ok ? (r.json() as Promise<SimInfo>) : NONE))
+        .catch(() => NONE));
 
 /**
  * While nothing is booted, look again every 3 s (one fetch for every component), so a device that

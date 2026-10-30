@@ -5,6 +5,7 @@ import type { SimFind } from "./LayoutTree";
 import { ArrowUp, Crosshair, ImagePlus, LayoutGrid, Loader2, Mic, Square, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { MediaInput, Phase, ProjectState } from "@/lib/shared";
+import { can, useAccess } from "@/lib/web/access";
 import { blobToWav, imageToInput, startRecording } from "@/lib/web/media";
 
 export type Selection = {
@@ -91,6 +92,7 @@ export function PromptBar(p: Props) {
   const area = useRef<HTMLTextAreaElement>(null);
   const file = useRef<HTMLInputElement>(null);
   const running = p.state.status === "running";
+  const access = useAccess();
 
   useEffect(() => {
     const el = area.current;
@@ -120,6 +122,23 @@ export function PromptBar(p: Props) {
       setAudio(null);
     }
   };
+
+  // Roles that can't run the agent get a slim bar saying what they can do instead.
+  if (!can(access, "agent"))
+    return (
+      <div data-prompt-bar className="pointer-events-auto absolute bottom-4 left-1/2 z-40 -translate-x-1/2">
+        <div className={clsx("flex items-center gap-3 rounded-full border bg-[var(--panel)]/95 px-4 py-2 text-[12.5px] text-ink-300 shadow-xl backdrop-blur-xl", running ? "agent-glow border-transparent" : "border-[var(--line)]")}>
+          {running && <Loader2 size={13} className="animate-spin text-spark-400" />}
+          {can(access, "comment") ? (
+            <span>
+              You can comment: press <kbd className="rounded border border-[var(--line)] px-1 font-mono text-[11px]">C</kbd>
+            </span>
+          ) : (
+            <span>View only</span>
+          )}
+        </div>
+      </div>
+    );
 
   const placeholder = running
     ? "The agent is working…"

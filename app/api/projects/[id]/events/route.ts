@@ -1,3 +1,5 @@
+import os from "node:os";
+import { actorOf } from "@/lib/share/actor";
 import type { RouteCtx } from "@/lib/web/server";
 import { errorResponse, orchestrator } from "@/lib/web/server";
 
@@ -7,6 +9,14 @@ export const dynamic = "force-dynamic";
 export async function GET(req: Request, { params }: RouteCtx) {
   const { id } = await params;
   const url = new URL(req.url);
+  let guest: boolean;
+  try {
+    guest = actorOf(req).kind === "guest";
+  } catch (err) {
+    return errorResponse(err);
+  }
+  // Guests poll: a stream would keep delivering after their access is removed.
+  if (guest && !url.searchParams.has("poll")) return Response.json({ error: "Guests poll for events", code: "role" }, { status: 403 });
   const since = Number(req.headers.get("last-event-id") ?? url.searchParams.get("since") ?? 0) || 0;
   // ?poll=1: the events since `since` as JSON, for the hosted site (the Cloudflare quick tunnel
   // holds back a streamed body, so it polls instead).
@@ -15,7 +25,12 @@ export async function GET(req: Request, { params }: RouteCtx) {
       const events: unknown[] = [];
       const unsubscribe = await orchestrator().streamEvents(id, since, (e) => events.push(e));
       unsubscribe();
-      return Response.json(events, { headers: { "cache-control": "no-store" } });
+      if (!guest) return Response.json(events, { headers: { "cache-control": "no-store" } });
+      // Log lines and errors can carry local paths: guests see ~ instead of the owner's home folder.
+      const home = os.homedir();
+      return new Response(JSON.stringify(events).split(JSON.stringify(home).slice(1, -1)).join("~"), {
+        headers: { "content-type": "application/json", "cache-control": "no-store" },
+      });
     } catch (err) {
       return errorResponse(err);
     }

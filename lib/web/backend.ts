@@ -6,6 +6,8 @@
  * talks to the server on your computer through a tunnel: `npm run remote` opens the site with
  * `?backend=<tunnel>&token=<secret>`, saved here so the next visits stay connected.
  */
+import { activeShare, activeShareBackend, guestSrc } from "./share";
+
 export type Backend = { url: string; token: string };
 
 const KEY = "sparkflow.backend";
@@ -38,6 +40,8 @@ function fromUrl(): Backend | null {
 export function getBackend(): Backend | null {
   const linked = fromUrl();
   if (linked) setBackend(linked);
+  // A shared project (/s/...) talks to its owner's server only, never saved as your own computer.
+  if (!linked && activeShare()) return activeShareBackend();
   const b = linked ?? read();
   // Same computer: straight to `sparkflow` instead of a round trip through Cloudflare.
   return b && direct ? { ...b, url: LOCAL_URL } : b;
@@ -48,7 +52,7 @@ export const LOCAL_URL = "http://localhost:3002";
 let direct = false;
 
 /** True when the server calls go straight to `sparkflow` on this computer, not through the tunnel. */
-export const isDirect = () => direct;
+export const isDirect = () => direct && !activeShare();
 
 /**
  * On the hosted site, opened in a browser on the computer that runs `sparkflow`: reach it at
@@ -79,6 +83,8 @@ export function setBackend(b: Backend | null) {
 
 /** URL the browser loads directly (links, images, downloads): the token rides in the query. */
 export function backendUrl(path: string) {
+  // A guest key never goes in a URL: shared pages load with a short-lived ticket instead.
+  if (activeShare()) return guestSrc(path);
   const b = getBackend();
   if (!b) return path;
   return `${b.url}${path}${path.includes("?") ? "&" : "?"}token=${encodeURIComponent(b.token)}`;
@@ -93,7 +99,7 @@ export function apiFetch(path: string, init: RequestInit = {}) {
   }
   const headers = new Headers(init.headers);
   headers.set("x-sparkflow-token", b.token);
-  return fetch(b.url + path, { ...init, headers });
+  return fetch(b.url + path, { ...init, headers, ...(activeShare() ? { credentials: "omit" as const } : {}) });
 }
 
 /**

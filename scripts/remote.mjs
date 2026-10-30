@@ -140,6 +140,7 @@ let warning = "";
 /** The open tab's whereabouts, polled from the server. */
 let report = null;
 let presenceTimer;
+let beaconTimer;
 
 /** Cuts a line to `width` visible characters, keeping its color and link escape codes whole. */
 function fit(line, width) {
@@ -308,6 +309,12 @@ function stop(code = 0) {
   stopping = true;
   clearInterval(timer);
   clearInterval(presenceTimer);
+  clearInterval(beaconTimer);
+  // Tell guests the app went offline before the server goes away, but never hold the exit long.
+  beacon(true, 1500).finally(() => finish(code));
+}
+
+function finish(code) {
   rmSync(connection, { force: true });
   rmSync(`${connection}.claimed`, { force: true });
   for (const ch of children) ch.kill("SIGTERM");
@@ -366,7 +373,7 @@ const [serverStep, tunnelStep, reachStep] = steps;
 
 // Something already answers on the port: most likely Sparkflow running in another terminal. Say so
 // and stop before opening a tunnel, rather than failing halfway with its logs.
-let taken = await fetch(`http://localhost:${PORT}/api/projects`, { signal: AbortSignal.timeout(1500) }).then(
+let taken = await fetch(`http://127.0.0.1:${PORT}/api/projects`, { signal: AbortSignal.timeout(1500) }).then(
   (r) => (r.ok && /json/.test(r.headers.get("content-type") ?? "") ? "sparkflow" : "other"),
   () => null,
 );
@@ -434,7 +441,11 @@ try {
 
 serverStep.state = "run";
 serverStep.detail = `starting on localhost:${PORT}…`;
-const server = spawn("npx", ["next", "start", "-p", PORT], { stdio: ["ignore", "pipe", "pipe"], env: { ...env, SPARKFLOW_TOKEN: token, SPARKFLOW_CONNECTION: connection } });
+// Bound to 127.0.0.1: the server trusts local requests, so other machines on the network must not reach it.
+const server = spawn("npx", ["next", "start", "-H", "127.0.0.1", "-p", PORT], {
+  stdio: ["ignore", "pipe", "pipe"],
+  env: { ...env, SPARKFLOW_TOKEN: token, SPARKFLOW_CONNECTION: connection, SPARKFLOW_HOME: sparkHome },
+});
 children.push(server);
 const onServerOutput = (d) => {
   log.write(d);
@@ -451,13 +462,13 @@ server.on("exit", (code, signal) => serverStep.state !== "fail" && fail(serverSt
 
 // Where the open Sparkflow tab is (straight from this machine, so no token needed).
 async function pollPresence() {
-  report = await fetch(`http://localhost:${PORT}/api/presence`).then((r) => (r.ok ? r.json() : null), () => null);
+  report = await fetch(`http://127.0.0.1:${PORT}/api/presence`).then((r) => (r.ok ? r.json() : null), () => null);
 }
 
 // Ready once it answers HTTP locally.
 (async function waitServer() {
   for (let i = 0; i < 120; i++) {
-    const up = await fetch(`http://localhost:${PORT}/api/projects`).then(() => true).catch(() => false);
+    const up = await fetch(`http://127.0.0.1:${PORT}/api/projects`).then(() => true).catch(() => false);
     if (up) {
       serverStep.state = "ok";
       serverStep.detail = `localhost:${PORT}`;
@@ -483,8 +494,25 @@ tunnelStep.detail = "opening a Cloudflare quick tunnel…";
  * keep the server, say why the tunnel is missing, and what that costs (other devices, phones).
  */
 let tunnelOutput = "";
+
+/**
+ * Asks the server to publish its tunnel address for the people a project is shared with (it reads the
+ * address from connection.json itself and does nothing unless something is shared). Best effort.
+ */
+function beacon(offline = false, ms = 3000) {
+  return fetch(`http://127.0.0.1:${PORT}/api/share/beacon${offline ? "?offline=1" : ""}`, {
+    method: "POST",
+    headers: { "x-sparkflow-token": token },
+    signal: AbortSignal.timeout(ms),
+  }).then(
+    () => {},
+    () => {},
+  );
+}
+
 function tunnelDown(detail, hint) {
   if (stopping || tunnelStep.state === "fail") return;
+  void beacon(true);
   tunnelStep.state = "fail";
   tunnelStep.detail = detail;
   reachStep.state = "wait";
@@ -505,7 +533,7 @@ const why = () =>
       ? "No internet connection: the tunnel couldn't open. Check your network, then run sparkflow again."
       : `The Cloudflare tunnel couldn't open. Run sparkflow again; details in ${short(logPath)}.`;
 
-const tunnel = spawn("cloudflared", ["--config", emptyConfig, "tunnel", "--no-autoupdate", "--url", `http://localhost:${PORT}`], { stdio: ["ignore", "pipe", "pipe"] });
+const tunnel = spawn("cloudflared", ["--config", emptyConfig, "tunnel", "--no-autoupdate", "--url", `http://127.0.0.1:${PORT}`], { stdio: ["ignore", "pipe", "pipe"] });
 children.push(tunnel);
 tunnel.on("error", () => tunnelDown("cloudflared is missing", `Install it to reach Sparkflow from other devices: ${bold("brew install cloudflared")}`));
 tunnel.on("exit", (code) => {
@@ -577,6 +605,10 @@ const watch = async (chunk) => {
   const link = `${SITE}/?backend=${encodeURIComponent(url)}&token=${token}`;
   rmSync(`${connection}.claimed`, { force: true });
   writeFileSync(connection, JSON.stringify({ url, token }), { mode: 0o600 });
+  void beacon();
+  // A heartbeat, so guests see a fresh seenAt while this Mac stays up.
+  clearInterval(beaconTimer);
+  beaconTimer = setInterval(() => void beacon(), 10 * 60_000);
   ready = { url, link, picked: false, opened: false };
   if (!tty) console.log(`Sparkflow is connected: ${link}`);
   // A Sparkflow tab already waiting on the onboarding asks /api/connect within 2 s: give it the

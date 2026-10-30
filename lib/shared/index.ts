@@ -8,3 +8,5 @@ export * from "./slug";
 export * from "./state";
 export * from "./verdict";
 export * from "./presence";
+export * from "./share";
+export * from "./firebase-config";

@@ -1,37 +1,51 @@
 "use client";
 
 import { backendUrl, getBackend, STATIC_SITE } from "@/lib/web/backend";
+import { activeShare, activeShareBackend, guestSrc } from "@/lib/web/share";
 
 /**
- * On the static site (Firebase Hosting) the IDE's server calls (`/api/...` in fetch, EventSource,
- * img/iframe/link URLs) go to the server on your computer instead of the site's own origin, so the
- * address bar stays on the hosted site. Installed when this module loads, before any component runs.
+ * Routes the IDE's server calls (`/api/...` in fetch, EventSource, img/iframe/link URLs) to the
+ * right computer. On a shared project (/s/...) that is always the owner's server, with the guest
+ * key in a header and a ticket in URLs, never this site or your own computer. Elsewhere on the
+ * static site (Firebase Hosting) it is the server on your computer. Installed when this module
+ * loads, before any component runs.
  */
 function install() {
-  if (typeof window === "undefined" || !STATIC_SITE) return;
+  if (typeof window === "undefined") return;
   const isApi = (u: unknown): u is string => typeof u === "string" && u.startsWith("/api/");
+  const rewrite = (value: string) => (!isApi(value) ? value : activeShare() ? guestSrc(value) : STATIC_SITE ? backendUrl(value) : value);
 
   const nativeFetch = window.fetch.bind(window);
   window.fetch = (input, init) => {
-    const b = getBackend();
-    if (!b || !isApi(input)) return nativeFetch(input, init);
+    if (!isApi(input)) return nativeFetch(input, init);
+    if (activeShare()) {
+      const b = activeShareBackend();
+      // No fallback: a guest call must not reach this site or the visitor's own server.
+      if (!b) return Promise.reject(new Error("The owner's computer is offline."));
+      const headers = new Headers(init?.headers);
+      headers.set("x-sparkflow-token", b.token);
+      return nativeFetch(b.url + input, { ...init, headers, credentials: "omit" });
+    }
+    const b = STATIC_SITE ? getBackend() : null;
+    if (!b) return nativeFetch(input, init);
     const headers = new Headers(init?.headers);
     headers.set("x-sparkflow-token", b.token);
     return nativeFetch(b.url + input, { ...init, headers });
   };
 
-  // EventSource can't send headers: the token rides in the query.
+  // EventSource can't send headers: the owner's token rides in the query. Guests poll instead.
   const NativeES = window.EventSource;
   window.EventSource = class extends NativeES {
     constructor(url: string | URL, init?: EventSourceInit) {
-      super(isApi(url) ? backendUrl(url) : url, init);
+      if (isApi(url) && activeShare()) throw new Error("Shared projects poll for updates.");
+      super(isApi(url) && STATIC_SITE ? backendUrl(url) : url, init);
     }
   } as typeof EventSource;
 
   // src/href, whether set as attributes or as properties: images, previews, downloads.
   const setAttr = Element.prototype.setAttribute;
   Element.prototype.setAttribute = function (name: string, value: string) {
-    return setAttr.call(this, name, (name === "src" || name === "href") && isApi(value) ? backendUrl(value) : value);
+    return setAttr.call(this, name, name === "src" || name === "href" ? rewrite(value) : value);
   };
   for (const [Ctor, prop] of [
     [HTMLImageElement, "src"],
@@ -45,7 +59,7 @@ function install() {
     Object.defineProperty(Ctor.prototype, prop, {
       ...desc,
       set(value: string) {
-        desc.set!.call(this, isApi(value) ? backendUrl(value) : value);
+        desc.set!.call(this, rewrite(value));
       },
     });
   }

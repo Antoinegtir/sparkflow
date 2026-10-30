@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { existsSync } from "node:fs";
+import { guardGuestPath, guestReadable, insideProject } from "../share/actor";
 import { matchRoute, normalizeRoute, routeSlug, type AgentEvent, type AppPlan } from "../shared";
 import type { InspectStep, Sandbox } from "../sandbox/types";
 import type { ContentPart, ToolSpec } from "./llm/types";
@@ -36,6 +38,8 @@ export type ToolContext = {
   unrestricted?: boolean;
   /** The user's own app: skills come adapted to it. */
   nativeApp?: boolean;
+  /** A run started by a shared-project guest: a reduced shell and a path denylist, never unrestricted. */
+  guest?: boolean;
   commit?: (message: string) => Promise<string | null>;
 };
 
@@ -47,9 +51,30 @@ export function cleanPath(p: string) {
   return s;
 }
 
-function assertWritable(ctx: ToolContext, p: string) {
-  if (!ctx.unrestricted && PROTECTED.some((re) => re.test(p))) throw new Error(`${p} is protected and cannot be changed`);
+/** A local sandbox's folder is on the owner's Mac: a guest path must not lead out of it through a symlink. */
+async function guestContained(ctx: ToolContext, p: string) {
+  if (!ctx.guest || !existsSync(ctx.sandbox.dir)) return true;
+  return insideProject(ctx.sandbox.dir, p);
 }
+
+/** Guests never read secrets (the same denylist as the files route), nor through symlinks out of the project. */
+async function readablePath(ctx: ToolContext, raw: string) {
+  const p = cleanPath(raw);
+  if (ctx.guest && (!guestReadable(p) || !(await guestContained(ctx, p)))) throw new Error(`${p} cannot be read from a shared project`);
+  return p;
+}
+
+async function assertGuestWritable(ctx: ToolContext, p: string) {
+  if (ctx.guest && !(await guestContained(ctx, p))) throw new Error(`${p} cannot be changed from a shared project`);
+}
+
+function assertWritable(ctx: ToolContext, p: string) {
+  // Guests may not touch config, scripts or anything that runs outside the app on this Mac.
+  if (ctx.guest && !guardGuestPath(p)) throw new Error(`${p} cannot be changed from a shared project`);
+  if ((!ctx.unrestricted || ctx.guest) && PROTECTED.some((re) => re.test(p))) throw new Error(`${p} is protected and cannot be changed`);
+}
+
+const GUEST_COMMANDS = ["npx tsc --noEmit", "npx expo lint"];
 
 const ALLOW = [/^npx tsc\b/, /^npx expo install\b/, /^npx expo lint\b/, /^npm ls\b/, /^(ls|cat|grep|head|tail|wc|find)\b/, /^git (status|diff|log|show)\b/];
 
@@ -99,13 +124,16 @@ export const TOOLS = {
   list_files: def({
     description: "List project files (node_modules and build folders excluded).",
     schema: z.object({ dir: z.string().optional() }),
-    run: async (ctx, a) => (await ctx.sandbox.listFiles(a.dir ? cleanPath(a.dir) : undefined)).join("\n") || "(empty)",
+    run: async (ctx, a) => {
+      const files = await ctx.sandbox.listFiles(a.dir ? await readablePath(ctx, a.dir) : undefined);
+      return (ctx.guest ? files.filter((f) => guestReadable(f)) : files).join("\n") || "(empty)";
+    },
   }),
   read_file: def({
     description: "Read a text file.",
     schema: z.object({ path: z.string() }),
     run: async (ctx, a) => {
-      const t = await ctx.sandbox.readFile(cleanPath(a.path));
+      const t = await ctx.sandbox.readFile(await readablePath(ctx, a.path));
       return t.length > 60000 ? t.slice(0, 60000) + "\n… (truncated)" : t;
     },
   }),
@@ -115,6 +143,7 @@ export const TOOLS = {
     run: async (ctx, a) => {
       const p = cleanPath(a.path);
       assertWritable(ctx, p);
+      await assertGuestWritable(ctx, p);
       await ctx.sandbox.writeFile(p, a.content);
       ctx.touched.add(p);
       ctx.emit({ type: "files_changed", files: [p] });
@@ -127,6 +156,8 @@ export const TOOLS = {
     run: async (ctx, a) => {
       const p = cleanPath(a.path);
       assertWritable(ctx, p);
+      await assertGuestWritable(ctx, p);
+      if (ctx.guest) await readablePath(ctx, p);
       let text = await ctx.sandbox.readFile(p);
       for (const [i, e] of a.edits.entries()) {
         const count = text.split(e.old).length - 1;
@@ -150,6 +181,7 @@ export const TOOLS = {
     run: async (ctx, a) => {
       const p = cleanPath(a.path);
       assertWritable(ctx, p);
+      await assertGuestWritable(ctx, p);
       await ctx.sandbox.exec(`rm -f -- '${p.replace(/'/g, "")}'`);
       ctx.touched.add(p);
       ctx.emit({ type: "files_changed", files: [p] });
@@ -160,6 +192,8 @@ export const TOOLS = {
     description: "Run a shell command in the project folder.",
     schema: z.object({ command: z.string(), timeoutSec: z.number().optional() }),
     run: async (ctx, a) => {
+      // A guest's agent only checks the code; it never runs arbitrary commands on the owner's Mac.
+      if (ctx.guest && !GUEST_COMMANDS.includes(a.command.trim())) throw new Error(`Not allowed in a shared project. Allowed: ${GUEST_COMMANDS.join(", ")}.`);
       if (ctx.local && !allowedLocally(a.command)) {
         throw new Error("Not allowed here. Allowed: npx tsc, npx expo install/lint, npm ls, ls, cat, grep, head, tail, wc, find, git status/diff/log/show (pipes ok).");
       }
@@ -241,7 +275,7 @@ export const TOOLS = {
     schema: z.object({ path: z.string() }),
     run: async (ctx, a) => {
       if (!ctx.media) return "Segmentation is unavailable here.";
-      const bytes = await ctx.sandbox.readFileBytes(cleanPath(a.path));
+      const bytes = await ctx.sandbox.readFileBytes(await readablePath(ctx, a.path));
       const segs = await segmentUI({ mediaType: a.path.endsWith(".png") ? "image/png" : "image/jpeg", data: bytes.toString("base64") }, undefined, ctx.signal);
       return describeSegments(segs) || "Nothing found.";
     },

@@ -2,17 +2,31 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { applyEvent, type ProjectState, type PromptRequest, type StoredEvent } from "../shared";
+import type { AnyRole } from "../shared/share";
 import { getBackend, isDirect } from "./backend";
 
 async function post(url: string, body?: unknown, method = "POST") {
   const res = await fetch(url, { method, headers: { "content-type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
   const json = await res.json().catch(() => ({}));
+  if (res.status === 403 && json.code === "role") throw new Error("Your role doesn't allow this");
   if (!res.ok) throw new Error(json.error ?? `Request failed (${res.status})`);
   return json;
 }
 
-/** Project state: initial GET, then the SSE stream folded with the shared reducer. */
-export function useProject(id: string) {
+/**
+ * A guest never gets the dev preview: its URL comes from the owner's computer and would be
+ * loaded in an iframe and links here, so it is dropped along with the event that sets it.
+ */
+function forGuest(s: ProjectState): ProjectState {
+  if (!s.preview) return s;
+  const rest = { ...s };
+  delete rest.preview;
+  return rest;
+}
+
+/** Project state: initial GET, then the SSE stream (or polling, for guests) folded with the shared reducer. */
+export function useProject(id: string, role: AnyRole = "owner") {
+  const guest = role !== "owner";
   const [state, setState] = useState<ProjectState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
@@ -35,7 +49,7 @@ export function useProject(id: string) {
       const json = await res.json();
       if (cancelled) return;
       if (!res.ok) return setError(json.error ?? "Project not found");
-      setState(json);
+      setState(guest ? forGuest(json) : json);
       // Through the tunnel (hosted site) a streamed body doesn't get through: poll every second.
       // Straight to this computer's `sparkflow`, the live stream works, unless the browser refuses
       // a stream to localhost (it then never opens): polling takes over.
@@ -50,7 +64,8 @@ export function useProject(id: string) {
             setConnected(true);
             if (events.length) {
               since = events[events.length - 1].seq;
-              setState((s) => (s ? events.reduce(applyEvent, s) : s));
+              const kept = guest ? events.filter((e) => e.type !== "preview_ready") : events;
+              setState((s) => (s ? kept.reduce(applyEvent, s) : s));
             }
           } catch {
             setConnected(false);
@@ -59,7 +74,8 @@ export function useProject(id: string) {
         };
         void poll();
       };
-      if (getBackend() && !isDirect()) return startPolling();
+      // Guests always poll, so a removal from the project applies on their next request.
+      if (guest || (getBackend() && !isDirect())) return startPolling();
       let opened = false;
       es = new EventSource(`/api/projects/${id}/events?since=${json.lastSeq}`);
       es.onopen = () => {
@@ -84,12 +100,14 @@ export function useProject(id: string) {
       es?.close();
       clearTimeout(timer);
     };
-  }, [id]);
+  }, [id, guest]);
 
   // Auto-actions: capture a native project that has no pages; restart Metro for a web project reopened after a restart.
   useEffect(() => {
     if (!state) return;
-    if (state.native && !state.order.length && !autoDone.current.capture) {
+    // Capturing is the owner's; an editor may still restart the preview.
+    if (guest && role !== "edit") return;
+    if (!guest && state.native && !state.order.length && !autoDone.current.capture) {
       autoDone.current.capture = true;
       post(`/api/projects/${id}/capture`).catch(() => {});
     }
@@ -97,7 +115,7 @@ export function useProject(id: string) {
       autoDone.current.preview = true;
       post(`/api/projects/${id}/preview`).catch(() => {});
     }
-  }, [state, id]);
+  }, [state, id, guest, role]);
 
   const act = useCallback(
     async (fn: () => Promise<unknown>) => {

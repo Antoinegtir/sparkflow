@@ -38,7 +38,7 @@ export type ScreenState = {
 };
 
 export type TimelineEntry =
-  | { kind: "user"; seq: number; ts: number; id: string; text: string; route?: string; testId?: string }
+  | { kind: "user"; seq: number; ts: number; id: string; text: string; route?: string; testId?: string; by?: string }
   | { kind: "agent"; seq: number; ts: number; text: string; route?: string };
 
 export type ProjectState = ProjectMeta & {
@@ -196,7 +196,7 @@ export function applyEvent(state: ProjectState, ev: StoredEvent): ProjectState {
       break;
     }
     case "user_prompt":
-      s.timeline = [...s.timeline, { kind: "user", seq: e.seq, ts: e.ts, id: e.id, text: e.text, route: e.route, testId: e.testId }];
+      s.timeline = [...s.timeline, { kind: "user", seq: e.seq, ts: e.ts, id: e.id, text: e.text, route: e.route, testId: e.testId, by: e.by }];
       break;
     case "agent_message":
       s.timeline = [...s.timeline, { kind: "agent", seq: e.seq, ts: e.ts, text: e.text, route: e.route }];

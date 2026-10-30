@@ -4,7 +4,10 @@ import { NodeResizer, useStore, type Node, type NodeProps } from "@xyflow/react"
 import clsx from "clsx";
 import { Check, ChevronDown, Frame, Hand, MessageCircle, MousePointer2, PanelTop, Pencil, Send, Smartphone, Trash2, Type, X } from "lucide-react";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
+import type { BoardOp, Person } from "@/lib/shared/share";
+import { useAccess } from "@/lib/web/access";
 import { PHONE_H, PHONE_W } from "@/lib/web/layout";
+import { Avatar } from "./Avatar";
 
 export type Tool = "move" | "hand" | "frame" | "section" | "page" | "text" | "comment";
 
@@ -30,7 +33,15 @@ const keyLabel = (t: ToolDef) => (t.shift ? `⇧${t.key}` : t.key);
  * The tools, in a floating bar on the canvas's left edge, like Figma's bottom bar. V H F ⇧S P T C pick
  * them, Escape goes back to Move.
  */
-export function ToolBar({ tool, onTool }: { tool: Tool; onTool: (t: Tool) => void }) {
+/** The tools a role may use: viewers look around, commenters add comments, editors get them all. */
+export function allowedTools(role: string): Set<Tool> {
+  if (role === "view") return new Set(["move", "hand"]);
+  if (role === "comment") return new Set(["move", "hand", "comment"]);
+  return new Set(ALL.map((t) => t.id));
+}
+
+export function ToolBar({ tool, onTool, allowed }: { tool: Tool; onTool: (t: Tool) => void; allowed?: Set<Tool> }) {
+  const ok = (t: ToolDef) => !allowed || allowed.has(t.id);
   const [menu, setMenu] = useState(false);
   // The group button shows the last one picked of Frame and Section.
   const [groupTool, setGroupTool] = useState<ToolDef>(GROUPS[0]);
@@ -51,11 +62,11 @@ export function ToolBar({ tool, onTool }: { tool: Tool; onTool: (t: Tool) => voi
         return onTool("move");
       }
       const t = ALL.find((x) => x.key === e.key.toUpperCase() && !!x.shift === e.shiftKey);
-      if (t) pick(t);
+      if (t && (!allowed || allowed.has(t.id))) pick(t);
     };
     addEventListener("keydown", onKey);
     return () => removeEventListener("keydown", onKey);
-  }, [onTool, pick]);
+  }, [onTool, pick, allowed]);
 
   const button = (t: ToolDef, extra?: string) => (
     <button
@@ -82,7 +93,8 @@ export function ToolBar({ tool, onTool }: { tool: Tool; onTool: (t: Tool) => voi
       {MOVE.map((t) => (
         <div key={t.id}>{button(t)}</div>
       ))}
-      {rule}
+      {GROUPS.some(ok) && rule}
+      {GROUPS.some(ok) && (
       <div className="relative">
         {button(groupTool, "pr-1")}
         <button
@@ -112,8 +124,9 @@ export function ToolBar({ tool, onTool }: { tool: Tool; onTool: (t: Tool) => voi
           </div>
         )}
       </div>
-      {rule}
-      {ADD.map((t) => (
+      )}
+      {ADD.some(ok) && rule}
+      {ADD.filter(ok).map((t) => (
         <div key={t.id}>{button(t)}</div>
       ))}
     </div>
@@ -123,7 +136,8 @@ export function ToolBar({ tool, onTool }: { tool: Tool; onTool: (t: Tool) => voi
 // ---- what the tools place on the canvas ----
 
 export type CanvasText = { id: string; x: number; y: number; text: string };
-export type CanvasComment = { id: string; x: number; y: number; text: string; route?: string; ts: number; sent?: boolean };
+/** `by`: "owner" or a guest's uid, stamped by the server (none on comments from before sharing: the owner's). */
+export type CanvasComment = { id: string; x: number; y: number; text: string; route?: string; ts: number; sent?: boolean; by?: string; editedAt?: number };
 /** A frame or a section: a named box drawn around pages to group them (Onboarding, Settings…). */
 export type CanvasGroup = { id: string; kind: "frame" | "section"; x: number; y: number; w: number; h: number; name: string };
 export type Board = { texts: CanvasText[]; comments: CanvasComment[]; groups: CanvasGroup[] };
@@ -131,62 +145,167 @@ export type Board = { texts: CanvasText[]; comments: CanvasComment[]; groups: Ca
 const boardKey = (id: string) => `sparkflow.board.${id}`;
 const uid = () => Math.random().toString(36).slice(2, 10);
 const EMPTY: Board = { texts: [], comments: [], groups: [] };
+const POLL_MS = 2500;
+type ServerBoard = Partial<Board> & { rev?: number; unchanged?: boolean; people?: Record<string, Person>; me?: string };
+
+/** The change to send for one id, read from the board as it is now (gone from it: a removal). */
+function opFor(b: Board, id: string): BoardOp {
+  const t = b.texts.find((x) => x.id === id);
+  if (t) return { op: "text", item: t };
+  const g = b.groups.find((x) => x.id === id);
+  if (g) return { op: "group", item: g };
+  const c = b.comments.find((x) => x.id === id);
+  // Only what the author may set: the server stamps by and ts itself.
+  if (c) return { op: "comment", item: { id: c.id, x: c.x, y: c.y, text: c.text, ...(c.route ? { route: c.route } : {}), ...(c.sent !== undefined ? { sent: c.sent } : {}) } };
+  return { op: "remove", id };
+}
+
+/** The server's board, with this browser's copy of what it hasn't sent yet, so a poll can't undo a change. */
+function merge(server: Board, local: Board, pending: Set<string>): Board {
+  if (!pending.size) return server;
+  const pick = <T extends { id: string }>(s: T[], l: T[]) => [...s.filter((x) => !pending.has(x.id)), ...l.filter((x) => pending.has(x.id))];
+  return { texts: pick(server.texts, local.texts), comments: pick(server.comments, local.comments), groups: pick(server.groups, local.groups) };
+}
+
+const asBoard = (b: ServerBoard, groups?: CanvasGroup[]): Board => ({ texts: b.texts ?? [], comments: b.comments ?? [], groups: b.groups ?? groups ?? [] });
 
 /**
- * The canvas's groups, text and comments, kept with the project on your computer (and in this browser,
- * for a sparkflow that doesn't keep them yet). Saved a moment after each change.
+ * The canvas's groups, text and comments, kept with the project on your computer. Each change is sent
+ * as an op (merged per item, a moment after the last one) and the board is polled, so people sharing the
+ * app see each other's comments. A sparkflow from before sharing takes the whole board (PUT), and this
+ * browser keeps a copy for it.
  */
 export function useBoard(projectId: string) {
+  const access = useAccess();
+  // A shared board is the server's: no copy in this browser that could go stale or leak between people.
+  const shared = access.role !== "owner" || access.sharing;
   const [board, setBoard] = useState<Board>(EMPTY);
+  const [people, setPeople] = useState<Record<string, Person>>({});
+  const [me, setMe] = useState<string>(access.me);
+  const boardRef = useRef(board);
+  const rev = useRef<number | null>(null);
+  // "ops" once the server answers with a rev; "put" for an older one.
+  const mode = useRef<"ops" | "put">("ops");
+  const pending = useRef(new Map<string, BoardOp>());
+  const inFlight = useRef(new Set<string>());
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  const receive = useCallback((b: ServerBoard) => {
+    if (b.people) setPeople(b.people);
+    if (b.me) setMe(b.me);
+    if (typeof b.rev === "number") rev.current = b.rev;
+    const keep = new Set([...pending.current.keys(), ...inFlight.current]);
+    const next = merge(asBoard(b), boardRef.current, keep);
+    boardRef.current = next;
+    setBoard(next);
+  }, []);
+
+  const resync = useCallback(async () => {
+    const r = await fetch(`/api/projects/${projectId}/board`, { cache: "no-store" }).catch(() => null);
+    if (r?.ok) receive(await r.json());
+  }, [projectId, receive]);
+
   useEffect(() => {
     let local: Board | null = null;
-    try {
-      const saved = JSON.parse(localStorage.getItem(boardKey(projectId)) ?? "null");
-      if (saved) local = { ...EMPTY, ...saved };
-    } catch {}
-    setBoard(local ?? EMPTY);
-    void fetch(`/api/projects/${projectId}/board`)
+    if (!shared)
+      try {
+        const saved = JSON.parse(localStorage.getItem(boardKey(projectId)) ?? "null");
+        if (saved) local = { ...EMPTY, ...saved };
+      } catch {}
+    boardRef.current = local ?? EMPTY;
+    setBoard(boardRef.current);
+    rev.current = null;
+    void fetch(`/api/projects/${projectId}/board`, { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
-      .then((b: Partial<Board> | null) => {
+      .then((b: ServerBoard | null) => {
         if (!b) return;
-        // A sparkflow from before groups returns none: this browser's are kept then.
-        const server: Board = { texts: b.texts ?? [], comments: b.comments ?? [], groups: b.groups ?? local?.groups ?? [] };
-        if (server.texts.length || server.comments.length || server.groups.length || !local) setBoard(server);
+        if (typeof b.rev !== "number") {
+          mode.current = "put";
+          // A sparkflow from before groups returns none: this browser's are kept then.
+          const server = asBoard(b, local?.groups);
+          if (server.texts.length || server.comments.length || server.groups.length || !local) {
+            boardRef.current = server;
+            setBoard(server);
+          }
+          return;
+        }
+        mode.current = "ops";
+        receive(b);
       })
       .catch(() => {});
-  }, [projectId]);
-  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const save = useCallback(
-    (next: Board) => {
-      try {
-        localStorage.setItem(boardKey(projectId), JSON.stringify(next));
-      } catch {}
-      clearTimeout(timer.current);
-      timer.current = setTimeout(() => {
-        void fetch(`/api/projects/${projectId}/board`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(next) }).catch(() => {});
-      }, 400);
-    },
+  }, [projectId, shared, receive]);
+
+  // Others' changes: polled while the tab is visible, cheap when nothing changed.
+  useEffect(() => {
+    const t = setInterval(() => {
+      if (document.hidden || mode.current !== "ops" || rev.current === null) return;
+      void fetch(`/api/projects/${projectId}/board?rev=${rev.current}`, { cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((b: ServerBoard | null) => b && !b.unchanged && receive(b))
+        .catch(() => {});
+    }, POLL_MS);
+    return () => clearInterval(t);
+  }, [projectId, receive]);
+
+  const put = useCallback(
+    (next: Board) => void fetch(`/api/projects/${projectId}/board`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(next) }).catch(() => {}),
     [projectId],
   );
+
+  const flush = useCallback(async () => {
+    if (mode.current === "put") return put(boardRef.current);
+    const ops = [...pending.current.values()].slice(0, 50);
+    if (!ops.length) return;
+    const ids = ops.map((o) => (o.op === "remove" ? o.id : (o.item as { id: string }).id));
+    ids.forEach((id) => {
+      pending.current.delete(id);
+      inFlight.current.add(id);
+    });
+    const r = await fetch(`/api/projects/${projectId}/board`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ops }) }).catch(() => null);
+    ids.forEach((id) => inFlight.current.delete(id));
+    if (r && (r.status === 404 || r.status === 405)) {
+      mode.current = "put";
+      return put(boardRef.current);
+    }
+    const j = r ? await r.json().catch(() => null) : null;
+    if (r?.ok && j?.board) receive({ ...j.board, rev: j.rev });
+    // Refused (a role that doesn't allow it): the server's board, as it is, replaces ours.
+    else if (r?.status === 403) {
+      if (j?.board) receive(j.board);
+      else void resync();
+    }
+    if (pending.current.size) timer.current = setTimeout(() => void flush(), 400);
+  }, [projectId, put, receive, resync]);
+
   const update = useCallback(
-    (f: (b: Board) => Board) =>
-      setBoard((b) => {
-        const next = f(b);
-        save(next);
-        return next;
-      }),
-    [save],
+    (f: (b: Board) => Board, ids: string[]) => {
+      const next = f(boardRef.current);
+      boardRef.current = next;
+      setBoard(next);
+      if (mode.current === "put" && !shared)
+        try {
+          localStorage.setItem(boardKey(projectId), JSON.stringify(next));
+        } catch {}
+      for (const id of ids) pending.current.set(id, opFor(next, id));
+      clearTimeout(timer.current);
+      timer.current = setTimeout(() => void flush(), 400);
+    },
+    [projectId, shared, flush],
   );
+  useEffect(() => () => clearTimeout(timer.current), []);
+
   return {
     board,
+    people,
+    me,
     addText: (x: number, y: number) => {
       const id = uid();
-      update((b) => ({ ...b, texts: [...b.texts, { id, x, y, text: "" }] }));
+      update((b) => ({ ...b, texts: [...b.texts, { id, x, y, text: "" }] }), [id]);
       return id;
     },
     addComment: (x: number, y: number, route?: string) => {
       const id = uid();
-      update((b) => ({ ...b, comments: [...b.comments, { id, x, y, text: "", ts: Date.now(), ...(route ? { route } : {}) }] }));
+      update((b) => ({ ...b, comments: [...b.comments, { id, x, y, text: "", ts: Date.now(), by: me, ...(route ? { route } : {}) }] }), [id]);
       return id;
     },
     addGroup: (kind: CanvasGroup["kind"], r: { x: number; y: number; w: number; h: number }) => {
@@ -196,20 +315,23 @@ export function useBoard(projectId: string) {
         // Behind what is already there: drawn later, a section still sits under the frames in it.
         const g = { id, kind, ...r, name: `${kind === "section" ? "Section" : "Frame"} ${n}` };
         return { ...b, groups: kind === "section" ? [g, ...b.groups] : [...b.groups, g] };
-      });
+      }, [id]);
       return id;
     },
-    setGroup: (id: string, patch: Partial<CanvasGroup>) => update((b) => ({ ...b, groups: b.groups.map((g) => (g.id === id ? { ...g, ...patch } : g)) })),
-    setText: (id: string, text: string) => update((b) => ({ ...b, texts: b.texts.map((t) => (t.id === id ? { ...t, text } : t)) })),
-    setComment: (id: string, patch: Partial<CanvasComment>) => update((b) => ({ ...b, comments: b.comments.map((c) => (c.id === id ? { ...c, ...patch } : c)) })),
+    setGroup: (id: string, patch: Partial<CanvasGroup>) => update((b) => ({ ...b, groups: b.groups.map((g) => (g.id === id ? { ...g, ...patch } : g)) }), [id]),
+    setText: (id: string, text: string) => update((b) => ({ ...b, texts: b.texts.map((t) => (t.id === id ? { ...t, text } : t)) }), [id]),
+    setComment: (id: string, patch: Partial<CanvasComment>) => update((b) => ({ ...b, comments: b.comments.map((c) => (c.id === id ? { ...c, ...patch } : c)) }), [id]),
     /** Moves texts, comments and groups by id to these positions, in one change. */
     moveMany: (to: Record<string, { x: number; y: number }>) =>
-      update((b) => ({
-        texts: b.texts.map((t) => (to[t.id] ? { ...t, ...to[t.id] } : t)),
-        comments: b.comments.map((c) => (to[c.id] ? { ...c, ...to[c.id] } : c)),
-        groups: b.groups.map((g) => (to[g.id] ? { ...g, ...to[g.id] } : g)),
-      })),
-    remove: (id: string) => update((b) => ({ texts: b.texts.filter((t) => t.id !== id), comments: b.comments.filter((c) => c.id !== id), groups: b.groups.filter((g) => g.id !== id) })),
+      update(
+        (b) => ({
+          texts: b.texts.map((t) => (to[t.id] ? { ...t, ...to[t.id] } : t)),
+          comments: b.comments.map((c) => (to[c.id] ? { ...c, ...to[c.id] } : c)),
+          groups: b.groups.map((g) => (to[g.id] ? { ...g, ...to[g.id] } : g)),
+        }),
+        Object.keys(to),
+      ),
+    remove: (id: string) => update((b) => ({ texts: b.texts.filter((t) => t.id !== id), comments: b.comments.filter((c) => c.id !== id), groups: b.groups.filter((g) => g.id !== id) }), [id]),
   };
 }
 
@@ -299,7 +421,15 @@ export type CommentData = {
   index: number;
   pageTitle?: string;
   open: boolean;
+  /** May send it to the agent: your own comment with a role that runs it, or the owner's say on anyone's. */
   canSend: boolean;
+  /** The agent is running: Send waits. */
+  busy: boolean;
+  /** The author (or the owner) may change the text and delete it; others only read it. */
+  canModify: boolean;
+  author?: Person;
+  authorKey: string;
+  mine: boolean;
   onOpen: () => void;
   /** Closes it with the text as typed: kept, or the comment goes if it's empty. */
   onClose: (text: string) => void;
@@ -328,16 +458,31 @@ export const CommentNode = memo(function CommentNode({ data }: NodeProps<Node<Co
           "grid size-8 cursor-pointer place-items-center rounded-full rounded-bl-none border-2 border-white text-[12px] font-semibold text-white shadow-lg transition hover:scale-110",
           c.sent ? "bg-emerald-500" : "bg-spark-500",
         )}>
-        {c.sent ? <Check size={14} strokeWidth={3} /> : data.index}
+        {data.author ? <Avatar person={data.author} seed={data.authorKey} size={24} /> : c.sent ? <Check size={14} strokeWidth={3} /> : data.index}
       </button>
+      {data.author && (
+        <span className={clsx("pointer-events-none absolute -top-1.5 -right-1.5 grid min-w-4 place-items-center rounded-full px-1 text-[9.5px] leading-4 font-semibold text-white ring-2 ring-white", c.sent ? "bg-emerald-500" : "bg-spark-500")}>
+          {c.sent ? <Check size={9} strokeWidth={3.5} className="my-[3.5px]" /> : data.index}
+        </span>
+      )}
       {data.open && (
         <div className="nodrag nowheel nopan absolute top-0 left-10 z-20 w-72 rounded-xl border border-[var(--line)] bg-[var(--panel)] p-3 shadow-2xl">
+          {data.author && (
+            <div className="mb-1.5 flex items-center gap-1.5 text-[12px]">
+              <Avatar person={data.author} seed={data.authorKey} size={18} />
+              <span className="truncate font-medium text-ink-100">{data.author.name}</span>
+              {data.mine ? <span className="text-ink-500">(you)</span> : data.author.role === "owner" && <span className="rounded bg-ink-700 px-1 text-[10px] text-ink-300">Owner</span>}
+              <span className="ml-auto shrink-0 text-[10.5px] text-ink-500">{new Date(c.ts).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" })}</span>
+            </div>
+          )}
           <div className="mb-2 flex items-center justify-between text-[11px] text-ink-500">
             <span>{data.pageTitle ? `On ${data.pageTitle}` : "On the canvas"}</span>
             <span className="flex items-center gap-1">
+              {data.canModify && (
               <button type="button" onClick={data.onRemove} aria-label="Delete comment" className="grid size-6 cursor-pointer place-items-center rounded-md hover:bg-ink-800 hover:text-red-400">
                 <Trash2 size={13} />
               </button>
+              )}
               <button type="button" onClick={() => data.onClose(draft.trim())} aria-label="Close" className="grid size-6 cursor-pointer place-items-center rounded-md hover:bg-ink-800 hover:text-ink-200">
                 <X size={13} />
               </button>
@@ -346,6 +491,7 @@ export const CommentNode = memo(function CommentNode({ data }: NodeProps<Node<Co
           <textarea
             ref={ref}
             value={draft}
+            readOnly={!data.canModify}
             rows={3}
             placeholder={data.pageTitle ? "Add a comment, e.g. the cards need more space" : "Add a comment"}
             onChange={(e) => setDraft(e.target.value)}
@@ -356,10 +502,10 @@ export const CommentNode = memo(function CommentNode({ data }: NodeProps<Node<Co
             }}
             className="w-full resize-none rounded-lg border border-[var(--line)] bg-[var(--panel-2)] px-2.5 py-2 text-[13px] text-ink-100 outline-none focus:border-spark-500"
           />
-          {data.pageTitle && (
+          {data.pageTitle && data.canSend && (
             <button
               type="button"
-              disabled={!draft.trim() || !data.canSend}
+              disabled={!draft.trim() || data.busy}
               onClick={() => data.onSend(draft.trim())}
               className="mt-2 flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-lg bg-spark-500 py-1.5 text-[12px] font-medium text-white disabled:cursor-default disabled:opacity-40">
               <Send size={12} /> {c.sent ? "Send to the agent again" : "Send to the agent"}
@@ -424,6 +570,8 @@ export const NewPageNode = memo(function NewPageNode({ data }: NodeProps<Node<Ne
 
 export type GroupData = {
   group: CanvasGroup;
+  /** Resize, rename and delete: editors and the owner only. */
+  canEdit: boolean;
   editing: boolean;
   onEdit: () => void;
   onRename: (name: string) => void;
@@ -447,7 +595,7 @@ export const GroupNode = memo(function GroupNode({ data, selected }: NodeProps<N
   return (
     <div className={clsx("relative h-full w-full", section ? "rounded-[18px] border border-ink-500/50 bg-ink-400/[0.06]" : "border border-ink-400/70")}>
       <NodeResizer
-        isVisible={selected}
+        isVisible={selected && data.canEdit}
         minWidth={160}
         minHeight={120}
         color="var(--color-spark-500)"
@@ -480,7 +628,7 @@ export const GroupNode = memo(function GroupNode({ data, selected }: NodeProps<N
               )}>
               {g.name}
             </span>
-            {selected && (
+            {selected && data.canEdit && (
               <button type="button" onClick={data.onRemove} aria-label={`Delete ${g.name}`} className="nodrag grid size-5 cursor-pointer place-items-center rounded text-ink-400 hover:text-red-400">
                 <Trash2 size={12} />
               </button>

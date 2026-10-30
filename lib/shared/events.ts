@@ -21,7 +21,7 @@ export type AgentEvent =
   | { type: "nav"; edges: NavEdge[] }
   | { type: "tree"; files: string[] }
   | ({ type: "usage" } & Usage)
-  | { type: "user_prompt"; id: string; text: string; route?: string; testId?: string }
+  | { type: "user_prompt"; id: string; text: string; route?: string; testId?: string; /** "owner" or the guest uid. */ by?: string }
   | { type: "agent_message"; text: string; route?: string }
   | { type: "commit"; sha: string; message: string; routes: string[] }
   | { type: "renamed"; name: string }

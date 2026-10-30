@@ -1,22 +1,17 @@
 "use client";
 
 import { getApp, getApps, initializeApp } from "firebase/app";
+import { getFirestore } from "firebase/firestore";
 import { GithubAuthProvider, GoogleAuthProvider, getAuth, onAuthStateChanged, signInWithPopup, signOut, type User } from "firebase/auth";
+import { FIREBASE_CONFIG } from "@/lib/shared/firebase-config";
 
-/** Firebase web config of the sparkflow-ai project (public by design: access is ruled by Auth, not by this key). */
-const config = {
-  apiKey: "AIzaSyAMDcjuxan6MZBdFPDQDd1S6X4b91SWXUI",
-  authDomain: "sparkflow-ai.firebaseapp.com",
-  projectId: "sparkflow-ai",
-  storageBucket: "sparkflow-ai.firebasestorage.app",
-  messagingSenderId: "705836289781",
-  appId: "1:705836289781:web:9e23085fab59e047b7bfbc",
-};
 
 /** The site's Firebase app (Auth, and Firestore for the apps saved to each account). */
-export const firebaseApp = () => (getApps().length ? getApp() : initializeApp(config));
+export const firebaseApp = () => (getApps().length ? getApp() : initializeApp(FIREBASE_CONFIG));
 
-const auth = () => getAuth(firebaseApp());
+export const db = () => getFirestore(firebaseApp());
+
+export const auth = () => getAuth(firebaseApp());
 
 export type Provider = "google" | "github";
 

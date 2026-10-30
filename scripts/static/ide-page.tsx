@@ -6,11 +6,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { ConnectOnboarding } from "@/app/components/ConnectOnboarding";
 import { IDE } from "@/app/components/ide/IDE";
+import { SharedShell } from "@/app/components/SharedShell";
 import type { ProjectSummary } from "@/lib/shared";
 import { backendReady, getBackend } from "@/lib/web/backend";
 
 type Found = { id: string; slug: string; page: string[] };
-type State = { kind: "loading" } | { kind: "offline" } | { kind: "missing" } | { kind: "demo" } | { kind: "found"; found: Found };
+type State = { kind: "shared"; serverUid: string; projectId: string; page: string[] } | { kind: "loading" } | { kind: "offline" } | { kind: "missing" } | { kind: "demo" } | { kind: "found"; found: Found };
 
 let demoAsked = false;
 
@@ -18,8 +19,10 @@ export default function IdeShell() {
   const [state, setState] = useState<State>({ kind: "loading" });
 
   const open = useCallback(() => {
-    if (!getBackend()) return setState({ kind: "offline" });
     const parts = location.pathname.split("/").filter(Boolean).map(decodeURIComponent);
+    // Someone else's project: it never needs your own computer connected.
+    if (parts[0] === "s" && parts[1] && parts[2]) return setState({ kind: "shared", serverUid: parts[1], projectId: parts[2], page: parts.slice(3) });
+    if (!getBackend()) return setState({ kind: "offline" });
     // /connect: where the landing sends you when no computer answers; once connected, back to it.
     if (parts[0] === "connect") {
       fetch("/api/projects", { cache: "no-store" })
@@ -47,6 +50,7 @@ export default function IdeShell() {
   // Once we know whether `sparkflow` runs on this computer (then reached directly).
   useEffect(() => void backendReady.then(open), [open]);
 
+  if (state.kind === "shared") return <SharedShell serverUid={state.serverUid} projectId={state.projectId} page={state.page} />;
   if (state.kind === "found") return <IDE id={state.found.id} slug={state.found.slug} initialPage={state.found.page} />;
   if (state.kind === "offline") return <ConnectOnboarding />;
   return (

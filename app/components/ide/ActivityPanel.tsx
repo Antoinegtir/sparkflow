@@ -4,6 +4,9 @@ import clsx from "clsx";
 import { FolderOpen } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { NavEdge, ProjectState } from "@/lib/shared";
+import type { Person } from "@/lib/shared/share";
+import { can, useAccess } from "@/lib/web/access";
+import { Avatar } from "./Avatar";
 import { CodeEditor } from "./CodeEditor";
 import { MaterialIcon } from "./FileTree";
 import { ReleaseLog } from "./ReleaseMenu";
@@ -38,6 +41,8 @@ export type FlowAction =
   | { type: "delete"; route: string };
 
 export function ActivityPanel(p: Props) {
+  const access = useAccess();
+  const owner = access.role === "owner";
   const tabs: { id: PanelTab; label: string }[] = [
     { id: "layout", label: p.focused ? "Layout" : "Flow" },
     { id: "code", label: "Code" },
@@ -58,9 +63,9 @@ export function ActivityPanel(p: Props) {
       <div className="min-h-0 flex-1">
         {p.tab === "activity" && (
           <div className="flex h-full min-h-0 flex-col">
-            <ReleaseLog projectId={p.projectId} />
+            {owner && <ReleaseLog projectId={p.projectId} />}
             <div className="min-h-0 flex-1">
-              <Activity state={p.state} />
+              <Activity state={p.state} people={access.people} />
             </div>
           </div>
         )}
@@ -76,7 +81,9 @@ export function ActivityPanel(p: Props) {
   );
 }
 
-function Activity({ state }: { state: ProjectState }) {
+function Activity({ state, people }: { state: ProjectState; people: Record<string, Person> }) {
+  // Avatars only once the app is shared with someone: alone, every prompt is yours.
+  const shared = Object.keys(people).some((k) => k !== "owner");
   const ref = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
   const items = useMemo(() => {
@@ -117,7 +124,11 @@ function Activity({ state }: { state: ProjectState }) {
             {it.l.message}
           </p>
         ) : (
-          <Bubble key={`t${it.seq}`} who={it.t.kind} sub={[it.t.route && state.screens[it.t.route]?.title, it.t.kind === "user" && it.t.testId].filter(Boolean).join(" · ")}>
+          <Bubble
+            key={`t${it.seq}`}
+            who={it.t.kind}
+            by={shared && it.t.kind === "user" ? ((it.t as { by?: string }).by ?? "owner") : undefined}
+            people={people} sub={[it.t.route && state.screens[it.t.route]?.title, it.t.kind === "user" && it.t.testId].filter(Boolean).join(" · ")}>
             {it.t.text}
           </Bubble>
         ),
@@ -126,9 +137,14 @@ function Activity({ state }: { state: ProjectState }) {
   );
 }
 
-function Bubble({ who, sub, children }: { who: "user" | "agent"; sub?: string; children: React.ReactNode }) {
+function Bubble({ who, sub, by, people, children }: { who: "user" | "agent"; sub?: string; by?: string; people?: Record<string, Person>; children: React.ReactNode }) {
   return (
     <div className={clsx("flex flex-col py-1", who === "user" ? "items-end" : "items-start")}>
+      {by && (
+        <span className="mb-0.5 flex items-center gap-1 px-1 text-[10.5px] text-ink-500">
+          {people?.[by]?.name ?? "Someone"} <Avatar person={people?.[by]} seed={by} size={14} />
+        </span>
+      )}
       <div className={clsx("max-w-[92%] rounded-2xl px-3 py-2 text-[12.5px] leading-relaxed", who === "user" ? "rounded-br-md bg-spark-500 text-white" : "rounded-bl-md bg-ink-800 text-ink-100")}>{children}</div>
       {sub && <span className="mt-0.5 px-1 text-[10.5px] text-ink-500">{sub}</span>}
     </div>
@@ -139,6 +155,9 @@ const CODE = /\.(tsx?|jsx?|json|mjs|cjs|md|css|swift)$/i;
 const IMAGE = /\.(png|jpe?g|gif|webp|svg)$/i;
 
 function CodeView({ projectId, state, file, line, onReveal, onFile }: { projectId: string; state: ProjectState; file: string | null; line: number | null; onReveal: () => void; onFile: (p: string, l?: number | null) => void }) {
+  const access = useAccess();
+  const owner = access.role === "owner";
+  const writable = can(access, "files.write");
   // `saved` is the file as on disk; `draft` is the editor, saved automatically a moment after you stop typing.
   const [saved, setSaved] = useState<string | null>(null);
   const [draft, setDraft] = useState<string | null>(null);
@@ -177,7 +196,8 @@ function CodeView({ projectId, state, file, line, onReveal, onFile }: { projectI
 
   useEffect(() => {
     setDiags([]);
-    if (!file || !/\.tsx?$/.test(file)) return;
+    // Type checking runs on the owner's Mac: editors and the owner only.
+    if (!file || !/\.tsx?$/.test(file) || !writable) return;
     let live = true;
     fetch(`/api/projects/${projectId}/files?diagnostics&path=${encodeURIComponent(file)}`)
       .then((r) => r.json())
@@ -186,11 +206,11 @@ function CodeView({ projectId, state, file, line, onReveal, onFile }: { projectI
     return () => {
       live = false;
     };
-  }, [projectId, file, state.commits.length, checks]);
+  }, [projectId, file, state.commits.length, checks, writable]);
 
   // Auto-save.
   useEffect(() => {
-    if (draft == null || saved == null || draft === saved || !file) return;
+    if (draft == null || saved == null || draft === saved || !file || !writable) return;
     const t = setTimeout(async () => {
       setStatus("saving");
       const res = await fetch(`/api/projects/${projectId}/files`, {
@@ -209,7 +229,7 @@ function CodeView({ projectId, state, file, line, onReveal, onFile }: { projectI
       setChecks((n) => n + 1);
     }, 900);
     return () => clearTimeout(t);
-  }, [draft, saved, file, projectId]);
+  }, [draft, saved, file, projectId, writable]);
 
   const name = file?.split("/").pop() ?? "";
   return (
@@ -232,6 +252,7 @@ function CodeView({ projectId, state, file, line, onReveal, onFile }: { projectI
             <span className="font-sans text-ink-500">No file open</span>
           )}
         </div>
+        {owner && (
         <button
           // sparkflow opens the folder in VS Code on this computer.
           onClick={() => void fetch(`/api/projects/${projectId}/reveal?app=vscode`, { method: "POST" })}
@@ -242,6 +263,8 @@ function CodeView({ projectId, state, file, line, onReveal, onFile }: { projectI
             <path fill="#0065A9" d="M23.15 2.59 18.21.21a1.49 1.49 0 0 0-1.7.29L7.04 9.13 2.93 6.01a1 1 0 0 0-1.27.06L.33 7.28a1 1 0 0 0 0 1.48L3.9 12 .33 15.24a1 1 0 0 0 0 1.48l1.33 1.21a1 1 0 0 0 1.27.06l4.11-3.12 9.47 8.63a1.49 1.49 0 0 0 1.7.29l4.94-2.38A1.5 1.5 0 0 0 24 20.06V3.94a1.5 1.5 0 0 0-.85-1.35ZM18 17.45 10.82 12 18 6.55Z" />
           </svg>
         </button>
+        )}
+        {owner && (
         <button
           onClick={() => void fetch(`/api/projects/${projectId}/reveal`, { method: "POST" })}
           title="Show the project in Finder"
@@ -249,7 +272,8 @@ function CodeView({ projectId, state, file, line, onReveal, onFile }: { projectI
           className="grid size-7 shrink-0 cursor-pointer place-items-center rounded-md border border-[var(--line)] text-ink-200 hover:bg-ink-800">
           <FolderOpen size={14} />
         </button>
-        {!state.native && <GitHubSetup projectId={projectId} appName={state.name} />}
+        )}
+        {owner && !state.native && <GitHubSetup projectId={projectId} appName={state.name} />}
       </div>
       <div ref={scroller} className={clsx("min-h-0 flex-1", draft != null && file ? "overflow-hidden" : "overflow-auto")}>
         {!file && <p className="p-4 text-[12px] text-ink-500">Open a file from Source in the explorer, or click an element in the Layout tab. Edits save automatically.</p>}

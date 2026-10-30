@@ -6,6 +6,8 @@ export const orchestrator = getOrchestrator;
 export type RouteCtx<P extends Record<string, string> = { id: string }> = { params: Promise<P> };
 
 export function errorResponse(err: unknown) {
+  // lib/share/actor throws ready-made 401/403 responses.
+  if (err instanceof Response) return err;
   if (err instanceof BusyError) return Response.json({ error: err.message }, { status: 409 });
   if (err instanceof ZodError) return Response.json({ error: err.issues.map((i) => i.message).join("; ") }, { status: 400 });
   const message = String((err as Error)?.message ?? err);

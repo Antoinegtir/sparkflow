@@ -4,6 +4,7 @@ import Editor, { type Monaco } from "@monaco-editor/react";
 import type * as MonacoApi from "monaco-editor";
 import type { editor as Ed, IPosition, IRange, languages, Position, Uri } from "monaco-editor";
 import { useEffect, useRef } from "react";
+import { can, useAccess } from "@/lib/web/access";
 
 /**
  * VS Code's editor for the code view. Hover, completions and go to definition come from the app's
@@ -39,10 +40,13 @@ const uriOf = (projectId: string, file: string) => `file:///${projectId}/${file}
 const current: {
   projectId?: string;
   open?: (path: string, line: number) => void;
+  /** The language service runs on the owner's Mac: off for roles that can't edit files. */
+  noLang?: boolean;
 } = {};
 let registered = false;
 
 async function ask<T>(projectId: string, body: Record<string, unknown>): Promise<T | null> {
+  if (current.noLang) return null;
   const res = await fetch(`/api/projects/${projectId}/lang`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -281,8 +285,10 @@ export function CodeEditor({ projectId, file, value, line, diagnostics, onChange
   const lens = useRef<Ed.IEditorDecorationsCollection | null>(null);
   const jump = useRef<Ed.IEditorDecorationsCollection | null>(null);
 
+  const writable = can(useAccess(), "files.write");
   current.projectId = projectId;
   current.open = onOpenFile;
+  current.noLang = !writable;
 
   // Error Lens: the line tinted red, its message after the code.
   useEffect(() => {
@@ -367,6 +373,7 @@ export function CodeEditor({ projectId, file, value, line, diagnostics, onChange
         loading={<p className="p-4 text-[12px] text-ink-500">Loading the editor…</p>}
         options={{
           fontFamily: "var(--font-mono), ui-monospace, SFMono-Regular, Menlo, monospace",
+          readOnly: !writable,
           fontSize: 12,
           lineHeight: 19,
           minimap: { enabled: false },

@@ -5,6 +5,8 @@ import { ArrowLeft, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MediaInput, ScreenState } from "@/lib/shared";
+import type { Access } from "@/lib/shared/share";
+import { AccessProvider, can } from "@/lib/web/access";
 import { APP_SCHEME_KEY, darkStale, inScheme, type AppScheme } from "@/lib/web/app-scheme";
 import { useDeviceSkin } from "@/lib/web/device-skin";
 import { usePresence } from "@/lib/web/presence";
@@ -22,6 +24,7 @@ import type { LayoutPick } from "./LayoutTree";
 import { AppSettings } from "./AppSettings";
 import { PlayMode } from "./PlayMode";
 import { PromptBar, type Selection } from "./PromptBar";
+import { ShareDialog } from "./ShareDialog";
 import { TopBar } from "./TopBar";
 import { askToNotify, markTitle, notify } from "@/lib/web/notify";
 
@@ -32,10 +35,43 @@ const pageSlug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").repl
 /** The device the pages are captured in: the live Simulator shows the iPhone captures. */
 const shotDevice = (d?: string) => (!d || d === "simulator" ? "iphone" : d);
 
-export function IDE({ id, slug: initialSlug, initialPage }: { id: string; slug: string; initialPage: string[] }) {
-  const api = useProject(id);
+const OWNER_ACCESS = (projectId: string): Access => ({ role: "owner", me: "owner", projectId, people: {}, sharing: false });
+
+/**
+ * `access` is given for a shared app (a guest, through SharedShell), with `basePath` its /s/ URL.
+ * Without it this is the owner, whose people come from GET /access.
+ */
+export function IDE({ id, slug: initialSlug, initialPage, access: given, basePath }: { id: string; slug: string; initialPage: string[]; access?: Access; basePath?: string }) {
+  const [ownerAccess, setOwnerAccess] = useState<Access>(() => OWNER_ACCESS(id));
+  const access = given ?? ownerAccess;
+  const guest = access.role !== "owner";
+  const [shareOpen, setShareOpen] = useState(false);
+  // null until GET /access answers; false on an older server that has no sharing.
+  const [canShare, setCanShare] = useState<boolean | null>(null);
+  const api = useProject(id, access.role);
   const { state } = api;
   const sim = useSimDevice();
+
+  // Owner: who the app is shared with. A 404 means an older server that can't share: no Share button.
+  const loadAccess = useCallback(() => {
+    if (given) return;
+    void fetch(`/api/projects/${id}/access`, { cache: "no-store" })
+      .then(async (r) => {
+        if (r.status === 404) setCanShare(false);
+        if (!r.ok) return null;
+        setCanShare(true);
+        return (await r.json()) as Access;
+      })
+      .then((a) => a && setOwnerAccess({ ...a, role: "owner", me: "owner" }))
+      .catch(() => {});
+  }, [given, id]);
+  useEffect(loadAccess, [loadAccess]);
+  const hasMembers = Object.keys(ownerAccess.people).some((k) => k !== "owner");
+  useEffect(() => {
+    if (given || (!shareOpen && !hasMembers)) return;
+    const t = setInterval(loadAccess, 30_000);
+    return () => clearInterval(t);
+  }, [given, shareOpen, hasMembers, loadAccess]);
   // Pages shown in an Android emulator wear its frame, on the canvas as in focus.
   const skin = useDeviceSkin(state?.native || state?.previewDevice === "simulator" ? sim.device : null, !sim.loaded || !state);
   const ipad = !!state?.native && !!sim.device?.ipad;
@@ -75,7 +111,7 @@ export function IDE({ id, slug: initialSlug, initialPage }: { id: string; slug: 
 
   // The `sparkflow` terminal follows along: this app, the page in focus, Play.
   usePresence(
-    state
+    state && !guest
       ? { view: "app", projectId: id, page: focused ? state.screens[focused]?.title : undefined, mode: play ? "play" : focused ? "page" : "canvas", device: state.native ? "simulator" : state.previewDevice }
       : null,
   );
@@ -152,7 +188,8 @@ export function IDE({ id, slug: initialSlug, initialPage }: { id: string; slug: 
   const [slug, setSlug] = useState(initialSlug);
   const appName = state?.customName ?? state?.name;
   useEffect(() => {
-    if (!appName) return;
+    // A shared app's URL is its /s/ path, and guests can't list the owner's projects.
+    if (!appName || basePath) return;
     void fetch("/api/projects", { cache: "no-store" })
       .then((r) => r.json())
       .then((list: { id: string; slug: string }[]) => {
@@ -160,12 +197,12 @@ export function IDE({ id, slug: initialSlug, initialPage }: { id: string; slug: 
         if (s) setSlug(s);
       })
       .catch(() => {});
-  }, [appName, id]);
+  }, [appName, id, basePath]);
   useEffect(() => {
     if (!restored.current && initialPage.length) return;
-    const path = `/${slug}${focused ? `/${slugOf(focused)}` : ""}${focused && compare ? `?v=${compare}` : ""}`;
+    const path = `${basePath ?? `/${slug}`}${focused ? `/${slugOf(focused)}` : ""}${focused && compare ? `?v=${compare}` : ""}`;
     if (location.pathname + location.search !== path) history.replaceState(null, "", path);
-  }, [focused, compare, slug, slugOf, initialPage.length]);
+  }, [focused, compare, slug, basePath, slugOf, initialPage.length]);
 
   // ---- focus ----
   const open = useCallback(
@@ -261,7 +298,7 @@ export function IDE({ id, slug: initialSlug, initialPage }: { id: string; slug: 
     [api, focused, selections],
   );
   const runFlow = (a: FlowAction) => {
-    if (!state) return;
+    if (!state || !can(access, "agent")) return;
     const { text, route } = flowPrompt(a, (r) => state.screens[r]?.title ?? r);
     void send(text, undefined, undefined, route ?? null);
   };
@@ -305,28 +342,28 @@ export function IDE({ id, slug: initialSlug, initialPage }: { id: string; slug: 
 
   // Web: capture every new version in dark mode too, so the version history covers both appearances.
   useEffect(() => {
-    if (!state || state.native || state.status === "running" || capturingDark) return;
+    if (!state || state.native || state.status === "running" || capturingDark || !can(access, "agent")) return;
     const stale = state.order.filter((r) => state.screens[r] && darkStale(state.screens[r]));
     const key = stale.map((r) => `${r}@${state.screens[r].version}`).join(",");
     if (!stale.length || triedDark.current.has(key)) return;
     triedDark.current.add(key);
     setCapturingDark(true);
     void api.captureDark().finally(() => setCapturingDark(false));
-  }, [state, capturingDark, api]);
+  }, [state, capturingDark, api, access]);
 
   // Web: capture pages in the project's preview device (and scheme) when it is not the default iPhone.
   const triedDevice = useRef(new Set<string>());
   const [capturingDevice, setCapturingDevice] = useState(false);
   useEffect(() => {
     const device = shotDevice(state?.previewDevice);
-    if (!state || state.native || device === "iphone" || state.status === "running" || capturingDevice || capturingDark) return;
+    if (!state || state.native || device === "iphone" || state.status === "running" || capturingDevice || capturingDark || !can(access, "agent")) return;
     const stale = state.order.filter((r) => state.screens[r]?.screenshotUrl && state.screens[r].devices?.[device]?.[scheme]?.version !== state.screens[r].version);
     const key = `${device}:${scheme}:` + stale.map((r) => `${r}@${state.screens[r].version}`).join(",");
     if (!stale.length || triedDevice.current.has(key)) return;
     triedDevice.current.add(key);
     setCapturingDevice(true);
     void api.captureDevice(device, scheme).finally(() => setCapturingDevice(false));
-  }, [state, scheme, capturingDevice, capturingDark, api]);
+  }, [state, scheme, capturingDevice, capturingDark, api, access]);
 
   // Web app shown in the live Simulator: capture its pages there (in Sparkflow Dev) when they aren't yet,
   // or are older than the page. The Simulator is driven meanwhile, so it shows a spinner.
@@ -465,22 +502,23 @@ export function IDE({ id, slug: initialSlug, initialPage }: { id: string; slug: 
   const title = (r: string) => state.screens[r]?.title ?? r;
   const commands: Command[] = [
     ...state.order.map((r) => ({ id: `page:${r}`, group: "Pages" as const, label: title(r), hint: state.screens[r]?.previewPath, keywords: r, run: () => open(r) })),
-    { id: "play", group: "Actions", label: "Play", run: () => setPlay(true) },
-    { id: "ask", group: "Actions", label: "Ask the agent…", hint: "/", run: () => document.querySelector<HTMLTextAreaElement>("[data-prompt]")?.focus() },
+    { id: "play", group: "Actions", label: "Play", needs: "owner", run: () => setPlay(true) },
+    { id: "ask", group: "Actions", label: "Ask the agent…", hint: "/", needs: "agent", run: () => document.querySelector<HTMLTextAreaElement>("[data-prompt]")?.focus() },
     ...(focused ? [{ id: "all", group: "Actions" as const, label: "Show all pages", hint: "esc", run: close }] : []),
-    ...(!state.native && state.preview && focused ? [{ id: "point", group: "Actions" as const, label: "Point at an element", run: () => setInspect(true) }] : []),
+    ...(!state.native && state.preview && focused ? [{ id: "point", group: "Actions" as const, label: "Point at an element", needs: "agent" as const, run: () => setInspect(true) }] : []),
     ...(!state.native && focused && (state.screens[focused]?.history.length ?? 0) > 1 && !running
-      ? [{ id: "undo", group: "Actions" as const, label: `Undo last change on ${title(focused)}`, run: () => void api.undo(focused) }]
+      ? [{ id: "undo", group: "Actions" as const, label: `Undo last change on ${title(focused)}`, needs: "agent" as const, run: () => void api.undo(focused) }]
       : []),
-    ...(state.native ? [{ id: "recapture", group: "Actions" as const, label: "Recapture pages from the simulator", run: () => void api.capture({ refresh: true }) }] : []),
-    ...(running ? [{ id: "stop", group: "Actions" as const, label: "Stop the agent", run: () => void api.stop() }] : []),
-    ...(!state.native && state.plan ? [{ id: "export", group: "Project" as const, label: "Export .zip", run: () => (location.href = `/api/projects/${id}/export`) }] : []),
-    { id: "projects", group: "Project", label: "All projects", run: () => (location.href = "/") },
+    ...(state.native ? [{ id: "recapture", group: "Actions" as const, label: "Recapture pages from the simulator", needs: "owner" as const, run: () => void api.capture({ refresh: true }) }] : []),
+    ...(running ? [{ id: "stop", group: "Actions" as const, label: "Stop the agent", needs: "agent" as const, run: () => void api.stop() }] : []),
+    ...(!state.native && state.plan ? [{ id: "export", group: "Project" as const, label: "Export .zip", needs: "owner" as const, run: () => (location.href = `/api/projects/${id}/export`) }] : []),
+    { id: "projects", group: "Project", label: "All projects", needs: "owner", run: () => (location.href = "/") },
     { id: "panel", group: "View", label: panelOpen ? "Hide activity panel" : "Show activity panel", run: () => setPanelOpen((o) => !o) },
     { id: "scheme", group: "View", label: scheme === "dark" ? "Show the app in light mode" : "Show the app in dark mode", keywords: "dark light appearance", run: () => void setScheme(scheme === "dark" ? "light" : "dark") },
   ];
 
   return (
+    <AccessProvider value={access}>
     <div data-ide className="flex h-screen flex-col overflow-hidden bg-ink-950 text-ink-100">
       <TopBar
         state={state}
@@ -495,7 +533,8 @@ export function IDE({ id, slug: initialSlug, initialPage }: { id: string; slug: 
         onTogglePanel={() => setPanelOpen((o) => !o)}
         onDevice={(d) => void api.setPreviewDevice(d)}
         panelWidth={panelOpen ? panelW : 0}
-        onSettings={state.native ? undefined : () => setSettings(true)}
+        onSettings={state.native || guest ? undefined : () => setSettings(true)}
+        onShare={!given && canShare ? () => setShareOpen(true) : undefined}
         onDeviceSwitching={(name) => {
           setSimFrozen(name ? `Starting ${name}…` : null);
           if (!name) window.dispatchEvent(new Event(SIM_CHANGED));
@@ -535,7 +574,7 @@ export function IDE({ id, slug: initialSlug, initialPage }: { id: string; slug: 
             dark={scheme === "dark"}
             device={shotDevice(state.previewDevice)}
             status={state.status}
-            canLink={!state.native && !running}
+            canLink={!state.native && !running && can(access, "canvas")}
             // The canvas lights up again while the phone flies back.
             dimmed={!!focused && !closing}
             onOpen={open}
@@ -592,7 +631,7 @@ export function IDE({ id, slug: initialSlug, initialPage }: { id: string; slug: 
             focusedTitle={focusedScreen?.title}
             selections={selections}
             inspect={inspect}
-            canInspect={!!focused && (!!state.preview || !!state.native)}
+            canInspect={!!focused && (!!state.preview || !!state.native) && can(access, "agent")}
             onInspect={setInspect}
             onRemoveSelection={(k) => setSelections((s) => s.filter((x) => x.key !== k))}
             onAllPages={close}
@@ -629,8 +668,8 @@ export function IDE({ id, slug: initialSlug, initialPage }: { id: string; slug: 
         </div>
       </div>
       {palette && <CommandPalette commands={commands} onClose={() => setPalette(false)} />}
-      {play && <PlayMode state={state} scheme={scheme} startPath={focusedScreen?.previewPath ?? "/"} onClose={() => setPlay(false)} onSimButton={simButton} onDevice={(d) => void api.setPreviewDevice(d)} />}
-      {settings && <AppSettings projectId={id} appName={state.name} onClose={() => setSettings(false)} />}
+      {play && !guest && <PlayMode state={state} scheme={scheme} startPath={focusedScreen?.previewPath ?? "/"} onClose={() => setPlay(false)} onSimButton={simButton} onDevice={(d) => void api.setPreviewDevice(d)} />}
+      {settings && !guest && <AppSettings projectId={id} appName={state.name} onClose={() => setSettings(false)} />}
       {diff && <DiffViewer projectId={id} sha={diff} onClose={() => setDiff(null)} />}
       {flowDraft && (
         <FlowDialog
@@ -643,6 +682,8 @@ export function IDE({ id, slug: initialSlug, initialPage }: { id: string; slug: 
           }}
         />
       )}
+      {shareOpen && <ShareDialog projectId={id} appName={state.customName ?? state.name} onClose={() => setShareOpen(false)} onChanged={loadAccess} />}
     </div>
+    </AccessProvider>
   );
 }

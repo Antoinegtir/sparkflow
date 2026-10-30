@@ -3,24 +3,28 @@
 import clsx from "clsx";
 import { Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { can, useAccess } from "@/lib/web/access";
 
-export type Command = { id: string; group: "Pages" | "Actions" | "Project" | "View"; label: string; hint?: string; keywords?: string; run: () => void };
+/** `needs`: what the viewer's role must allow for the command to be listed (agent runs, owner-only…). */
+export type Command = { id: string; group: "Pages" | "Actions" | "Project" | "View"; label: string; hint?: string; keywords?: string; needs?: Parameters<typeof can>[1]; run: () => void };
 
 /** ⌘K palette: multi-word filter, groups kept together, ↑↓ Enter Esc. */
 export function CommandPalette({ commands, onClose }: { commands: Command[]; onClose: () => void }) {
   const [q, setQ] = useState("");
   const [index, setIndex] = useState(0);
   const list = useRef<HTMLDivElement>(null);
+  const access = useAccess();
 
   const filtered = useMemo(() => {
     const words = q.toLowerCase().split(/\s+/).filter(Boolean);
     const hits = commands.filter((c) => {
+      if (c.needs && !can(access, c.needs)) return false;
       const hay = `${c.label} ${c.group} ${c.keywords ?? ""}`.toLowerCase();
       return words.every((w) => hay.includes(w));
     });
     const order = ["Pages", "Actions", "Project", "View"];
     return hits.sort((a, b) => order.indexOf(a.group) - order.indexOf(b.group));
-  }, [q, commands]);
+  }, [q, commands, access]);
 
   useEffect(() => setIndex(0), [q]);
   useEffect(() => {

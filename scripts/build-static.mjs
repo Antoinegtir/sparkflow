@@ -3,7 +3,7 @@
 import { execSync } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync, renameSync, rmSync } from "node:fs";
 
-const ASIDE = ["app/api", "app/[app]", "app/p", "proxy.ts"];
+const ASIDE = ["app/api", "app/[app]", "app/p", "app/s", "proxy.ts"];
 const STASH = ".static-stash";
 rmSync(STASH, { recursive: true, force: true });
 mkdirSync(STASH);

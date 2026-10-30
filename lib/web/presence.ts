@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import type { Presence } from "@/lib/shared";
 import { apiFetch } from "./backend";
+import { activeShare } from "./share";
 
 /**
  * Tells this computer's `sparkflow` where the open tab is, so its terminal screen follows along.
@@ -16,7 +17,8 @@ let pending: ReturnType<typeof setTimeout> | null = null;
 let started = false;
 
 function send(force = false) {
-  if (!current) return;
+  // A guest's tab is none of the owner's terminal's business (and the route is owner-only).
+  if (!current || activeShare()) return;
   const body = JSON.stringify({ ...current, hidden: document.hidden });
   if (!force && body === sent && Date.now() - sentAt < 10000) return;
   sent = body;

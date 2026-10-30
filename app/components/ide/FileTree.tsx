@@ -3,6 +3,7 @@
 import clsx from "clsx";
 import { ChevronDown, ChevronRight, CornerDownRight, File, FolderPlus, GripVertical, Home, LayoutGrid, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
+import { can, useAccess } from "@/lib/web/access";
 import type { ProjectState } from "@/lib/shared";
 import { History } from "./History";
 import { StatusDot } from "./ui";
@@ -110,6 +111,8 @@ export function FileTree({ projectId, state, focused, onOpenPage, onOpenFile, ac
   const [dropping, setDropping] = useState(false);
   const [hoverFolder, setHoverFolder] = useState<string | null>(null);
   const native = !!state.native;
+  // Adding, renaming, moving and deleting files: editors and the owner only.
+  const writable = can(useAccess(), "files.write");
 
   const refresh = useCallback(async () => {
     const res = await fetch(`/api/projects/${projectId}/files`, { cache: "no-store" }).catch(() => null);
@@ -163,6 +166,7 @@ export function FileTree({ projectId, state, focused, onOpenPage, onOpenFile, ac
   }, [assetFiles, cwd]);
 
   const op = async (body: unknown) => {
+    if (!writable) return;
     setError(null);
     const res = await fetch(`/api/projects/${projectId}/files`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
     if (!res.ok) setError((await res.json()).error ?? "Failed");
@@ -171,7 +175,7 @@ export function FileTree({ projectId, state, focused, onOpenPage, onOpenFile, ac
 
   const uploadFiles = async (list: FileList | File[], dir = cwd) => {
     const arr = [...list];
-    if (!arr.length) return;
+    if (!arr.length || !writable) return;
     setUpload("Adding…");
     setError(null);
     const form = new FormData();
@@ -211,6 +215,7 @@ export function FileTree({ projectId, state, focused, onOpenPage, onOpenFile, ac
     e.stopPropagation();
     setHoverFolder(null);
     setDropping(false);
+    if (!writable) return;
     const internal = e.dataTransfer.getData(ASSET_MIME);
     if (internal) {
       if (internal === target || target.startsWith(internal + "/")) return;
@@ -297,14 +302,16 @@ export function FileTree({ projectId, state, focused, onOpenPage, onOpenFile, ac
                 </span>
               );
             })}
+            {writable && (
             <button onClick={() => void newFolder()} title="New folder" className="ml-auto cursor-pointer rounded p-1 text-ink-500 hover:bg-ink-800 hover:text-ink-200">
               <FolderPlus size={13} />
             </button>
+            )}
           </div>
           <div
             tabIndex={0}
             onKeyDown={(e) => {
-              if (!selected || renaming) return;
+              if (!selected || renaming || !writable) return;
               if ((e.key === "Backspace" || e.key === "Delete") && confirm(`Delete ${selected.split("/").pop()}?`)) {
                 void op({ type: "delete", path: selected });
                 setSelected(null);
@@ -317,7 +324,7 @@ export function FileTree({ projectId, state, focused, onOpenPage, onOpenFile, ac
               return (
                 <div
                   key={e.path}
-                  draggable={!renaming}
+                  draggable={!renaming && writable}
                   onDragStart={(ev) => ev.dataTransfer.setData(ASSET_MIME, e.path)}
                   onDragOver={(ev) => {
                     if (!e.dir) return;
@@ -359,7 +366,7 @@ export function FileTree({ projectId, state, focused, onOpenPage, onOpenFile, ac
                       className="w-full rounded bg-ink-800 px-1 text-center text-[10.5px] text-ink-100 outline-none"
                     />
                   ) : (
-                    <span onDoubleClick={(ev) => (ev.stopPropagation(), setRenaming(e.path))} className="w-full truncate text-center text-[10.5px] text-ink-300">
+                    <span onDoubleClick={(ev) => (ev.stopPropagation(), writable && setRenaming(e.path))} className="w-full truncate text-center text-[10.5px] text-ink-300">
                       {name}
                     </span>
                   )}
@@ -367,10 +374,10 @@ export function FileTree({ projectId, state, focused, onOpenPage, onOpenFile, ac
               );
             })}
           </div>
-          {!entries.length && <p className="px-4 py-2 text-[11.5px] text-ink-500">Empty folder. Drop files here.</p>}
+          {!entries.length && <p className="px-4 py-2 text-[11.5px] text-ink-500">{writable ? "Empty folder. Drop files here." : "Empty folder."}</p>}
           <div className="flex items-center justify-between px-3 pt-1.5 text-[10.5px] text-ink-600">
-            <span>{upload ?? error ?? "Enter to rename · drag onto a folder"}</span>
-            {selected && (
+            <span>{upload ?? error ?? (writable ? "Enter to rename · drag onto a folder" : "")}</span>
+            {selected && writable && (
               <button
                 onClick={() => {
                   if (confirm(`Delete ${selected.split("/").pop()}?`)) {
@@ -419,7 +426,7 @@ export function FileTree({ projectId, state, focused, onOpenPage, onOpenFile, ac
     <aside
       className="flex min-h-0 flex-1 flex-col border-r border-[var(--line)] bg-[var(--panel)]"
       onDragOver={(e) => {
-        if (e.dataTransfer.types.includes("Files")) {
+        if (writable && e.dataTransfer.types.includes("Files")) {
           e.preventDefault();
           setDropping(true);
         }

@@ -25,7 +25,8 @@ import type { NavEdge, ScreenState } from "@/lib/shared";
 import { edgeSides, layoutScreens, NODE_H, NODE_W, PHONE_H, PHONE_W } from "@/lib/web/layout";
 import { CupertinoSpinner, deviceById, DeviceMockup, PhoneFrame, StatusPill } from "./ui";
 import { SkinFrame } from "./SkinFrame";
-import { CommentNode, GroupNode, NewPageNode, TextNode, ToolBar, useBoard, type CanvasGroup, type CommentData, type GroupData, type NewPageData, type TextData, type Tool } from "./CanvasTools";
+import { can, useAccess } from "@/lib/web/access";
+import { allowedTools, CommentNode, GroupNode, NewPageNode, TextNode, ToolBar, useBoard, type CanvasGroup, type CommentData, type GroupData, type NewPageData, type TextData, type Tool } from "./CanvasTools";
 import type { DeviceSkin } from "@/lib/web/device-skin";
 
 export type PhoneData = { screen: ScreenState; hidden: boolean; scanning: boolean; ipad: boolean; native: boolean; dark: boolean; device?: string; skin?: DeviceSkin | null; onOpen: (route: string) => void };
@@ -170,6 +171,16 @@ function Flow(p: Props) {
   toolRef.current = tool;
   const open = useCallback((r: string) => toolRef.current === "move" && Date.now() - lastDrag.current > 250 && p.onOpen(r), [p]);
   const board = useBoard(p.projectId);
+  const access = useAccess();
+  // Texts, groups, page links and new pages are the editors'; comments are each author's own.
+  const canvasOk = can(access, "canvas");
+  const tools = useMemo(() => allowedTools(access.role), [access.role]);
+  const me = board.me || access.me;
+  const people = { ...access.people, ...board.people };
+  const commentRights = (by?: string) => {
+    const mine = (by ?? "owner") === me;
+    return { mine, canModify: mine || access.role === "owner" };
+  };
   const [editing, setEditing] = useState<string | null>(null);
   const [openComment, setOpenComment] = useState<string | null>(null);
   const [newPage, setNewPage] = useState<Pos | null>(null);
@@ -219,11 +230,13 @@ function Flow(p: Props) {
     height: g.h,
     measured: { width: g.w, height: g.h },
     zIndex: g.kind === "section" ? -2 : -1,
+    draggable: canvasOk,
     selected: selected.has(`area:${g.id}`),
     data: {
       group: g,
+      canEdit: canvasOk,
       editing: editingGroup === g.id,
-      onEdit: () => setEditingGroup(g.id),
+      onEdit: () => canvasOk && setEditingGroup(g.id),
       onRename: (name) => {
         setEditingGroup(null);
         if (name !== g.name) board.setGroup(g.id, { name });
@@ -254,13 +267,14 @@ function Flow(p: Props) {
         position: { x: t.x, y: t.y },
         measured: sizes.current.get(`text:${t.id}`),
         zIndex: 5,
+        draggable: canvasOk,
         selected: selected.has(`text:${t.id}`),
         data: {
           text: t.text,
-          editing: editing === t.id,
-          canEdit: true,
+          editing: editing === t.id && canvasOk,
+          canEdit: canvasOk,
           onChange: (v) => board.setText(t.id, v),
-          onEdit: () => setEditing(t.id),
+          onEdit: () => canvasOk && setEditing(t.id),
           onDone: () => {
             setEditing(null);
             if (!t.text.trim()) board.remove(t.id);
@@ -269,39 +283,52 @@ function Flow(p: Props) {
         },
       }),
     ),
-    ...board.board.comments.map(
-      (c, i): Node<CommentData> => ({
+    ...board.board.comments.map((c, i): Node<CommentData> => {
+      const key = c.by ?? "owner";
+      const { mine, canModify } = commentRights(c.by);
+      const author = people[key];
+      // Your own comment if your role runs the agent; the owner may also send anyone's, as themselves.
+      const canSend = (mine && can(access, "agent")) || access.role === "owner";
+      return {
         id: `comment:${c.id}`,
         type: "comment",
         position: { x: c.x, y: c.y },
         measured: sizes.current.get(`comment:${c.id}`),
         zIndex: openComment === c.id ? 30 : 10,
+        draggable: canModify || access.role === "edit",
         data: {
           comment: c,
           index: i + 1,
           pageTitle: title(c.route),
           open: openComment === c.id,
-          canSend: p.status !== "running",
+          canSend,
+          busy: p.status === "running",
+          canModify,
+          author,
+          authorKey: key,
+          mine,
           onOpen: () => setOpenComment(c.id),
           onClose: (text) => {
             setOpenComment(null);
+            if (!canModify) return;
             if (!text) board.remove(c.id);
             else if (text !== c.text) board.setComment(c.id, { text });
           },
-          onChange: (v) => board.setComment(c.id, { text: v }),
+          onChange: (v) => canModify && board.setComment(c.id, { text: v }),
           onSend: (text) => {
             if (!c.route || !text) return;
+            if (!mine && !confirm(`Send ${author?.name ?? "this person"}'s comment to the agent as you?`)) return;
             p.onAsk(text, c.route);
             board.setComment(c.id, { text, sent: true });
             setOpenComment(null);
           },
           onRemove: () => {
             setOpenComment(null);
-            board.remove(c.id);
+            if (canModify) board.remove(c.id);
           },
         },
-      }),
-    ),
+      };
+    }),
     ...(newPage
       ? [
           {
@@ -344,7 +371,8 @@ function Flow(p: Props) {
       const own = /^(area|text|comment):/.test(c.id) ? c.id.slice(c.id.indexOf(":") + 1) : null;
       // Delete or Backspace on a selected group, text or comment (pages stay: they're the app's).
       if (c.type === "remove") {
-        if (own) board.remove(own);
+        const comment = c.id.startsWith("comment:") ? board.board.comments.find((x) => x.id === own) : null;
+        if (own && (comment ? commentRights(comment.by).canModify : canvasOk)) board.remove(own);
         continue;
       }
       if (c.type === "dimensions" && c.dimensions) {
@@ -444,13 +472,14 @@ function Flow(p: Props) {
   const closeComment = () => {
     const c = board.board.comments.find((x) => x.id === openComment);
     const typed = document.querySelector<HTMLTextAreaElement>(`[data-id="comment:${openComment}"] textarea`)?.value.trim();
-    if (c && !c.text.trim() && !typed) board.remove(c.id);
+    if (c && !c.text.trim() && !typed && commentRights(c.by).canModify) board.remove(c.id);
     setOpenComment(null);
   };
 
   // A click with a tool that places something: at that point of the canvas, then back to Move (as in Figma).
   const place = (e: React.MouseEvent, route?: string) => {
     const at = flow.screenToFlowPosition({ x: e.clientX, y: e.clientY });
+    if (!tools.has(tool)) return setTool("move");
     if (tool === "text") setEditing(board.addText(at.x, at.y - 12));
     else if (tool === "comment") setOpenComment(board.addComment(at.x, at.y - 32, route));
     else if (tool === "page" && !route) {
@@ -485,7 +514,7 @@ function Flow(p: Props) {
     <ReactFlow
       className={clsx(p.dimmed && "canvas-focused", `canvas-tool-${tool}`)}
       elevateNodesOnSelect={false}
-      deleteKeyCode={["Backspace", "Delete"]}
+      deleteKeyCode={canvasOk ? ["Backspace", "Delete"] : null}
       onPaneClick={(e) => {
         if (tool === "move" || tool === "hand") return closeComment();
         place(e);
@@ -499,12 +528,12 @@ function Flow(p: Props) {
       fitView
       fitViewOptions={FIT}
       onNodesChange={onNodesChange}
-      nodesConnectable={p.canLink && !p.dimmed}
+      nodesConnectable={p.canLink && canvasOk && !p.dimmed}
       connectionMode={ConnectionMode.Loose}
       connectionRadius={90}
       connectionLineStyle={{ stroke: "var(--color-spark-500)", strokeDasharray: "6 4", strokeWidth: 1.5 }}
-      onConnect={(c) => c.source && c.target && c.source !== c.target && p.onLink(c.source, c.target)}
-      onEdgeClick={(_, e) => p.canLink && p.onUnlink(e.source, e.target)}
+      onConnect={(c) => canvasOk && c.source && c.target && c.source !== c.target && p.onLink(c.source, c.target)}
+      onEdgeClick={(_, e) => p.canLink && canvasOk && p.onUnlink(e.source, e.target)}
       minZoom={0.15}
       maxZoom={1.6}
       panOnScroll
@@ -512,7 +541,7 @@ function Flow(p: Props) {
       proOptions={{ hideAttribution: true }}>
       <Background variant={BackgroundVariant.Dots} gap={22} size={1.8} color="var(--canvas-dot)" />
       {!p.dimmed && <Controls position="bottom-left" showInteractive={false} />}
-      {!p.dimmed && drawing && (
+      {!p.dimmed && drawing && canvasOk && (
         <div
           className="absolute inset-0 z-[6] cursor-crosshair"
           onPointerDown={(e) => {
@@ -530,7 +559,7 @@ function Flow(p: Props) {
           )}
         </div>
       )}
-      {!p.dimmed && <ToolBar tool={tool} onTool={setTool} />}
+      {!p.dimmed && <ToolBar tool={tool} onTool={setTool} allowed={tools} />}
     </ReactFlow>
   );
 }

@@ -22,5 +22,29 @@ service cloud.firestore {
         && request.resource.data.repoPrivate is bool
         && request.resource.data.orientation in ['portrait', 'landscape', 'default'];
     }
+    // Sharing (lib/share/firebase.ts): each sparkflow server, an anonymous account, publishes its
+    // tunnel link; guests leave single-use identity proofs only that server reads, so their uid and
+    // GitHub id come from signed token claims and their ID token never leaves the browser.
+    match /servers/{serverUid} {
+      allow get: if request.auth != null;
+      allow create, update: if request.auth != null && request.auth.uid == serverUid
+        && request.auth.token.firebase.sign_in_provider == 'anonymous'
+        && request.resource.data.keys().hasOnly(['url','seenAt','version'])
+        && (request.resource.data.url == null || (request.resource.data.url is string && request.resource.data.url.matches('https://[a-z0-9-]{1,80}[.]trycloudflare[.]com')))
+        && request.resource.data.version is string && request.resource.data.version.size() <= 20
+        && request.resource.data.seenAt == request.time;
+      allow delete: if request.auth != null && request.auth.uid == serverUid;
+      match /proofs/{proofId} {
+        allow create: if request.auth != null
+          && request.auth.token.firebase.sign_in_provider in ['github.com','google.com']
+          && proofId.matches('[A-Za-z0-9_-]{22,64}')
+          && request.resource.data.keys().hasOnly(['uid','gh','email','at'])
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.gh == request.auth.token.firebase.identities.get('github.com', [''])[0]
+          && request.resource.data.email == request.auth.token.get('email', '')
+          && request.resource.data.at == request.time;
+        allow get, delete: if request.auth != null && request.auth.uid == serverUid;
+      }
+    }
   }
 }
