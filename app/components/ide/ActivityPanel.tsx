@@ -37,7 +37,7 @@ type Props = {
 };
 
 export type FlowAction =
-  | { type: "add"; name: string; description: string; from?: string; image?: MediaInput }
+  | { type: "add"; name: string; description: string; from?: string; attachments?: MediaInput[] }
   | { type: "link"; from: string; to: string; label?: string }
   | { type: "unlink"; from: string; to: string }
   | { type: "delete"; route: string };

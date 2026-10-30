@@ -7,7 +7,8 @@ import { MaterialIcon } from "./FileTree";
 import { useEffect, useRef, useState } from "react";
 import type { MediaInput, Phase, ProjectState } from "@/lib/shared";
 import { can, useAccess } from "@/lib/web/access";
-import { blobToWav, droppedImage, IMAGE_ACCEPT, imageProblem, imageToInput, startRecording } from "@/lib/web/media";
+import { ATTACH_ACCEPT, blobToWav, startRecording } from "@/lib/web/media";
+import { AttachedFiles, dropBorder, useAttachments } from "./ImageAttach";
 
 export type Selection = {
   key: string;
@@ -78,21 +79,19 @@ type Props = {
   onInspect: (on: boolean) => void;
   onRemoveSelection: (key: string) => void;
   onAllPages: () => void;
-  onSend: (text: string, image?: MediaInput, audio?: MediaInput) => Promise<boolean>;
+  onSend: (text: string, image?: MediaInput, audio?: MediaInput, attachments?: MediaInput[]) => Promise<boolean>;
   onStop: () => void;
 };
 
 /** Floating bar at the bottom: pipeline, scope chips, text + image + voice, inspect toggle, send/stop. */
 export function PromptBar(p: Props) {
   const [text, setText] = useState("");
-  const [image, setImage] = useState<{ input: MediaInput; url: string } | null>(null);
   const [audio, setAudio] = useState<{ input: MediaInput; seconds: number } | null>(null);
   const [rec, setRec] = useState<{ stop: () => Promise<Blob>; started: number } | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const [sending, setSending] = useState(false);
-  // A picture dragged over the bar, and why one was refused (format, size).
-  const [dragging, setDragging] = useState(false);
-  const [imageError, setImageError] = useState<string | null>(null);
+  // Files dropped, picked or pasted on the bar: sketches, screenshots, a PDF or Markdown spec.
+  const files = useAttachments(p.state.status === "running");
   const area = useRef<HTMLTextAreaElement>(null);
   const file = useRef<HTMLInputElement>(null);
   const running = p.state.status === "running";
@@ -111,26 +110,14 @@ export function PromptBar(p: Props) {
     return () => clearInterval(t);
   }, [rec]);
 
-  const attach = async (f?: File | null) => {
-    if (!f) return;
-    const problem = imageProblem(f);
-    setImageError(problem);
-    if (problem) return;
-    try {
-      setImage({ input: await imageToInput(f), url: URL.createObjectURL(f) });
-    } catch {
-      setImageError("That image could not be read.");
-    }
-  };
-
   const send = async () => {
-    if (running || sending || (!text.trim() && !audio)) return;
+    if (running || sending || (!text.trim() && !audio && !files.files.length)) return;
     setSending(true);
-    const ok = await p.onSend(text, image?.input, audio?.input);
+    const ok = await p.onSend(text, undefined, audio?.input, files.inputs());
     setSending(false);
     if (ok) {
       setText("");
-      setImage(null);
+      files.clear();
       setAudio(null);
     }
   };
@@ -166,20 +153,9 @@ export function PromptBar(p: Props) {
     <div
       data-prompt-bar
       className="pointer-events-auto absolute bottom-4 left-1/2 z-40 w-[min(760px,calc(100%-32px))] -translate-x-1/2"
-      // A sketch or screenshot dropped anywhere on the bar is attached to the prompt.
-      onDragOver={(e) => {
-        if (running || !e.dataTransfer.types.includes("Files")) return;
-        e.preventDefault();
-        setDragging(true);
-      }}
-      onDragLeave={(e) => !e.currentTarget.contains(e.relatedTarget as Node) && setDragging(false)}
-      onDrop={(e) => {
-        if (!e.dataTransfer.files.length) return;
-        e.preventDefault();
-        setDragging(false);
-        if (!running) void attach(droppedImage(e.dataTransfer.files));
-      }}>
-      <div className={clsx("rounded-2xl border bg-[var(--panel)]/95 p-2.5 shadow-[0_20px_60px_-20px_rgba(0,0,0,.6)] backdrop-blur-xl transition-colors", running ? "agent-glow border-transparent" : dragging ? "border-spark-500" : "border-[var(--line)]")}>
+      // Files dropped anywhere on the bar are attached to the prompt.
+      {...files.zone}>
+      <div className={clsx("rounded-2xl border bg-[var(--panel)]/95 p-2.5 shadow-[0_20px_60px_-20px_rgba(0,0,0,.6)] backdrop-blur-xl transition-colors", running ? "agent-glow border-transparent" : dropBorder(files.dragging))}>
         <div className="mb-2 flex items-center justify-between gap-3 px-1">
           <PhasePipeline state={p.state} onRetry={() => void p.onSend("Retry")} />
           {p.focusedTitle && (
@@ -188,8 +164,9 @@ export function PromptBar(p: Props) {
             </button>
           )}
         </div>
-        {dragging && <p className="mb-2 px-1 text-[11.5px] text-spark-300">Drop the image to attach it (PNG, JPEG, WebP or GIF, 10 MB at most)</p>}
-        {imageError && !dragging && <p className="mb-2 px-1 text-[11.5px] text-red-400">{imageError}</p>}
+        <div className="mb-2 flex flex-col gap-1.5 px-1 empty:hidden">
+          <AttachedFiles a={files} hint={false} />
+        </div>
         <div className="mb-2 flex flex-wrap items-center gap-1.5 px-1">
           <span className="rounded-md bg-ink-800 px-2 py-0.5 text-[11px] text-ink-300">{p.focusedTitle ? `Page · ${p.focusedTitle}` : "Whole app"}</span>
           {p.selections.map((s) => (
@@ -206,15 +183,6 @@ export function PromptBar(p: Props) {
             </span>
           ))}
           {p.inspect && <span className="text-[11px] text-spark-400">Click elements to add them · click again to remove · Esc when done</span>}
-          {image && (
-            <span className="flex items-center gap-1 rounded-md border border-[var(--line)] p-0.5 pr-1.5 text-[11px] text-ink-300">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={image.url} alt="" className="size-6 rounded object-cover" /> image
-              <button aria-label="Remove image" onClick={() => setImage(null)} className="cursor-pointer text-ink-400 hover:text-ink-100">
-                <X size={11} />
-              </button>
-            </span>
-          )}
           {audio && (
             <span className="flex items-center gap-1 rounded-md border border-[var(--line)] px-1.5 py-0.5 text-[11px] text-ink-300">
               <Mic size={11} /> Voice memo · {audio.seconds}s
@@ -239,17 +207,21 @@ export function PromptBar(p: Props) {
                 void send();
               }
             }}
-            onPaste={(e) => {
-              const img = [...e.clipboardData.files].find((f) => f.type.startsWith("image/"));
-              if (img) {
-                e.preventDefault();
-                void attach(img);
-              }
-            }}
+            onPaste={files.paste}
             className="max-h-[140px] min-h-[36px] flex-1 resize-none bg-transparent px-2 py-2 text-[14px] text-ink-100 outline-none placeholder:text-ink-500 disabled:opacity-60"
           />
-          <input ref={file} type="file" accept={IMAGE_ACCEPT} hidden onChange={(e) => void attach(e.target.files?.[0])} />
-          <IconBtn label="Attach an image" onClick={() => file.current?.click()} disabled={running}>
+          <input
+            ref={file}
+            type="file"
+            accept={ATTACH_ACCEPT}
+            multiple
+            hidden
+            onChange={(e) => {
+              void files.add(e.target.files);
+              e.target.value = "";
+            }}
+          />
+          <IconBtn label="Attach images, a PDF or Markdown" onClick={() => file.current?.click()} disabled={running}>
             <ImagePlus size={16} />
           </IconBtn>
           <IconBtn
@@ -283,7 +255,7 @@ export function PromptBar(p: Props) {
           ) : (
             <button
               onClick={() => void send()}
-              disabled={sending || (!text.trim() && !audio)}
+              disabled={sending || (!text.trim() && !audio && !files.files.length)}
               aria-label="Send"
               className="grid size-9 cursor-pointer place-items-center rounded-xl bg-spark-500 text-white disabled:cursor-default disabled:bg-ink-800 disabled:text-ink-500">
               {sending ? <Loader2 size={15} className="animate-spin" /> : <ArrowUp size={16} />}

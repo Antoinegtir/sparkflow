@@ -5,7 +5,8 @@ import { ArrowUp, ArrowUpRight, ImagePlus, Loader2, Mic, Square, X } from "lucid
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import type { MediaInput } from "@/lib/shared";
-import { blobToWav, droppedImage, IMAGE_ACCEPT, imageProblem, imageToInput, startRecording } from "@/lib/web/media";
+import { ATTACH_ACCEPT, blobToWav, startRecording } from "@/lib/web/media";
+import { AttachedFiles, dropBorder, useAttachments } from "./ide/ImageAttach";
 import { requireSignIn } from "@/lib/web/auth";
 import { apiFetch, getBackend, openOnBackend, STATIC_SITE } from "@/lib/web/backend";
 import { useIsPhone } from "@/lib/web/phone";
@@ -25,18 +26,18 @@ const EXAMPLES = [
 export function Composer() {
   const router = useRouter();
   const [value, setValue] = useState("");
-  const [image, setImage] = useState<{ input: MediaInput; url: string } | null>(null);
+  // Sketches, screenshots, a PDF or Markdown spec: dropped, picked or pasted.
+  const files = useAttachments();
   const [audio, setAudio] = useState<{ input: MediaInput; seconds: number } | null>(null);
   const [recording, setRecording] = useState<{ stop: () => Promise<Blob>; started: number } | null>(null);
   const [elapsed, setElapsed] = useState(0);
-  const [dragging, setDragging] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const input = useRef<HTMLTextAreaElement>(null);
   const file = useRef<HTMLInputElement>(null);
   // On a phone nothing gets built (it needs a computer): the prompt stays to try, the note says where.
   const phone = useIsPhone();
-  const ready = !phone && (value.trim().length > 0 || !!image || !!audio) && !busy && !recording;
+  const ready = !phone && (value.trim().length > 0 || files.files.length > 0 || !!audio) && !busy && !recording;
 
   // A prompt kept while the hosted site walked you through connecting your computer.
   useEffect(() => {
@@ -53,28 +54,16 @@ export function Composer() {
   useEffect(() => {
     const draft = value.trim();
     patchPresence({
-      composer: recording ? "recording" : image ? "sketch" : draft ? "writing" : undefined,
+      composer: recording ? "recording" : files.files.length ? "sketch" : draft ? "writing" : undefined,
       draft: draft ? draft.replace(/\s+/g, " ").slice(0, 80) : undefined,
     });
-  }, [value, image, recording]);
+  }, [value, files.files.length, recording]);
 
   useEffect(() => {
     if (!recording) return;
     const t = setInterval(() => setElapsed(Math.round((Date.now() - recording.started) / 1000)), 250);
     return () => clearInterval(t);
   }, [recording]);
-
-  async function attach(f: File | Blob | null | undefined) {
-    if (!f) return;
-    const problem = imageProblem(f);
-    setError(problem);
-    if (problem) return;
-    try {
-      setImage({ input: await imageToInput(f), url: URL.createObjectURL(f) });
-    } catch {
-      setError("That image could not be read.");
-    }
-  }
 
   async function toggleVoice() {
     setError(null);
@@ -111,7 +100,7 @@ export function Composer() {
       const res = await apiFetch("/api/projects", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ prompt: value, ...(image ? { image: image.input } : {}), ...(audio ? { audio: audio.input } : {}) }),
+        body: JSON.stringify({ prompt: value, ...(files.files.length ? { attachments: files.inputs() } : {}), ...(audio ? { audio: audio.input } : {}) }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Could not start the build.");
@@ -134,19 +123,10 @@ export function Composer() {
   return (
     <div className="text-left">
       <div
-        onDragOver={(e) => {
-          e.preventDefault();
-          setDragging(true);
-        }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={(e) => {
-          e.preventDefault();
-          setDragging(false);
-          void attach(droppedImage(e.dataTransfer.files));
-        }}
+        {...files.zone}
         className={clsx(
           "rounded-3xl border bg-ink-900/80 p-4 pl-5 shadow-[0_30px_80px_-24px_var(--landing-glow)] backdrop-blur focus-within:border-[#3a4352]",
-          dragging ? "border-spark-500" : "border-[#2a3240]",
+          dropBorder(files.dragging, "border-[#2a3240]"),
         )}>
         <textarea
           id="composer"
@@ -159,29 +139,16 @@ export function Composer() {
               void submit();
             }
           }}
-          onPaste={(e) => {
-            const img = [...e.clipboardData.files].find((f) => f.type.startsWith("image/"));
-            if (img) {
-              e.preventDefault();
-              void attach(img);
-            }
-          }}
+          onPaste={files.paste}
           rows={3}
           placeholder="Describe the mobile app you want, drop a sketch or record a voice memo..."
           className="w-full resize-none bg-transparent text-[15px] leading-relaxed text-ink-100 outline-none placeholder:text-ink-500"
         />
-        {(image || audio) && (
+        <div className="mb-1 flex flex-col gap-1.5 empty:hidden">
+          <AttachedFiles a={files} hint={false} />
+        </div>
+        {audio && (
           <div className="mb-1 flex flex-wrap gap-2">
-            {image && (
-              <span className="relative flex items-center gap-2 rounded-xl border border-ink-700 bg-ink-800/80 py-1 pl-1 pr-2 text-xs text-ink-300">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={image.url} alt="" className="h-9 w-9 rounded-lg object-cover" />
-                sketch
-                <button onClick={() => setImage(null)} aria-label="Remove the sketch" className="cursor-pointer text-ink-500 hover:text-ink-100">
-                  <X size={13} />
-                </button>
-              </span>
-            )}
             {audio && (
               <span className="flex items-center gap-2 rounded-xl border border-ink-700 bg-ink-800/80 px-2 py-1 text-xs text-ink-300">
                 <Mic size={13} className="text-spark-400" /> Voice memo · {audio.seconds}s
@@ -194,7 +161,17 @@ export function Composer() {
         )}
         <div className="mt-2 flex items-center justify-between">
           <div className="flex gap-4 text-sm text-ink-300">
-            <input ref={file} type="file" accept={IMAGE_ACCEPT} hidden onChange={(e) => void attach(e.target.files?.[0])} />
+            <input
+              ref={file}
+              type="file"
+              accept={ATTACH_ACCEPT}
+              multiple
+              hidden
+              onChange={(e) => {
+                void files.add(e.target.files);
+                e.target.value = "";
+              }}
+            />
             <button onClick={() => file.current?.click()} className="flex cursor-pointer items-center gap-1.5 hover:text-ink-100">
               <ImagePlus size={17} /> Sketch
             </button>

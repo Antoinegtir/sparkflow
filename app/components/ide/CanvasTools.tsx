@@ -1,7 +1,7 @@
 "use client";
 
 import type { MediaInput } from "@/lib/shared";
-import { AttachedImage, useImageAttach } from "./ImageAttach";
+import { AttachedFiles, dropBorder, useAttachments } from "./ImageAttach";
 import { NodeResizer, useStore, type Node, type NodeProps } from "@xyflow/react";
 import clsx from "clsx";
 import { Check, ChevronDown, Frame, Hand, MessageCircle, MousePointer2, PanelTop, Pencil, Send, Smartphone, Trash2, Type, X } from "lucide-react";
@@ -557,7 +557,7 @@ export type NewPageData = {
   pages: { route: string; title: string }[];
   from?: string;
   running: boolean;
-  onSubmit: (a: { name: string; description: string; from?: string; image?: MediaInput }) => void;
+  onSubmit: (a: { name: string; description: string; from?: string; attachments?: MediaInput[] }) => void;
   onCancel: () => void;
 };
 
@@ -566,7 +566,7 @@ export const NewPageNode = memo(function NewPageNode({ data }: NodeProps<Node<Ne
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
   const [from, setFrom] = useState(data.from ?? "");
-  const sketch = useImageAttach();
+  const sketch = useAttachments();
   const input = "w-full rounded-md border border-[var(--line)] bg-[var(--panel-2)] px-2 py-1.5 text-[12px] text-ink-100 outline-none focus:border-spark-500";
   const ref = useFocusWhen(true);
   const unzoom = useUnzoom();
@@ -581,15 +581,15 @@ export const NewPageNode = memo(function NewPageNode({ data }: NodeProps<Node<Ne
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            if (name.trim()) data.onSubmit({ name: name.trim(), description: desc.trim(), from: from || undefined, ...(sketch.image ? { image: sketch.image.input } : {}) });
+            if (name.trim()) data.onSubmit({ name: name.trim(), description: desc.trim(), from: from || undefined, ...(sketch.files.length ? { attachments: sketch.inputs() } : {}) });
           }}
           {...sketch.zone}
           onKeyDown={(e) => e.key === "Escape" && data.onCancel()}
-          className={clsx("nodrag nowheel nopan flex w-64 flex-col gap-2 rounded-xl border bg-[var(--panel)] p-3 shadow-2xl", sketch.dragging ? "border-spark-500" : "border-[var(--line)]")}>
+          className={clsx("nodrag nowheel nopan flex w-64 flex-col gap-2 rounded-xl border bg-[var(--panel)] p-3 shadow-2xl", dropBorder(sketch.dragging))}>
           <p className="text-[12px] font-medium text-ink-200">New page</p>
           <input ref={ref} value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" className={input} />
           <textarea value={desc} onChange={(e) => setDesc(e.target.value)} onPaste={sketch.paste} placeholder="What it shows" rows={3} className={clsx(input, "resize-none")} />
-          <AttachedImage a={sketch} />
+          <AttachedFiles a={sketch} />
           <select value={from} onChange={(e) => setFrom(e.target.value)} className={clsx(input, "cursor-pointer")} aria-label="Opened from">
             <option value="">Opened from nowhere</option>
             {data.pages.map((p) => (

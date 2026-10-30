@@ -4,6 +4,7 @@ import { lstat, readdir, readFile, readlink, symlink, unlink } from "node:fs/pro
 import os from "node:os";
 import path from "node:path";
 import { isCode, rewriteImports } from "./rename";
+import { prepareAttachments } from "./attachments";
 import { scheduleSnapshot } from "../share/cloud";
 import sharp from "sharp";
 import {
@@ -240,6 +241,12 @@ export class Orchestrator {
   // ---------- projects ----------
 
   async createProject(req: CreateProjectRequest): Promise<ProjectMeta> {
+    // Files dropped on the landing prompt: the first picture is the sketch the Planner looks at, text joins the prompt.
+    if (req.attachments?.length) {
+      const att = await prepareAttachments(req.attachments);
+      const first = att.images[0];
+      req = { ...req, prompt: [req.prompt, att.text].filter(Boolean).join("\n\n"), ...(!req.image && first ? { image: { mediaType: first.mediaType, data: first.data } } : {}) };
+    }
     const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
     const meta: ProjectMeta = {
       id,
@@ -725,6 +732,10 @@ export class Orchestrator {
     }
     const images: { mediaType: string; data: string; caption: string }[] = [];
     if (req.image) images.push({ mediaType: req.image.mediaType, data: req.image.data, caption: "Image attached by the user:" });
+    // Files dropped on the prompt: their pictures for the model to look at, their text to read.
+    const attached = await prepareAttachments(req.attachments);
+    images.push(...attached.images);
+    const text = [req.text, attached.text].filter(Boolean).join("\n\n");
     const cur = focused && rt.state.screens[focused.route];
     if (cur?.screenshotUrl) {
       const png = await this.store.readShot(rt.meta.id, path.basename(cur.screenshotUrl)).catch(() => null);
@@ -748,7 +759,7 @@ export class Orchestrator {
     const existedBefore = await this.existing(sb, pageFiles);
     const summary = await runBuilderTask(this.deps(rt), ctx, {
       system,
-      task: userPromptTask({ text: req.text, voice: !!req.audio, plan, focused, picks, files }),
+      task: userPromptTask({ text, voice: !!req.audio, plan, focused, picks, files }),
       images,
       audio: req.audio,
       maxTurns: this.cfg.maxBuilderTurns,
@@ -1500,6 +1511,10 @@ export class Orchestrator {
     }
     const images: { mediaType: string; data: string; caption: string }[] = [];
     if (req.image) images.push({ mediaType: req.image.mediaType, data: req.image.data, caption: "Image attached by the user:" });
+    // Files dropped on the prompt: their pictures for the model to look at, their text to read.
+    const attached = await prepareAttachments(req.attachments);
+    images.push(...attached.images);
+    const text = [req.text, attached.text].filter(Boolean).join("\n\n");
     if (shot) images.push({ mediaType: "image/png", data: shot.toString("base64"), caption: `Current screenshot of ${focused?.title ?? "the app"}:` });
     images.push(...crops);
 
@@ -1516,7 +1531,7 @@ export class Orchestrator {
     const existedBefore = await this.existing(sb, pageFiles);
     const summary = await runBuilderTask(this.deps(rt), ctx, {
       system: nativeBuilderSystem(notes, plan, dependencies(pkg)),
-      task: nativePromptTask({ text: req.text, voice: !!req.audio, page: focused?.title, picks, crops: crops.length, files }),
+      task: nativePromptTask({ text, voice: !!req.audio, page: focused?.title, picks, crops: crops.length, files }),
       images,
       audio: req.audio,
       maxTurns: this.cfg.maxBuilderTurns,

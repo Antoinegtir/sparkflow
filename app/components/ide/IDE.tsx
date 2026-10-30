@@ -306,7 +306,7 @@ export function IDE({ id, slug: initialSlug, initialPage, access: given, basePat
   }, [state?.status]);
 
   const send = useCallback(
-    async (text: string, image?: MediaInput, audio?: MediaInput, routeOverride?: string | null, plain = false) => {
+    async (text: string, image?: MediaInput, audio?: MediaInput, routeOverride?: string | null, plain = false, attachments?: MediaInput[]) => {
       askToNotify();
       const route = routeOverride !== undefined ? (routeOverride ?? undefined) : (focused ?? undefined);
       // `plain`: a request that isn't about what is selected (queued ones, canvas actions) leaves the selection alone.
@@ -320,6 +320,7 @@ export function IDE({ id, slug: initialSlug, initialPage, access: given, basePat
         ...(needsPicks ? { picks: picked.map((s) => ({ testId: s.testId, ...(s.area ? { area: s.area } : {}), ...(s.file ? { file: s.file, line: s.line } : {}) })) } : {}),
         ...(image ? { image } : {}),
         ...(audio ? { audio } : {}),
+        ...(attachments?.length ? { attachments } : {}),
       };
       let ok: unknown;
       if (plain) {
@@ -343,7 +344,7 @@ export function IDE({ id, slug: initialSlug, initialPage, access: given, basePat
   );
   // Requests made while the agent works (assets to integrate, new pages, comments): run in order, one at
   // a time, as it frees up. Each resolves once sent (true) or refused (false).
-  type Queued = { text: string; route: string | null; image?: MediaInput; done: (ok: boolean) => void; tries: number };
+  type Queued = { text: string; route: string | null; attachments?: MediaInput[]; done: (ok: boolean) => void; tries: number };
   const [queue, setQueue] = useState<Queued[]>([]);
   const busy = state?.status === "running";
   // A queued request just sent: the next one waits until the agent is seen working, then free again.
@@ -352,10 +353,10 @@ export function IDE({ id, slug: initialSlug, initialPage, access: given, basePat
   const [kick, setKick] = useState(0);
   // Bumped by Stop: a request in flight when it was pressed isn't retried.
   const stopGen = useRef(0);
-  const enqueue = (text: string, route: string | null = null, image?: MediaInput) =>
+  const enqueue = (text: string, route: string | null = null, attachments?: MediaInput[]) =>
     new Promise<boolean>((done) => {
       // Always through the queue (sent right away when the agent is free), so two quick requests never race.
-      setQueue((q) => [...q, { text, route, ...(image ? { image } : {}), done, tries: 0 }]);
+      setQueue((q) => [...q, { text, route, ...(attachments?.length ? { attachments } : {}), done, tries: 0 }]);
       if (busy || queue.length || inFlight.current) api.setToast(`Queued for Muse · ${queue.length + 1} waiting`);
     });
   useEffect(() => {
@@ -372,7 +373,7 @@ export function IDE({ id, slug: initialSlug, initialPage, access: given, basePat
     const mine = Date.now();
     const gen = stopGen.current;
     inFlight.current = mine;
-    void send(next.text, next.image, undefined, next.route, true).then((ok) => {
+    void send(next.text, undefined, undefined, next.route, true, next.attachments).then((ok) => {
       if (ok === "busy" && gen === stopGen.current) {
         if (next.tries < 20) {
           // Another run (just started, or the last one still saving its work): back to the front, tried
@@ -415,7 +416,7 @@ export function IDE({ id, slug: initialSlug, initialPage, access: given, basePat
     if (!state || !can(access, "agent")) return Promise.resolve(false);
     const { text, route } = flowPrompt(a, (r) => state.screens[r]?.title ?? r);
     // A sketch attached to a new page goes with the request.
-    return enqueue(text, route ?? null, a.type === "add" ? a.image : undefined);
+    return enqueue(text, route ?? null, a.type === "add" ? a.attachments : undefined);
   };
 
   // ---- app scheme ----
@@ -759,7 +760,7 @@ export function IDE({ id, slug: initialSlug, initialPage, access: given, basePat
             onInspect={setInspect}
             onRemoveSelection={(k) => setSelections((s) => s.filter((x) => x.key !== k))}
             onAllPages={close}
-            onSend={(t, img, aud) => send(t, img, aud).then((ok) => ok === true)}
+            onSend={(t, img, aud, att) => send(t, img, aud, undefined, false, att).then((ok) => ok === true)}
             onStop={stopAll}
           />
           {api.toast && <div className="animate-fade-in absolute top-4 left-1/2 z-50 -translate-x-1/2 rounded-xl border border-[var(--line)] bg-[var(--panel)] px-4 py-2 text-[12.5px] text-ink-100 shadow-xl">{api.toast}</div>}

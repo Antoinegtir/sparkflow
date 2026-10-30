@@ -4,8 +4,8 @@ export const MediaInputSchema = z.object({ mediaType: z.string(), data: z.string
 export type MediaInput = z.infer<typeof MediaInputSchema>;
 
 export const CreateProjectRequest = z
-  .object({ prompt: z.string().default(""), image: MediaInputSchema.optional(), audio: MediaInputSchema.optional() })
-  .refine((r) => r.prompt.trim() || r.image || r.audio, {
+  .object({ prompt: z.string().default(""), image: MediaInputSchema.optional(), audio: MediaInputSchema.optional(), attachments: z.array(MediaInputSchema).max(8).optional() })
+  .refine((r) => r.prompt.trim() || r.image || r.audio || r.attachments?.length, {
     message: "Describe the app, attach a sketch/screenshot, or record a voice memo.",
   });
 export type CreateProjectRequest = z.infer<typeof CreateProjectRequest>;
@@ -25,8 +25,10 @@ export const PromptRequest = z
     picks: z.array(PickSchema).max(12).optional(),
     image: MediaInputSchema.optional(),
     audio: MediaInputSchema.optional(),
+    /** Files dropped on the prompt: pictures, PDFs, Markdown, HEIC photos (lib/agent/attachments.ts). */
+    attachments: z.array(MediaInputSchema).max(8).optional(),
   })
-  .refine((r) => r.text.trim() || r.audio, { message: "Type a request or record a voice memo." });
+  .refine((r) => r.text.trim() || r.audio || r.attachments?.length, { message: "Type a request or record a voice memo." });
 export type PromptRequest = z.infer<typeof PromptRequest>;
 
 export type ProjectSummary = {
