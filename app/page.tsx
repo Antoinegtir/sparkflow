@@ -62,11 +62,11 @@ export default function Home() {
 
 
       {/* Fills the first screen at any window height (or zoom), so the phone's edge always starts just below the fold. */}
-      <section className="relative mx-auto flex min-h-svh max-w-3xl flex-col items-center justify-center px-6 pb-16 pt-24 text-center">
+      <section className="hero-scale relative mx-auto flex min-h-svh max-w-3xl flex-col items-center justify-center px-6 pb-16 pt-24 text-center">
         <div className="relative">
         {/* Android and Apple glass logos on each side of the headline (wide screens only), anchored to it so they
             stay level with it however tall the window is. */}
-        <div aria-hidden className="pointer-events-none absolute left-1/2 top-0 hidden w-[72rem] max-w-[100vw] -translate-x-1/2 -translate-y-1/3 justify-between px-2 lg:flex">
+        <div aria-hidden className="pointer-events-none absolute inset-x-[calc(50%-min(36rem,50vw))] -top-[4.7rem] hidden justify-between px-2 lg:flex">
           <LoopVideo className="hero-logo h-56 w-56 -rotate-6" src="/videos/android.mp4" />
           {/* Starts half a turn later (#t=): both loops last 15 s, so they never spin in sync. */}
           <LoopVideo className="hero-logo h-56 w-56 rotate-6" src="/videos/apple.mp4#t=7.5" />
