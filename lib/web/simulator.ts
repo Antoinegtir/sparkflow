@@ -29,6 +29,12 @@ export async function bootedDevices(): Promise<Booted[]> {
   return [...(await bootedSimulators()), ...(await android.bootedEmulators()).map((d) => ({ ...d, platform: "android" as const }))];
 }
 
+/** The device the IDE shows (`udid`, when it's booted), else the first booted one (Simulators come first). */
+export async function bootedDevice(udid?: string | null): Promise<Booted | undefined> {
+  const all = await bootedDevices();
+  return (udid ? all.find((d) => d.udid === udid) : undefined) ?? all[0];
+}
+
 async function bootedSimulators(): Promise<Booted[]> {
   if (!isMac()) return [];
   const json = JSON.parse(await simctl("list", "devices", "booted", "-j").catch(() => '{"devices":{}}'));

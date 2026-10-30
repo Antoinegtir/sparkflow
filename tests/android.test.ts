@@ -32,4 +32,10 @@ describe("android emulator", () => {
     const tabs = bottomTabs(parseHierarchy(XML, 2.625), 2400 / 2.625);
     expect(tabs.map((t) => [t.label, t.selected])).toEqual([["Home", true], ["Stats", false]]);
   });
+  it("marks the header's back arrow as a back button, as on iOS", () => {
+    const xml = `<hierarchy><node class="android.widget.Button" bounds="[0,100][120,220]" text="" content-desc="Navigate up" resource-id="" clickable="true" selected="false" /><node class="android.widget.TextView" bounds="[130,100][500,220]" text="Profile" content-desc="" resource-id="" clickable="false" selected="false" /></hierarchy>`;
+    const [back, title] = parseHierarchy(xml, 1);
+    expect(back.traits).toContain("BackButton");
+    expect(title.traits).not.toContain("BackButton");
+  });
 });

@@ -2,7 +2,7 @@ import { captureTabPages } from "@/lib/web/capture";
 import { findSubPages } from "@/lib/web/native-nav";
 import { readTabs } from "@/lib/web/native-tabs";
 import { handle, orchestrator, type RouteCtx } from "@/lib/web/server";
-import { appearance, bootedDevices } from "@/lib/web/simulator";
+import { appearance, bootedDevice } from "@/lib/web/simulator";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +12,8 @@ const g = globalThis as unknown as { __sparkflowCapture?: Promise<string[]> | nu
 export const POST = handle(async (req: Request, { params }: RouteCtx) => {
   const { id } = await params;
   const url = new URL(req.url);
-  const [device] = await bootedDevices();
+  // The device shown in the IDE (?udid=): with a Simulator and an emulator both booted, the right one.
+  const device = await bootedDevice(url.searchParams.get("udid"));
   if (!device) return Response.json({ error: "No simulator is booted" }, { status: 409 });
   if (g.__sparkflowCapture) return Response.json({ pages: await g.__sparkflowCapture });
   const job = (async () => {

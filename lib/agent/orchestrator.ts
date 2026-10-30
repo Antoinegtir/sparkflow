@@ -1416,6 +1416,9 @@ export class Orchestrator {
     const ctx = await this.toolCtx(rt, { unrestricted: true, local: true, nativeApp: true });
     const tools: ToolName[] = ["list_files", "read_file", "write_file", "apply_patch", "delete_file", "typecheck", "skill", "finish"];
     const pkg = await sb.readFile("package.json").catch(() => "");
+    // Page files there before the agent works (a captured page's file can be a label, never a path on disk).
+    const pageFiles = plan.screens.map((sc) => sc.file);
+    const existedBefore = await this.existing(sb, pageFiles);
     const summary = await runBuilderTask(this.deps(rt), ctx, {
       system: nativeBuilderSystem(notes, plan, dependencies(pkg)),
       task: nativePromptTask({ text: req.text, voice: !!req.audio, page: focused?.title, picks, crops: crops.length, files }),
@@ -1425,8 +1428,15 @@ export class Orchestrator {
       tools,
       route: focused?.route,
     });
+    // Pages whose file the agent deleted leave the plan now, not at the next capture.
+    const deleted = await this.deletedFiles(sb, [...existedBefore], existedBefore, "HEAD");
+    const gone = new Set(plan.screens.filter((sc) => deleted.has(sc.file)).map((sc) => sc.route));
+    if (gone.size) {
+      const next = { ...plan, screens: plan.screens.filter((sc) => !gone.has(sc.route)).map((sc) => ({ ...sc, navigatesTo: sc.navigatesTo.filter((r) => !gone.has(r)) })) };
+      rt.emit({ type: "plan", plan: next, removed: [...gone] });
+    }
     // The IDE re-captures the simulator afterwards.
-    if (focused) rt.emit({ type: "screen_status", route: focused.route, status: "done", version: screen?.version ?? 1 });
+    if (focused && !gone.has(focused.route)) rt.emit({ type: "screen_status", route: focused.route, status: "done", version: screen?.version ?? 1 });
     rt.emit({ type: "agent_message", text: summary || "Done.", route: focused?.route });
   }
 }

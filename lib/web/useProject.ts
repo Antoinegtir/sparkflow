@@ -141,11 +141,12 @@ export function useProject(id: string, role: AnyRole = "owner") {
     stop: () => act(() => post(`/api/projects/${id}/stop`)),
     undo: (route: string) => act(() => post(`/api/projects/${id}/undo`, { route })),
     restore: (route: string, version: number) => act(() => post(`/api/projects/${id}/restore`, { route, version })),
-    capture: (opts: { dark?: boolean; refresh?: boolean } = {}) =>
-      act(() => post(`/api/projects/${id}/capture${opts.dark ? "?scheme=dark" : opts.refresh ? "?refresh=1" : ""}`)),
+    capture: (opts: { dark?: boolean; refresh?: boolean; udid?: string } = {}) =>
+      act(() => post(`/api/projects/${id}/capture?${new URLSearchParams({ ...(opts.dark ? { scheme: "dark" } : opts.refresh ? { refresh: "1" } : {}), ...(opts.udid ? { udid: opts.udid } : {}) })}`)),
     captureDark: () => act(() => (state?.native ? post(`/api/projects/${id}/capture?scheme=dark`) : post(`/api/projects/${id}/dark`))),
     captureDevice: (device: string, scheme: "light" | "dark") => act(() => post(`/api/projects/${id}/device-shots`, { device, scheme })),
-    captureSimulator: (scheme: "light" | "dark", refresh = false) => act(() => post(`/api/projects/${id}/sim-capture?scheme=${scheme}${refresh ? "&refresh" : ""}`)),
+    captureSimulator: (scheme: "light" | "dark", refresh = false, udid?: string) =>
+      act(() => post(`/api/projects/${id}/sim-capture?scheme=${scheme}${refresh ? "&refresh" : ""}${udid ? `&udid=${encodeURIComponent(udid)}` : ""}`)),
     rename: (name: string) => act(() => post(`/api/projects/${id}`, { name }, "PATCH")),
     setPreviewDevice: (device: string) => act(() => post(`/api/projects/${id}`, { previewDevice: device }, "PATCH")),
   };

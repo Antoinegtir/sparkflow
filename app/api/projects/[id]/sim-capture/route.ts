@@ -1,7 +1,7 @@
 import { expoGoPath, previewPathFor } from "@/lib/shared";
 import { installDevClient, openInDevClient } from "@/lib/web/dev-client";
 import { handle, orchestrator, type RouteCtx } from "@/lib/web/server";
-import { bootedDevices, frame, setAppearance } from "@/lib/web/simulator";
+import { bootedDevice, frame, setAppearance } from "@/lib/web/simulator";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +19,8 @@ export const POST = handle(async (req: Request, { params }: RouteCtx) => {
   const url = new URL(req.url);
   const refresh = url.searchParams.has("refresh");
   const dark = url.searchParams.get("scheme") === "dark";
-  const [device] = await bootedDevices();
+  // The device shown in the IDE (?udid=): with a Simulator and an emulator both booted, the right one.
+  const device = await bootedDevice(url.searchParams.get("udid"));
   if (!device) return Response.json({ error: "No simulator is booted" }, { status: 409 });
   if (g.__sparkflowSimCapture) return Response.json({ captured: await g.__sparkflowSimCapture });
   const job = (async () => {

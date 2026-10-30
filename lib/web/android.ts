@@ -98,7 +98,11 @@ const px = async (serial: string, ...v: number[]) => {
 /** `input text` takes no spaces and the device shell parses the rest: spaces as %s, the rest escaped. */
 const inputText = (t: string) => t.replace(/[\\'"`$&|;<>()*?~!#[\]{}%]/g, (c) => `\\${c}`).replace(/ /g, "%s");
 
+/** Recent screen trees per device (see readTree); an input on the device makes them stale. */
+const trees = new Map<string, { at: number; p: Promise<AxElement[]> }>();
+
 export async function tap(serial: string, x: number, y: number, duration = 0) {
+  trees.delete(serial);
   const [a, b] = await px(serial, x, y);
   // A long press is a swipe that does not move.
   if (duration >= 0.4) await shell(serial, "input", "swipe", a, b, a, b, String(Math.round(duration * 1000)));
@@ -106,6 +110,7 @@ export async function tap(serial: string, x: number, y: number, duration = 0) {
 }
 
 export async function swipe(serial: string, x: number, y: number, x2: number, y2: number, duration = 0.3) {
+  trees.delete(serial);
   const [a, b, c, d] = await px(serial, x, y, x2, y2);
   await shell(serial, "input", "swipe", a, b, c, d, String(Math.round(duration * 1000)));
 }
@@ -139,6 +144,7 @@ export async function reverseMetros(serial: string) {
 }
 
 export async function openUrl(serial: string, url: string, pkg?: string) {
+  trees.delete(serial);
   await Promise.all([reverse(serial, url), reverseMetros(serial)]);
   await shell(serial, "am", "start", "-a", "android.intent.action.VIEW", "-d", `'${url.replace(/'/g, "")}'`, ...(pkg ? [pkg] : []));
 }
@@ -183,7 +189,13 @@ export function parseHierarchy(xml: string, s: number): AxElement[] {
       ...(label ? { AXLabel: label } : {}),
       ...(attr(tag, "resource-id") ? { AXUniqueId: attr(tag, "resource-id").replace(/^.*:id\//, "") } : {}),
       ...(attr(tag, "text") && attr(tag, "content-desc") ? { AXValue: attr(tag, "text") } : {}),
-      traits: [...(attr(tag, "selected") === "true" ? ["selected"] : []), ...(attr(tag, "checked") === "true" ? ["selected"] : []), ...(attr(tag, "heading") === "true" ? ["Header"] : [])],
+      traits: [
+        ...(attr(tag, "selected") === "true" ? ["selected"] : []),
+        ...(attr(tag, "checked") === "true" ? ["selected"] : []),
+        ...(attr(tag, "heading") === "true" ? ["Header"] : []),
+        // The header's back arrow ("Navigate up", React Navigation's "Go back"…): a pushed page, as iOS's BackButton trait.
+        ...(/^(navigate up|go back|back|retour|précédent|zurück|atrás)\b/i.test(label) || /(^|[_-])back([_-]|$)/i.test(attr(tag, "resource-id")) ? ["BackButton"] : []),
+      ],
       ...(b ? { frame: { x: Number(b[1]) / s, y: Number(b[2]) / s, width: (Number(b[3]) - Number(b[1])) / s, height: (Number(b[4]) - Number(b[2])) / s } } : {}),
       children: [],
     } as AxElement;
@@ -273,7 +285,22 @@ export async function accessibilityInfo(serial: string, point?: { x: number; y: 
   return [/Image/.test(best.type ?? "") && !best.AXLabel ? { ...best, type: "Image" } : best];
 }
 
-async function readTree(serial: string): Promise<AxElement[]> {
+/**
+ * One uiautomator dump takes about 2 s and they share a file on the device: callers within a second (the
+ * page poll reads the tree for the tab, the pushed page and the testIDs) share one dump.
+ */
+function readTree(serial: string): Promise<AxElement[]> {
+  const hit = trees.get(serial);
+  if (hit && Date.now() - hit.at < 1200) return hit.p;
+  const p = dumpTree(serial);
+  const entry = { at: Date.now(), p };
+  trees.set(serial, entry);
+  // Fresh for a moment after it lands, not from when it started.
+  void p.then(() => trees.get(serial) === entry && (entry.at = Date.now()), () => trees.get(serial) === entry && trees.delete(serial));
+  return p;
+}
+
+async function dumpTree(serial: string): Promise<AxElement[]> {
   let xml = (await adb(serial, "exec-out", "uiautomator", "dump", "/dev/tty").catch(() => Buffer.from(""))).toString("utf8");
   // Recent Android images kill a dump to /dev/tty ("Killed"): dump to a file and read it back.
   if (!xml.includes("<hierarchy")) {

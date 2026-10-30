@@ -598,11 +598,11 @@ function Flow(p: Props) {
       <div className="grid h-full place-items-center text-center">
         <div className="flex flex-col items-center gap-4">
           {planning ? <PlanningSketch /> : <Sparkles className="text-spark-400" size={28} />}
-          <p className="text-sm font-medium text-ink-200">{p.native ? "Native iOS project" : planning ? "Planning your app…" : "No pages yet"}</p>
+          <p className="text-sm font-medium text-ink-200">{p.native ? "Native project" : planning ? "Planning your app…" : "No pages yet"}</p>
           {planning ? (
             <PlanningSteps />
           ) : (
-            <p className="max-w-xs text-xs text-ink-500">{p.native ? "Open it in the iOS Simulator with Play, then its pages appear here." : "Describe a change below to start."}</p>
+            <p className="max-w-xs text-xs text-ink-500">{p.native ? "Open it in the iOS Simulator or the Android emulator with Play, then its pages appear here." : "Describe a change below to start."}</p>
           )}
         </div>
       </div>

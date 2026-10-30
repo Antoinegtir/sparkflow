@@ -417,7 +417,7 @@ export function IDE({ id, slug: initialSlug, initialPage, access: given, basePat
       if (missing) {
         await new Promise((r) => setTimeout(r, 800));
         setSimFrozen("Capturing pages…");
-        await api.capture(next === "dark" ? { dark: true } : { refresh: true });
+        await api.capture(next === "dark" ? { dark: true, udid: sim.device.udid } : { refresh: true, udid: sim.device.udid });
       }
     } finally {
       setSimFrozen(null);
@@ -428,7 +428,7 @@ export function IDE({ id, slug: initialSlug, initialPage, access: given, basePat
   // Native: adopt the simulator's appearance on mount.
   useEffect(() => {
     if (!state?.native || !sim.device) return;
-    fetch("/api/sim/appearance")
+    fetch(`/api/sim/appearance?udid=${encodeURIComponent(sim.device.udid)}`)
       .then((r) => r.json())
       .then((j) => (j.appearance === "dark" || j.appearance === "light") && setSchemeState(j.appearance))
       .catch(() => {});
@@ -469,7 +469,7 @@ export function IDE({ id, slug: initialSlug, initialPage, access: given, basePat
     if (!stale.length || triedSim.current.has(key)) return;
     triedSim.current.add(key);
     setSimFrozen("Capturing pages…");
-    void api.captureSimulator(scheme).finally(() => setSimFrozen(null));
+    void api.captureSimulator(scheme, false, sim.device?.udid).finally(() => setSimFrozen(null));
   }, [state, scheme, sim.device, simFrozen, api]);
 
   // Native: after an agent run, re-capture both appearances.
@@ -481,12 +481,13 @@ export function IDE({ id, slug: initialSlug, initialPage, access: given, basePat
     const t = setTimeout(async () => {
       setSimFrozen("Capturing pages…");
       try {
-        const current = await fetch("/api/sim/appearance").then((r) => r.json()).catch(() => ({}));
-        const set = (appearance: string) => fetch("/api/sim/appearance", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ appearance }) });
+        const udid = sim.device!.udid;
+        const current = await fetch(`/api/sim/appearance?udid=${encodeURIComponent(udid)}`).then((r) => r.json()).catch(() => ({}));
+        const set = (appearance: string) => fetch("/api/sim/appearance", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ appearance, udid }) });
         await set("light");
-        await api.capture();
+        await api.capture({ udid });
         await set("dark");
-        await api.capture({ dark: true });
+        await api.capture({ dark: true, udid });
         if (current.appearance !== "dark") await set("light");
       } finally {
         setSimFrozen(null);
@@ -504,7 +505,7 @@ export function IDE({ id, slug: initialSlug, initialPage, access: given, basePat
     if (!missing.length || iPadTried.current.has(key)) return;
     iPadTried.current.add(key);
     setSimFrozen("Capturing pages…");
-    void api.capture(scheme === "dark" ? { dark: true } : {}).finally(() => setSimFrozen(null));
+    void api.capture({ ...(scheme === "dark" ? { dark: true } : {}), udid: sim.device?.udid }).finally(() => setSimFrozen(null));
   }, [ipad, state, sim.device, scheme, api]);
 
   const simButton = (button: string, hold: number) => {
@@ -603,7 +604,7 @@ export function IDE({ id, slug: initialSlug, initialPage, access: given, basePat
     ...(!state.native && focused && (state.screens[focused]?.history.length ?? 0) > 1 && !running
       ? [{ id: "undo", group: "Actions" as const, label: `Undo last change on ${title(focused)}`, needs: "agent" as const, run: () => void api.undo(focused) }]
       : []),
-    ...(state.native ? [{ id: "recapture", group: "Actions" as const, label: "Recapture pages from the simulator", needs: "owner" as const, run: () => void api.capture({ refresh: true }) }] : []),
+    ...(state.native ? [{ id: "recapture", group: "Actions" as const, label: "Recapture pages from the device", needs: "owner" as const, run: () => void api.capture({ refresh: true, udid: sim.device?.udid }) }] : []),
     ...(running ? [{ id: "stop", group: "Actions" as const, label: "Stop the agent", needs: "agent" as const, run: stopAll }] : []),
     ...(!state.native && state.plan ? [{ id: "export", group: "Project" as const, label: "Export .zip", needs: "owner" as const, run: () => (location.href = `/api/projects/${id}/export`) }] : []),
     { id: "projects", group: "Project", label: "All projects", needs: "owner", run: () => (location.href = "/") },
