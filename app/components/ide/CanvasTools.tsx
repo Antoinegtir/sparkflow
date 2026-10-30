@@ -1,59 +1,120 @@
 "use client";
 
-import { useStore, type Node, type NodeProps } from "@xyflow/react";
+import { NodeResizer, useStore, type Node, type NodeProps } from "@xyflow/react";
 import clsx from "clsx";
-import { Check, Frame, Hand, MessageCircle, MousePointer2, Send, Trash2, Type, X } from "lucide-react";
+import { Check, ChevronDown, Frame, Hand, MessageCircle, MousePointer2, PanelTop, Send, Smartphone, Trash2, Type, X } from "lucide-react";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { PHONE_H, PHONE_W } from "@/lib/web/layout";
 
-export type Tool = "move" | "hand" | "frame" | "text" | "comment";
+export type Tool = "move" | "hand" | "frame" | "section" | "page" | "text" | "comment";
 
-const TOOLS: { id: Tool; icon: typeof Frame; label: string; key: string }[] = [
+type ToolDef = { id: Tool; icon: typeof Frame; label: string; key: string; shift?: boolean };
+const MOVE: ToolDef[] = [
   { id: "move", icon: MousePointer2, label: "Move", key: "V" },
   { id: "hand", icon: Hand, label: "Hand", key: "H" },
-  { id: "frame", icon: Frame, label: "Frame: a new page", key: "F" },
+];
+/** Frame and Section share a button with a menu, as in Figma: both draw a box that groups pages. */
+const GROUPS: ToolDef[] = [
+  { id: "frame", icon: Frame, label: "Frame", key: "F" },
+  { id: "section", icon: PanelTop, label: "Section", key: "S", shift: true },
+];
+const ADD: ToolDef[] = [
+  { id: "page", icon: Smartphone, label: "New page", key: "P" },
   { id: "text", icon: Type, label: "Text", key: "T" },
   { id: "comment", icon: MessageCircle, label: "Comment", key: "C" },
 ];
+const ALL = [...MOVE, ...GROUPS, ...ADD];
+const keyLabel = (t: ToolDef) => (t.shift ? `⇧${t.key}` : t.key);
 
-/** Cursor over the canvas for each tool. */
-export const TOOL_CURSOR: Record<Tool, string | undefined> = { move: undefined, hand: "grab", frame: "crosshair", text: "text", comment: "crosshair" };
-
-/** The tools, in a floating bar on the canvas's left edge, like Figma's bottom bar. V H F T C pick them, Escape goes back to Move. */
+/**
+ * The tools, in a floating bar on the canvas's left edge, like Figma's bottom bar. V H F ⇧S P T C pick
+ * them, Escape goes back to Move.
+ */
 export function ToolBar({ tool, onTool }: { tool: Tool; onTool: (t: Tool) => void }) {
+  const [menu, setMenu] = useState(false);
+  // The group button shows the last one picked of Frame and Section.
+  const [groupTool, setGroupTool] = useState<ToolDef>(GROUPS[0]);
+  const pick = useCallback(
+    (t: ToolDef) => {
+      if (GROUPS.includes(t)) setGroupTool(t);
+      setMenu(false);
+      onTool(t.id);
+    },
+    [onTool],
+  );
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement | null;
       if (e.metaKey || e.ctrlKey || e.altKey || el?.closest("input, textarea, select, [contenteditable=true]")) return;
-      if (e.key === "Escape") return onTool("move");
-      const t = TOOLS.find((x) => x.key === e.key.toUpperCase());
-      if (t) onTool(t.id);
+      if (e.key === "Escape") {
+        setMenu(false);
+        return onTool("move");
+      }
+      const t = ALL.find((x) => x.key === e.key.toUpperCase() && !!x.shift === e.shiftKey);
+      if (t) pick(t);
     };
     addEventListener("keydown", onKey);
     return () => removeEventListener("keydown", onKey);
-  }, [onTool]);
+  }, [onTool, pick]);
+
+  const button = (t: ToolDef, extra?: string) => (
+    <button
+      type="button"
+      onClick={() => pick(t)}
+      aria-label={t.label}
+      aria-pressed={tool === t.id}
+      className={clsx(
+        "group relative grid size-9 cursor-pointer place-items-center rounded-xl transition",
+        tool === t.id ? "bg-spark-500 text-white" : "text-ink-300 hover:bg-ink-800 hover:text-ink-100",
+        extra,
+      )}>
+      <t.icon size={17} strokeWidth={1.9} />
+      {!menu && (
+        <span className="pointer-events-none absolute left-full z-20 ml-2 whitespace-nowrap rounded-md bg-ink-950 px-2 py-1 text-[11px] text-ink-200 opacity-0 shadow-lg transition group-hover:opacity-100">
+          {t.label} <span className="ml-1 font-mono text-ink-500">{keyLabel(t)}</span>
+        </span>
+      )}
+    </button>
+  );
+  const rule = <div className="mx-1.5 my-0.5 h-px bg-[var(--line)]" />;
   return (
     <div className="absolute top-1/2 left-4 z-10 flex -translate-y-1/2 flex-col gap-1 rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-1.5 shadow-xl" role="toolbar" aria-label="Canvas tools">
-      {TOOLS.map(({ id, icon: Icon, label, key }, i) => (
-        <div key={id}>
-          {/* Move and Hand, then what can be added. */}
-          {i === 2 && <div className="mx-1.5 mb-1 h-px bg-[var(--line)]" />}
-          <button
-            type="button"
-            onClick={() => onTool(id)}
-            title={`${label} (${key})`}
-            aria-label={label}
-            aria-pressed={tool === id}
-            className={clsx(
-              "group relative grid size-9 cursor-pointer place-items-center rounded-xl transition",
-              tool === id ? "bg-spark-500 text-white" : "text-ink-300 hover:bg-ink-800 hover:text-ink-100",
-            )}>
-            <Icon size={17} strokeWidth={1.9} />
-            <span className="pointer-events-none absolute left-full ml-2 whitespace-nowrap rounded-md bg-ink-950 px-2 py-1 text-[11px] text-ink-200 opacity-0 shadow-lg transition group-hover:opacity-100">
-              {label} <span className="ml-1 font-mono text-ink-500">{key}</span>
-            </span>
-          </button>
-        </div>
+      {MOVE.map((t) => (
+        <div key={t.id}>{button(t)}</div>
+      ))}
+      {rule}
+      <div className="relative">
+        {button(groupTool, "pr-1")}
+        <button
+          type="button"
+          onClick={() => setMenu((m) => !m)}
+          aria-label="Frame or section"
+          aria-expanded={menu}
+          className={clsx("absolute top-1/2 -right-1 grid h-6 w-3.5 -translate-y-1/2 cursor-pointer place-items-center rounded-md text-ink-400 hover:bg-ink-700 hover:text-ink-100", menu && "bg-ink-700 text-ink-100")}>
+          <ChevronDown size={11} strokeWidth={2.4} className="-rotate-90" />
+        </button>
+        {menu && (
+          <div role="menu" className="absolute top-0 left-full z-30 ml-3 w-52 rounded-xl border border-[var(--line)] bg-ink-950 p-1.5 shadow-2xl">
+            {GROUPS.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                role="menuitemradio"
+                aria-checked={groupTool.id === t.id}
+                onClick={() => pick(t)}
+                className="flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 text-[13px] text-ink-100 hover:bg-spark-500">
+                <Check size={14} className={groupTool.id === t.id ? "opacity-100" : "opacity-0"} />
+                <t.icon size={16} strokeWidth={1.9} />
+                <span className="flex-1 text-left">{t.label}</span>
+                <span className="font-mono text-[11.5px] text-ink-400">{keyLabel(t)}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      {rule}
+      {ADD.map((t) => (
+        <div key={t.id}>{button(t)}</div>
       ))}
     </div>
   );
@@ -63,32 +124,36 @@ export function ToolBar({ tool, onTool }: { tool: Tool; onTool: (t: Tool) => voi
 
 export type CanvasText = { id: string; x: number; y: number; text: string };
 export type CanvasComment = { id: string; x: number; y: number; text: string; route?: string; ts: number; sent?: boolean };
-export type Board = { texts: CanvasText[]; comments: CanvasComment[] };
+/** A frame or a section: a named box drawn around pages to group them (Onboarding, Settings…). */
+export type CanvasGroup = { id: string; kind: "frame" | "section"; x: number; y: number; w: number; h: number; name: string };
+export type Board = { texts: CanvasText[]; comments: CanvasComment[]; groups: CanvasGroup[] };
 
 const boardKey = (id: string) => `sparkflow.board.${id}`;
 const uid = () => Math.random().toString(36).slice(2, 10);
+const EMPTY: Board = { texts: [], comments: [], groups: [] };
 
 /**
- * The canvas's text and comments, kept with the project on your computer (and in this browser, for a
- * sparkflow that doesn't keep them yet). Saved a moment after each change.
+ * The canvas's groups, text and comments, kept with the project on your computer (and in this browser,
+ * for a sparkflow that doesn't keep them yet). Saved a moment after each change.
  */
 export function useBoard(projectId: string) {
-  const [board, setBoard] = useState<Board>({ texts: [], comments: [] });
-  const loaded = useRef(false);
+  const [board, setBoard] = useState<Board>(EMPTY);
   useEffect(() => {
-    loaded.current = false;
     let local: Board | null = null;
     try {
-      local = JSON.parse(localStorage.getItem(boardKey(projectId)) ?? "null");
+      const saved = JSON.parse(localStorage.getItem(boardKey(projectId)) ?? "null");
+      if (saved) local = { ...EMPTY, ...saved };
     } catch {}
-    if (local) setBoard(local);
+    setBoard(local ?? EMPTY);
     void fetch(`/api/projects/${projectId}/board`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((b: Board | null) => {
-        if (b && (b.texts?.length || b.comments?.length || !local)) setBoard({ texts: b.texts ?? [], comments: b.comments ?? [] });
+      .then((b: Partial<Board> | null) => {
+        if (!b) return;
+        // A sparkflow from before groups returns none: this browser's are kept then.
+        const server: Board = { texts: b.texts ?? [], comments: b.comments ?? [], groups: b.groups ?? local?.groups ?? [] };
+        if (server.texts.length || server.comments.length || server.groups.length || !local) setBoard(server);
       })
-      .catch(() => {})
-      .finally(() => (loaded.current = true));
+      .catch(() => {});
   }, [projectId]);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const save = useCallback(
@@ -124,14 +189,27 @@ export function useBoard(projectId: string) {
       update((b) => ({ ...b, comments: [...b.comments, { id, x, y, text: "", ts: Date.now(), ...(route ? { route } : {}) }] }));
       return id;
     },
+    addGroup: (kind: CanvasGroup["kind"], r: { x: number; y: number; w: number; h: number }) => {
+      const id = uid();
+      update((b) => {
+        const n = b.groups.filter((g) => g.kind === kind).length + 1;
+        // Behind what is already there: drawn later, a section still sits under the frames in it.
+        const g = { id, kind, ...r, name: `${kind === "section" ? "Section" : "Frame"} ${n}` };
+        return { ...b, groups: kind === "section" ? [g, ...b.groups] : [...b.groups, g] };
+      });
+      return id;
+    },
+    setGroup: (id: string, patch: Partial<CanvasGroup>) => update((b) => ({ ...b, groups: b.groups.map((g) => (g.id === id ? { ...g, ...patch } : g)) })),
     setText: (id: string, text: string) => update((b) => ({ ...b, texts: b.texts.map((t) => (t.id === id ? { ...t, text } : t)) })),
     setComment: (id: string, patch: Partial<CanvasComment>) => update((b) => ({ ...b, comments: b.comments.map((c) => (c.id === id ? { ...c, ...patch } : c)) })),
-    move: (id: string, x: number, y: number) =>
+    /** Moves texts, comments and groups by id to these positions, in one change. */
+    moveMany: (to: Record<string, { x: number; y: number }>) =>
       update((b) => ({
-        texts: b.texts.map((t) => (t.id === id ? { ...t, x, y } : t)),
-        comments: b.comments.map((c) => (c.id === id ? { ...c, x, y } : c)),
+        texts: b.texts.map((t) => (to[t.id] ? { ...t, ...to[t.id] } : t)),
+        comments: b.comments.map((c) => (to[c.id] ? { ...c, ...to[c.id] } : c)),
+        groups: b.groups.map((g) => (to[g.id] ? { ...g, ...to[g.id] } : g)),
       })),
-    remove: (id: string) => update((b) => ({ texts: b.texts.filter((t) => t.id !== id), comments: b.comments.filter((c) => c.id !== id) })),
+    remove: (id: string) => update((b) => ({ texts: b.texts.filter((t) => t.id !== id), comments: b.comments.filter((c) => c.id !== id), groups: b.groups.filter((g) => g.id !== id) })),
   };
 }
 
@@ -141,7 +219,7 @@ export function useBoard(projectId: string) {
  * Focuses a field once it can be: React Flow keeps a new node hidden until it has measured it, and a
  * hidden field can't take the focus.
  */
-function useFocusWhen(on: boolean) {
+function useFocusWhen(on: boolean, selectAll = false) {
   const ref = useRef<HTMLTextAreaElement & HTMLInputElement>(null);
   useEffect(() => {
     if (!on) return;
@@ -151,13 +229,15 @@ function useFocusWhen(on: boolean) {
       const el = ref.current;
       if (el && document.activeElement !== el) {
         el.focus();
-        el.setSelectionRange?.(el.value.length, el.value.length);
+        // A default name is selected, so typing replaces it; otherwise the caret goes to the end.
+        if (selectAll) el.select();
+        else el.setSelectionRange?.(el.value.length, el.value.length);
       }
       if ((!el || document.activeElement !== el) && ++tries < 30) raf = requestAnimationFrame(go);
     };
     raf = requestAnimationFrame(go);
     return () => cancelAnimationFrame(raf);
-  }, [on]);
+  }, [on, selectAll]);
   return ref;
 }
 
@@ -283,10 +363,10 @@ export const CommentNode = memo(function CommentNode({ data }: NodeProps<Node<Co
   );
 });
 
-export type FrameData = { pages: { route: string; title: string }[]; from?: string; running: boolean; onSubmit: (a: { name: string; description: string; from?: string }) => void; onCancel: () => void };
+export type NewPageData = { pages: { route: string; title: string }[]; from?: string; running: boolean; onSubmit: (a: { name: string; description: string; from?: string }) => void; onCancel: () => void };
 
-/** A new page's frame where it was placed: name it, say what it shows, and the agent makes it there. */
-export const FrameNode = memo(function FrameNode({ data }: NodeProps<Node<FrameData>>) {
+/** A new page where it was placed (the Page tool): name it, say what it shows, and the agent makes it there. */
+export const NewPageNode = memo(function NewPageNode({ data }: NodeProps<Node<NewPageData>>) {
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
   const [from, setFrom] = useState(data.from ?? "");
@@ -297,7 +377,7 @@ export const FrameNode = memo(function FrameNode({ data }: NodeProps<Node<FrameD
     <div className="relative">
       <div className="mb-2 text-center text-[13px] font-medium text-spark-400">{name.trim() || "New page"}</div>
       <div className="grid place-items-center rounded-[28px] border-2 border-dashed border-spark-500/70 bg-spark-500/5 text-spark-400/70" style={{ width: PHONE_W, height: PHONE_H }}>
-        <Frame size={28} strokeWidth={1.5} />
+        <Smartphone size={28} strokeWidth={1.5} />
       </div>
       {/* The form beside the frame, the same size whatever the zoom. */}
       <div className="absolute top-7 left-full ml-3" style={unzoom}>
@@ -328,6 +408,76 @@ export const FrameNode = memo(function FrameNode({ data }: NodeProps<Node<FrameD
             </button>
           </div>
         </form>
+      </div>
+    </div>
+  );
+});
+
+export type GroupData = {
+  group: CanvasGroup;
+  editing: boolean;
+  onEdit: () => void;
+  onRename: (name: string) => void;
+  onRemove: () => void;
+  onResizing: (on: boolean) => void;
+};
+
+/**
+ * A frame or a section around pages. A section, as in Figma, is a tinted area with its name in a tab; a
+ * frame, an outlined box with its name above. Moving one moves what is inside; selected, it resizes
+ * from its edges. Double-click the name to rename it.
+ */
+export const GroupNode = memo(function GroupNode({ data, selected }: NodeProps<Node<GroupData>>) {
+  const g = data.group;
+  const section = g.kind === "section";
+  const [name, setName] = useState(g.name);
+  useEffect(() => setName(g.name), [g.name]);
+  const ref = useFocusWhen(data.editing, true);
+  const unzoom = useUnzoom();
+  const done = () => data.onRename(name.trim() || g.name);
+  return (
+    <div className={clsx("relative h-full w-full", section ? "rounded-[18px] border border-ink-500/50 bg-ink-400/[0.06]" : "border border-ink-400/70")}>
+      <NodeResizer
+        isVisible={selected}
+        minWidth={160}
+        minHeight={120}
+        color="var(--color-spark-500)"
+        // 9 px on screen (React Flow keeps them that size whatever the zoom): easy to grab.
+        handleStyle={{ width: 9, height: 9, borderRadius: 2 }}
+        onResizeStart={() => data.onResizing(true)}
+        onResizeEnd={() => data.onResizing(false)}
+      />
+      {/* The name, the same size whatever the zoom: in a tab inside a section, above a frame. */}
+      <div className={clsx("absolute left-0", section ? "top-0 p-2" : "bottom-full pb-1")} style={{ ...unzoom, transformOrigin: section ? "top left" : "bottom left" }}>
+        {data.editing ? (
+          <input
+            ref={ref}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onBlur={done}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === "Escape") e.currentTarget.blur();
+            }}
+            className="nodrag w-48 rounded-md border border-spark-500 bg-[var(--panel)] px-2 py-0.5 text-[13px] font-medium text-ink-100 outline-none"
+          />
+        ) : (
+          <span className="flex items-center gap-1.5">
+            <span
+              onDoubleClick={data.onEdit}
+              className={clsx(
+                "block cursor-text whitespace-nowrap text-[13px] font-medium",
+                section ? "rounded-md bg-ink-700/80 px-2 py-0.5 text-ink-100" : "text-ink-300",
+                selected && (section ? "bg-spark-500 text-white" : "text-spark-400"),
+              )}>
+              {g.name}
+            </span>
+            {selected && (
+              <button type="button" onClick={data.onRemove} aria-label={`Delete ${g.name}`} className="nodrag grid size-5 cursor-pointer place-items-center rounded text-ink-400 hover:text-red-400">
+                <Trash2 size={12} />
+              </button>
+            )}
+          </span>
+        )}
       </div>
     </div>
   );

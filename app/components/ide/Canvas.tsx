@@ -22,10 +22,10 @@ import clsx from "clsx";
 import { Sparkles } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { NavEdge, ScreenState } from "@/lib/shared";
-import { edgeSides, layoutScreens, NODE_W, PHONE_H, PHONE_W } from "@/lib/web/layout";
+import { edgeSides, layoutScreens, NODE_H, NODE_W, PHONE_H, PHONE_W } from "@/lib/web/layout";
 import { CupertinoSpinner, deviceById, DeviceMockup, PhoneFrame, StatusPill } from "./ui";
 import { SkinFrame } from "./SkinFrame";
-import { CommentNode, FrameNode, TextNode, ToolBar, useBoard, type CommentData, type FrameData, type TextData, type Tool } from "./CanvasTools";
+import { CommentNode, GroupNode, NewPageNode, TextNode, ToolBar, useBoard, type CanvasGroup, type CommentData, type GroupData, type NewPageData, type TextData, type Tool } from "./CanvasTools";
 import type { DeviceSkin } from "@/lib/web/device-skin";
 
 export type PhoneData = { screen: ScreenState; hidden: boolean; scanning: boolean; ipad: boolean; native: boolean; dark: boolean; device?: string; skin?: DeviceSkin | null; onOpen: (route: string) => void };
@@ -117,7 +117,7 @@ export function ScreenContent({ screen, scanning, light }: { screen: ScreenState
   );
 }
 
-const nodeTypes = { phone: PhoneNode, text: TextNode, comment: CommentNode, frame: FrameNode };
+const nodeTypes = { phone: PhoneNode, text: TextNode, comment: CommentNode, newpage: NewPageNode, area: GroupNode };
 // Bottom padding keeps the pages clear of the floating prompt bar.
 const FIT = { padding: { top: "36px", left: "48px", right: "48px", bottom: "180px" }, maxZoom: 1 } as const;
 
@@ -165,14 +165,22 @@ function Flow(p: Props) {
   const lastDrag = useRef(0);
   // The tools: what a click on the canvas does (Move opens pages, the others place something).
   const [tool, setTool] = useState<Tool>("move");
+  const [draw, setDraw] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
   const toolRef = useRef(tool);
   toolRef.current = tool;
   const open = useCallback((r: string) => toolRef.current === "move" && Date.now() - lastDrag.current > 250 && p.onOpen(r), [p]);
   const board = useBoard(p.projectId);
   const [editing, setEditing] = useState<string | null>(null);
   const [openComment, setOpenComment] = useState<string | null>(null);
-  const [frame, setFrame] = useState<Pos | null>(null);
-  // A frame's page lands where the frame was, once the agent has added it (matched by its name).
+  const [newPage, setNewPage] = useState<Pos | null>(null);
+  const [editingGroup, setEditingGroup] = useState<string | null>(null);
+  // Selected groups, text and comments (the nodes are built from state, so their selection is kept here).
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  // The group being resized from its edges: its moves then aren't drags that carry what's inside.
+  const resizing = useRef<string | null>(null);
+  // A group being dragged: where it started and what it carries (pages, text, comments, smaller groups).
+  const drag = useRef<{ id: string; from: Pos; routes: Record<string, Pos>; items: Record<string, Pos> } | null>(null);
+  // A new page lands where it was placed, once the agent has added it (matched by its name).
   const placed = useRef(new Map<string, Pos>());
   useEffect(() => {
     if (!placed.current.size) return;
@@ -202,6 +210,42 @@ function Flow(p: Props) {
     data: { screen: s, hidden: p.hiddenRoute === s.route, scanning: p.scanning.has(s.route), ipad: p.ipad, native: p.native, dark: p.dark, device: p.device, skin: p.skin, onOpen: open },
   }));
   const title = (r?: string) => (r ? p.screens.find((s) => s.route === r)?.title : undefined);
+  // Frames and sections, under everything: sections lowest, so a frame drawn in one stays on top.
+  const groups: Node<GroupData>[] = board.board.groups.map((g) => ({
+    id: `area:${g.id}`,
+    type: "area",
+    position: { x: g.x, y: g.y },
+    width: g.w,
+    height: g.h,
+    measured: { width: g.w, height: g.h },
+    zIndex: g.kind === "section" ? -2 : -1,
+    selected: selected.has(`area:${g.id}`),
+    data: {
+      group: g,
+      editing: editingGroup === g.id,
+      onEdit: () => setEditingGroup(g.id),
+      onRename: (name) => {
+        setEditingGroup(null);
+        if (name !== g.name) board.setGroup(g.id, { name });
+      },
+      onRemove: () => board.remove(g.id),
+      onResizing: (on) => (resizing.current = on ? g.id : null),
+    },
+  }));
+  /** What a group carries when it moves: what has its centre (pages) or its corner (text, comments) inside, and groups wholly inside. */
+  const contents = (g: CanvasGroup) => {
+    const inside = (x: number, y: number) => x >= g.x && x <= g.x + g.w && y >= g.y && y <= g.y + g.h;
+    const routes: Record<string, Pos> = {};
+    for (const s of p.screens) {
+      const at = posOf(s.route);
+      const size = sizes.current.get(s.route) ?? { width: NODE_W, height: NODE_H };
+      if (inside(at.x + size.width / 2, at.y + size.height / 2)) routes[s.route] = at;
+    }
+    const items: Record<string, Pos> = {};
+    for (const t of [...board.board.texts, ...board.board.comments]) if (inside(t.x, t.y)) items[t.id] = { x: t.x, y: t.y };
+    for (const o of board.board.groups) if (o.id !== g.id && inside(o.x, o.y) && inside(o.x + o.w, o.y + o.h)) items[o.id] = { x: o.x, y: o.y };
+    return { routes, items };
+  };
   const extras: Node[] = [
     ...board.board.texts.map(
       (t): Node<TextData> => ({
@@ -210,6 +254,7 @@ function Flow(p: Props) {
         position: { x: t.x, y: t.y },
         measured: sizes.current.get(`text:${t.id}`),
         zIndex: 5,
+        selected: selected.has(`text:${t.id}`),
         data: {
           text: t.text,
           editing: editing === t.id,
@@ -256,52 +301,96 @@ function Flow(p: Props) {
         },
       }),
     ),
-    ...(frame
+    ...(newPage
       ? [
           {
-            id: "frame:new",
-            type: "frame",
-            position: frame,
+            id: "page:new",
+            type: "newpage",
+            position: newPage,
             zIndex: 20,
             data: {
               pages: p.screens.map((s) => ({ route: s.route, title: s.title })),
               running: p.status === "running",
-              onCancel: () => setFrame(null),
+              onCancel: () => setNewPage(null),
               onSubmit: (a) => {
-                placed.current.set(a.name.trim().toLowerCase(), frame);
+                placed.current.set(a.name.trim().toLowerCase(), newPage);
                 p.onAddPage(a);
-                setFrame(null);
+                setNewPage(null);
               },
             },
-          } satisfies Node<FrameData>,
+          } satisfies Node<NewPageData>,
         ]
       : []),
   ];
 
   const onNodesChange = (changes: NodeChange[]) => {
     let next: Record<string, Pos> | null = null;
+    const persist = (m: Record<string, Pos>) => {
+      try {
+        localStorage.setItem(posKey(p.projectId), JSON.stringify(m));
+      } catch {}
+    };
+    let sel: Set<string> | null = null;
     for (const c of changes) {
-      if (c.type === "dimensions" && c.dimensions) sizes.current.set(c.id, c.dimensions);
-      if (c.type !== "position") continue;
-      // Text and comments: kept with the project; the new page's frame: where it was dropped.
-      if (c.id.startsWith("text:") || c.id.startsWith("comment:")) {
-        if (c.position) board.move(c.id.slice(c.id.indexOf(":") + 1), c.position.x, c.position.y);
+      if (c.type === "add" || c.type === "replace") continue;
+      if (c.type === "select") {
+        if (!/^(area|text|comment):/.test(c.id)) continue;
+        sel ??= new Set(selected);
+        if (c.selected) sel.add(c.id);
+        else sel.delete(c.id);
         continue;
       }
-      if (c.id === "frame:new") {
-        if (c.position) setFrame(c.position);
+      const own = /^(area|text|comment):/.test(c.id) ? c.id.slice(c.id.indexOf(":") + 1) : null;
+      // Delete or Backspace on a selected group, text or comment (pages stay: they're the app's).
+      if (c.type === "remove") {
+        if (own) board.remove(own);
+        continue;
+      }
+      if (c.type === "dimensions" && c.dimensions) {
+        sizes.current.set(c.id, c.dimensions);
+        if (own && c.id.startsWith("area:") && c.resizing && resizing.current === own) board.setGroup(own, { w: Math.round(c.dimensions.width), h: Math.round(c.dimensions.height) });
+      }
+      if (c.type !== "position") continue;
+      // A group: resized from its top or left edge, or dragged with what it holds.
+      if (own && c.id.startsWith("area:")) {
+        const g = board.board.groups.find((x) => x.id === own);
+        if (resizing.current === own) {
+          if (c.position) board.setGroup(own, { x: c.position.x, y: c.position.y });
+          continue;
+        }
+        if (g && c.position) {
+          const d = drag.current?.id === own ? drag.current : (drag.current = { id: own, from: { x: g.x, y: g.y }, ...contents(g) });
+          const dx = c.position.x - d.from.x;
+          const dy = c.position.y - d.from.y;
+          next ??= { ...moved };
+          for (const [r, at] of Object.entries(d.routes)) next[r] = { x: at.x + dx, y: at.y + dy };
+          const to: Record<string, Pos> = { [own]: c.position };
+          for (const [id, at] of Object.entries(d.items)) to[id] = { x: at.x + dx, y: at.y + dy };
+          board.moveMany(to);
+          lastDrag.current = Date.now();
+        }
+        if (c.dragging === false) {
+          drag.current = null;
+          if (next) persist(next);
+        }
+        continue;
+      }
+      // Text and comments: kept with the project; the new page: where it was dropped.
+      if (own) {
+        if (c.position) board.moveMany({ [own]: c.position });
+        continue;
+      }
+      if (c.id === "page:new") {
+        if (c.position) setNewPage(c.position);
         continue;
       }
       lastDrag.current = Date.now();
       next ??= { ...moved };
       if (c.position) next[c.id] = c.position;
-      if (c.dragging === false) {
-        try {
-          localStorage.setItem(posKey(p.projectId), JSON.stringify(next));
-        } catch {}
-      }
+      if (c.dragging === false) persist(next);
     }
     if (next) setMoved(next);
+    if (sel) setSelected(sel);
   };
 
   const busy = new Set(p.screens.filter((s) => s.status === "building" || s.status === "verifying").map((s) => s.route));
@@ -363,8 +452,8 @@ function Flow(p: Props) {
     const at = flow.screenToFlowPosition({ x: e.clientX, y: e.clientY });
     if (tool === "text") setEditing(board.addText(at.x, at.y - 12));
     else if (tool === "comment") setOpenComment(board.addComment(at.x, at.y - 32, route));
-    else if (tool === "frame" && !route) {
-      setFrame({ x: at.x - PHONE_W / 2, y: at.y - 24 });
+    else if (tool === "page" && !route) {
+      setNewPage({ x: at.x - PHONE_W / 2, y: at.y - 24 });
       // The frame and its form beside it, in view (one placed near an edge would have its form cut off).
       void flow.setCenter(at.x + 140, at.y - 24 + PHONE_H / 2, { zoom: flow.getZoom(), duration: 300 });
     }
@@ -372,9 +461,30 @@ function Flow(p: Props) {
     setTool("move");
   };
 
+  // Frame and Section: drag a box over the canvas (over pages too); a plain click makes one around two pages' size.
+  const drawing = tool === "frame" || tool === "section";
+  const drawBox = (e: React.PointerEvent) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  };
+  const finishBox = (e: React.PointerEvent) => {
+    const d = draw;
+    setDraw(null);
+    if (!d || (tool !== "frame" && tool !== "section")) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    const a = flow.screenToFlowPosition({ x: r.left + Math.min(d.x0, d.x1), y: r.top + Math.min(d.y0, d.y1) });
+    const b = flow.screenToFlowPosition({ x: r.left + Math.max(d.x0, d.x1), y: r.top + Math.max(d.y0, d.y1) });
+    const click = Math.abs(d.x1 - d.x0) < 8 && Math.abs(d.y1 - d.y0) < 8;
+    const box = click ? { x: a.x, y: a.y, w: NODE_W * 2 + 80, h: NODE_H + 80 } : { x: a.x, y: a.y, w: b.x - a.x, h: b.y - a.y };
+    setEditingGroup(board.addGroup(tool, { x: Math.round(box.x), y: Math.round(box.y), w: Math.round(box.w), h: Math.round(box.h) }));
+    setTool("move");
+  };
+
   return (
     <ReactFlow
       className={clsx(p.dimmed && "canvas-focused", `canvas-tool-${tool}`)}
+      elevateNodesOnSelect={false}
+      deleteKeyCode={["Backspace", "Delete"]}
       onPaneClick={(e) => {
         if (tool === "move" || tool === "hand") return closeComment();
         place(e);
@@ -382,7 +492,7 @@ function Flow(p: Props) {
       onNodeClick={(e, n) => n.type === "phone" && tool === "comment" && place(e, n.id)}
       nodesDraggable={tool !== "hand"}
       elementsSelectable={tool !== "hand"}
-      nodes={[...nodes, ...extras]}
+      nodes={[...groups, ...nodes, ...extras]}
       edges={edges}
       nodeTypes={nodeTypes}
       fitView
@@ -401,6 +511,24 @@ function Flow(p: Props) {
       proOptions={{ hideAttribution: true }}>
       <Background variant={BackgroundVariant.Dots} gap={22} size={1.8} color="var(--canvas-dot)" />
       {!p.dimmed && <Controls position="bottom-left" showInteractive={false} />}
+      {!p.dimmed && drawing && (
+        <div
+          className="absolute inset-0 z-[6] cursor-crosshair"
+          onPointerDown={(e) => {
+            e.currentTarget.setPointerCapture(e.pointerId);
+            const at = drawBox(e);
+            setDraw({ x0: at.x, y0: at.y, x1: at.x, y1: at.y });
+          }}
+          onPointerMove={(e) => draw && setDraw({ ...draw, x1: drawBox(e).x, y1: drawBox(e).y })}
+          onPointerUp={finishBox}>
+          {draw && (
+            <div
+              className={clsx("pointer-events-none absolute border border-spark-400 bg-spark-500/10", tool === "section" && "rounded-xl")}
+              style={{ left: Math.min(draw.x0, draw.x1), top: Math.min(draw.y0, draw.y1), width: Math.abs(draw.x1 - draw.x0), height: Math.abs(draw.y1 - draw.y0) }}
+            />
+          )}
+        </div>
+      )}
       {!p.dimmed && <ToolBar tool={tool} onTool={setTool} />}
     </ReactFlow>
   );
