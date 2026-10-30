@@ -192,7 +192,7 @@ export function FileTree({ projectId, state, focused, onOpenPage, onOpenFile, on
   }, [state.order, state.edges, native]);
 
   // ---- assets ----
-  const assetFiles = files.filter((f) => f.startsWith("assets/"));
+  const assetFiles = files.filter((f) => f.startsWith("assets/") && !/(^|\/)(\.DS_Store|Thumbs\.db)$/.test(f));
   const entries = useMemo(() => {
     const prefix = cwd + "/";
     const dirs = new Set<string>();
@@ -272,7 +272,7 @@ export function FileTree({ projectId, state, focused, onOpenPage, onOpenFile, on
   };
 
   const crumbs = cwd.split("/");
-  const source = files.filter((f) => !f.startsWith("assets/") && !f.startsWith("components/sparkflow") && !f.startsWith(".expo/") && !/(^|\/)(package-lock\.json|yarn\.lock|pnpm-lock\.yaml)$/.test(f));
+  const source = files.filter((f) => !f.startsWith("assets/") && !f.startsWith("components/sparkflow") && !f.startsWith(".expo/") && !/(^|\/)(package-lock\.json|yarn\.lock|pnpm-lock\.yaml|bun\.lockb?|\.DS_Store|Thumbs\.db|desktop\.ini|\.keep|\.gitkeep|npm-debug\.log.*|yarn-error\.log)$/.test(f));
   const headSha = state.commits.at(-1)?.sha;
   const pageFile = focused ? state.screens[focused]?.file : undefined;
   const pageFiles = usePageFiles(projectId, pageFile, source);
