@@ -132,12 +132,30 @@ export class Orchestrator {
           rt.emit({ type: "phase", phase: "idle" });
         }
         rt.meter = new UsageMeter(this.provider, this.cfg.maxCostUsd, (u) => rt.emit({ type: "usage", ...u }), rt.state.usage);
+        void this.pruneDeleted(rt).catch(() => {});
         return rt;
       })();
       this.runtimes.set(id, p);
       p.catch(() => this.runtimes.delete(id));
     }
     return p;
+  }
+
+  /**
+   * On load: pages whose file was deleted (git saw it) but are still in the plan, from before deleted pages
+   * left it, are dropped. Local projects only (a cloud sandbox isn't opened just for this).
+   */
+  private async pruneDeleted(rt: ProjectRuntime) {
+    const plan = rt.state.plan;
+    if (rt.meta.native || !plan || rt.running || (await this.driverP).name !== "local") return;
+    const sb = await this.sandbox(rt);
+    const files = plan.screens.filter((sc) => !sc.file.endsWith("_layout.tsx")).map((sc) => sc.file);
+    const deleted = await this.deletedFiles(sb, files, new Set(), "HEAD");
+    if (!deleted.size || rt.running || rt.state.plan !== plan) return;
+    const gone = new Set(plan.screens.filter((sc) => deleted.has(sc.file)).map((sc) => sc.route));
+    const next = { ...plan, screens: plan.screens.filter((sc) => !gone.has(sc.route)).map((sc) => ({ ...sc, navigatesTo: sc.navigatesTo.filter((r) => !gone.has(r)) })) };
+    rt.emit({ type: "plan", plan: next, removed: [...gone] });
+    await rt.flush();
   }
 
   private async sandbox(rt: ProjectRuntime): Promise<Sandbox> {
