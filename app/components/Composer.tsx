@@ -1,5 +1,6 @@
 "use client";
 
+import { ensureCloud } from "@/lib/web/cloud";
 import clsx from "clsx";
 import { ArrowUp, ArrowUpRight, ImagePlus, Loader2, Mic, Square, X } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -97,6 +98,8 @@ export function Composer() {
     setBusy(true);
     setError(null);
     try {
+      // Built in the cloud unless the Mac was chosen: connected now if it isn't yet.
+      if (STATIC_SITE && !getBackend()) await ensureCloud(true, buildButton.current);
       const res = await apiFetch("/api/projects", {
         method: "POST",
         headers: { "content-type": "application/json" },

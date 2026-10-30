@@ -1,7 +1,7 @@
 "use client";
 
 import { auth, requireSignIn } from "./auth";
-import { setBackend } from "./backend";
+import { getBackend, getMode, setBackend, setMode } from "./backend";
 
 /**
  * Sparkflow in the cloud (Cloud Run, sandboxes on Modal), in two regions: the Americas use the US one
@@ -33,6 +33,24 @@ export async function connectCloud(anchor?: Element | null): Promise<{ runsLeft:
   const res = await fetch(`${CLOUD_URL}/api/cloud/session`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ idToken }) });
   const json = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(json.error ?? `The cloud answered ${res.status}.`);
+  setMode("cloud");
   setBackend({ url: CLOUD_URL, token: json.token, cloud: true });
   return { runsLeft: json.runsLeft, dailyRuns: json.dailyRuns };
+}
+
+/**
+ * The default: a backend for whoever arrives on the site, in the cloud, unless they chose their Mac.
+ * Silent when already signed in (`ask` false); with `ask`, the sign-in menu opens. True once connected.
+ */
+export async function ensureCloud(ask = false, anchor?: Element | null): Promise<boolean> {
+  if (getBackend()) return true;
+  if (getMode() === "mac" || !CLOUD_URL) return false;
+  await auth().authStateReady();
+  if (!auth().currentUser && !ask) return false;
+  try {
+    await connectCloud(anchor);
+    return true;
+  } catch {
+    return false;
+  }
 }

@@ -12,6 +12,29 @@ import { activeShare, activeShareBackend, guestSrc } from "./share";
 export type Backend = { url: string; token: string; cloud?: boolean };
 
 const KEY = "sparkflow.backend";
+const MODE = "sparkflow.mode";
+
+/**
+ * Where apps are built: in the cloud by default (nothing to install, the app in a web preview), or on
+ * your Mac once you choose it (the real iOS Simulator and Android emulator, through the sparkflow CLI).
+ */
+export type Mode = "cloud" | "mac";
+export function getMode(): Mode {
+  try {
+    const m = localStorage.getItem(MODE);
+    if (m === "mac" || m === "cloud") return m;
+    // From before modes: a Mac already linked stays the choice.
+    const b = read();
+    return b && !b.cloud ? "mac" : "cloud";
+  } catch {
+    return "cloud";
+  }
+}
+export function setMode(m: Mode) {
+  try {
+    localStorage.setItem(MODE, m);
+  } catch {}
+}
 export const BACKEND_EVENT = "sparkflow:backend";
 /** Set when building the static site: there is no API on its own origin. */
 export const STATIC_SITE = process.env.NEXT_PUBLIC_STATIC === "1";
@@ -40,7 +63,11 @@ function fromUrl(): Backend | null {
 
 export function getBackend(): Backend | null {
   const linked = fromUrl();
-  if (linked) setBackend(linked);
+  // Opened by the sparkflow CLI (?backend=&token=): the Mac is chosen.
+  if (linked) {
+    setMode("mac");
+    setBackend(linked);
+  }
   // A shared project (/s/...) talks to its owner's server only, never saved as your own computer.
   if (!linked && activeShare()) return activeShareBackend();
   const b = linked ?? read();
@@ -69,7 +96,8 @@ export const backendReady: Promise<void> =
     ? fetch(`${LOCAL_URL}/api/connect`, { cache: "no-store", signal: AbortSignal.timeout(1500) })
         .then((r) => (r.ok ? (r.json() as Promise<Partial<Backend>>) : null))
         .then((link) => {
-          if (!link?.url || !link.token) return;
+          // sparkflow running on this Mac is used once the Mac is chosen; the cloud stays the default.
+          if (!link?.url || !link.token || getMode() !== "mac") return;
           if (read()?.url !== link.url || read()?.token !== link.token) setBackend({ url: link.url.replace(/\/+$/, ""), token: link.token });
           direct = true;
           dispatchEvent(new CustomEvent(BACKEND_EVENT));

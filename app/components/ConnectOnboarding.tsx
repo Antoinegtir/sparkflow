@@ -3,7 +3,7 @@
 import clsx from "clsx";
 import { ArrowUpRight, Check, Cloud, Copy, Loader2, Lock, Terminal } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { getBackend, setBackend } from "@/lib/web/backend";
+import { getBackend, setBackend, setMode } from "@/lib/web/backend";
 import { CLOUD_URL, connectCloud } from "@/lib/web/cloud";
 import { DotLens } from "./DotLens";
 import { LoopVideo } from "./LoopVideo";
@@ -21,13 +21,15 @@ const LOCAL = "http://localhost:3002";
 
 /** True once the connected computer answers: the saved tunnel, or a `sparkflow` just started here. */
 async function reachable(): Promise<boolean> {
-  if (getBackend()) {
+  // A cloud session isn't the Mac this page waits for.
+  if (getBackend() && !getBackend()!.cloud) {
     if (await steady()) return true;
   }
   const link = await fetch(`${LOCAL}/api/connect`, { cache: "no-store" })
     .then((r) => (r.ok ? (r.json() as Promise<{ url: string; token: string }>) : null))
     .catch(() => null);
   if (!link?.url || !link.token) return false;
+  setMode("mac");
   setBackend({ url: link.url, token: link.token });
   return steady();
 }

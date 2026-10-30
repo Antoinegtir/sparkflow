@@ -1,8 +1,8 @@
 "use client";
 
-import { isCloud } from "@/lib/web/backend";
+import { isCloud, setBackend, setMode } from "@/lib/web/backend";
 import clsx from "clsx";
-import { Command, Play, Settings, UserPlus, UserRound } from "lucide-react";
+import { Command, Play, Settings, Smartphone, UserPlus, UserRound } from "lucide-react";
 import { useState } from "react";
 import type { ProjectState } from "@/lib/shared";
 import type { Person } from "@/lib/shared/share";
@@ -89,6 +89,19 @@ export function TopBar(p: Props) {
       {/* Over the canvas, ending at the right panel's edge rather than across its border. */}
       <div className="absolute top-1/2 flex -translate-y-1/2 items-center gap-1.5" style={{ right: p.panelWidth ? p.panelWidth + 12 : 180 }}>
         {owner && !cloud && <RunOn state={s} onDevice={p.onDevice} onSwitching={p.onDeviceSwitching} />}
+        {/* In the cloud the app shows in a web preview: the real Simulator and emulator need the sparkflow CLI on a Mac. */}
+        {owner && cloud && (
+          <button
+            onClick={() => {
+              setMode("mac");
+              setBackend(null);
+              location.href = "/connect";
+            }}
+            title="Install the sparkflow CLI on your Mac to run your apps in the iOS Simulator and the Android emulator"
+            className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--line)] px-2.5 py-1.5 text-[12.5px] text-ink-200 hover:bg-ink-800">
+            <Smartphone size={13} /> Run on a real simulator
+          </button>
+        )}
         {owner && (
         <button
           onClick={p.onPlay}

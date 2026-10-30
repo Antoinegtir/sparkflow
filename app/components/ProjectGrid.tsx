@@ -16,7 +16,8 @@ import { useSimDevice } from "@/lib/web/sim-device";
 import { useIsPhone } from "@/lib/web/phone";
 import { DesktopNote } from "./DesktopNote";
 import { requireSignIn, watchUser } from "@/lib/web/auth";
-import { apiFetch, appHref, BACKEND_EVENT, backendUrl, isCloud, openOnBackend, setBackend } from "@/lib/web/backend";
+import { apiFetch, appHref, BACKEND_EVENT, backendUrl, getBackend, isCloud, openOnBackend, setBackend, setMode, STATIC_SITE } from "@/lib/web/backend";
+import { ensureCloud } from "@/lib/web/cloud";
 import { loadSavedApps, saveApps, type SavedApp } from "@/lib/web/cloud-apps";
 
 const COVER_W = 132;
@@ -115,6 +116,8 @@ export function ProjectGrid() {
   useEffect(() => watchUser((u) => setUid(u?.uid ?? null)), []);
 
   const load = useCallback(async () => {
+    // Signed in, nothing linked: the cloud (the default), quietly.
+    if (STATIC_SITE && uid && !getBackend()) await ensureCloud();
     const res = await apiFetch("/api/projects", { cache: "no-store" }).catch(() => null);
     if (res?.ok) {
       const list: ProjectSummary[] = await res.json();
@@ -170,7 +173,8 @@ export function ProjectGrid() {
                 {projects?.length ?? 0} app{projects?.length === 1 ? "" : "s"} in the cloud ·{" "}
                 <button
                   onClick={() => {
-                    // Back to the Mac: forget the cloud session, the connect page links sparkflow again.
+                    // The Mac chosen: forget the cloud session, the connect page links sparkflow.
+                    setMode("mac");
                     setBackend(null);
                     location.href = "/connect";
                   }}
