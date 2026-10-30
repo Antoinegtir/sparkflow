@@ -90,21 +90,7 @@ export function ScreenContent({ screen, scanning, light }: { screen: ScreenState
   return (
     <div className={clsx("relative h-full w-full overflow-hidden", light ? "bg-white" : "bg-ink-800")}>
       {s.screenshotUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          key={s.screenshotUrl}
-          src={s.screenshotUrl}
-          alt={s.title}
-          // A capture from before 0.3.42 is taller than the room between the bars (390×844, the whole
-          // screen): fitted whole rather than cropped, so its bottom (tab bar, floating button) stays in view.
-          onLoad={(e) => {
-            const img = e.currentTarget;
-            const tall = img.naturalHeight / img.naturalWidth > (img.clientHeight / img.clientWidth) * 1.03;
-            img.style.objectFit = tall ? "fill" : "";
-          }}
-          className={clsx("animate-fade-in h-full w-full object-cover object-top transition", s.deviceLoading && "scale-105 blur-md")}
-          draggable={false}
-        />
+        <Capture url={s.screenshotUrl} title={s.title} blurred={!!s.deviceLoading} />
       ) : (
         <PageSkeleton light={!!light} status={s.status} />
       )}
@@ -354,5 +340,37 @@ function PlanningSteps() {
     <p key={i} className="animate-fade-in text-xs text-ink-500">
       {PLANNING[i]}…
     </p>
+  );
+}
+
+/**
+ * A page's capture, filling the room between the bars. One from before 0.3.42 is taller (390×844, the whole
+ * screen): its top and its bottom are kept at full size and the middle of the scroll is left out, so the
+ * header, the tab bar and a floating button all show without squashing anything.
+ */
+function Capture({ url, title, blurred }: { url: string; title: string; blurred: boolean }) {
+  const [tall, setTall] = useState(false);
+  const cls = clsx("animate-fade-in absolute inset-0 transition", blurred && "scale-105 blur-md");
+  return (
+    <>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        key={url}
+        src={url}
+        alt={title}
+        onLoad={(e) => {
+          const img = e.currentTarget;
+          setTall(img.naturalHeight / img.naturalWidth > (img.clientHeight / img.clientWidth) * 1.03);
+        }}
+        className={clsx(cls, "h-full w-full object-cover object-top", tall && "opacity-0")}
+        draggable={false}
+      />
+      {tall && (
+        <div className={clsx(cls, "flex flex-col")}>
+          <div className="min-h-0 flex-1" style={{ backgroundImage: `url(${url})`, backgroundSize: "100% auto", backgroundPosition: "top" }} />
+          <div className="h-[22%] shrink-0" style={{ backgroundImage: `url(${url})`, backgroundSize: "100% auto", backgroundPosition: "bottom" }} />
+        </div>
+      )}
+    </>
   );
 }
