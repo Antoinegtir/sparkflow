@@ -401,7 +401,9 @@ export function FileTree({ projectId, state, focused, onOpenPage, onOpenFile, on
               }
               if (e.key === "Enter") setRenaming(selected);
             }}
-            className="grid grid-cols-3 gap-1 px-2 outline-none">
+            // A click on empty space deselects, as in Finder.
+            onClick={(e) => e.target === e.currentTarget && setSelected(null)}
+            className="grid grid-cols-3 gap-1 px-2 pb-2 outline-none">
             {entries.map((e) => {
               const name = e.path.split("/").pop()!;
               return (
@@ -458,7 +460,7 @@ export function FileTree({ projectId, state, focused, onOpenPage, onOpenFile, on
             })}
           </div>
           {!entries.length && <p className="px-4 py-2 text-[11.5px] text-ink-500">{writable ? "Empty folder. Drop files here." : "Empty folder."}</p>}
-          <div className="flex items-center justify-between px-3 pt-1.5 text-[10.5px] text-ink-600">
+          <div onClick={(e) => e.target === e.currentTarget && setSelected(null)} className="flex items-center justify-between px-3 pt-1.5 text-[10.5px] text-ink-600">
             <span>{upload ?? error ?? (queued ? `${queued} request${queued > 1 ? "s" : ""} queued for Muse` : writable ? "Enter to rename · drag onto a folder" : "")}</span>
             {selected && writable && (
               <button
