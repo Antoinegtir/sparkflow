@@ -26,7 +26,8 @@ import { edgeSides, layoutScreens, NODE_H, NODE_W, PHONE_H, PHONE_W } from "@/li
 import { CupertinoSpinner, deviceById, DeviceMockup, PhoneFrame, StatusPill } from "./ui";
 import { SkinFrame } from "./SkinFrame";
 import { can, useAccess } from "@/lib/web/access";
-import { allowedTools, CommentNode, GroupNode, NewPageNode, TextNode, ToolBar, useBoard, type CanvasGroup, type CommentData, type GroupData, type NewPageData, type TextData, type Tool } from "./CanvasTools";
+import { useOwnerProfile } from "@/lib/web/owner-profile";
+import { allowedTools, CommentNode, PEOPLE_EVENT, GroupNode, NewPageNode, TextNode, ToolBar, useBoard, type CanvasGroup, type CommentData, type GroupData, type NewPageData, type TextData, type Tool } from "./CanvasTools";
 import type { DeviceSkin } from "@/lib/web/device-skin";
 
 export type PhoneData = { screen: ScreenState; hidden: boolean; scanning: boolean; ipad: boolean; native: boolean; dark: boolean; device?: string; skin?: DeviceSkin | null; onOpen: (route: string) => void };
@@ -172,6 +173,7 @@ function Flow(p: Props) {
   const open = useCallback((r: string) => toolRef.current === "move" && Date.now() - lastDrag.current > 250 && p.onOpen(r), [p]);
   const board = useBoard(p.projectId);
   const access = useAccess();
+  useOwnerProfile(p.projectId, access.role === "owner", () => dispatchEvent(new Event(PEOPLE_EVENT)));
   // Texts, groups, page links and new pages are the editors'; comments are each author's own.
   const canvasOk = can(access, "canvas");
   const tools = useMemo(() => allowedTools(access.role), [access.role]);

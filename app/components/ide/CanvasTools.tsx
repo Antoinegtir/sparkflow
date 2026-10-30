@@ -161,6 +161,8 @@ function opFor(b: Board, id: string): BoardOp {
   return { op: "remove", id };
 }
 
+export const PEOPLE_EVENT = "sparkflow:people";
+
 /** The server's board, with this browser's copy of what it hasn't sent yet, so a poll can't undo a change. */
 function merge(server: Board, local: Board, pending: Set<string>): Board {
   if (!pending.size) return server;
@@ -235,6 +237,17 @@ export function useBoard(projectId: string) {
       })
       .catch(() => {});
   }, [projectId, shared, receive]);
+
+  // Someone's name or avatar became known (the owner's profile, registered): fetched again in full.
+  useEffect(() => {
+    const again = () =>
+      void fetch(`/api/projects/${projectId}/board`, { cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((b: ServerBoard | null) => b && receive(b))
+        .catch(() => {});
+    addEventListener(PEOPLE_EVENT, again);
+    return () => removeEventListener(PEOPLE_EVENT, again);
+  }, [projectId, receive]);
 
   // Others' changes: polled while the tab is visible, cheap when nothing changed.
   useEffect(() => {
