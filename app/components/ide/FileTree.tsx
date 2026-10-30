@@ -1,7 +1,8 @@
 "use client";
 
+import { MetaLogo } from "../MetaLogo";
 import clsx from "clsx";
-import { ArrowUp, ChevronDown, ChevronRight, CornerDownRight, File, FileUp, FolderPlus, FolderUp, GripVertical, Home, LayoutGrid, Sparkles, Trash2, X } from "lucide-react";
+import { ArrowUp, ChevronDown, ChevronRight, CornerDownRight, File, FileUp, FolderPlus, FolderUp, GripVertical, Home, LayoutGrid, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
 import { can, useAccess } from "@/lib/web/access";
 import type { ProjectState } from "@/lib/shared";
@@ -468,7 +469,7 @@ export function FileTree({ projectId, state, focused, onOpenPage, onOpenFile, on
             // Right after an import: what should Muse do with it? (Set it as the app icon, put it on a page…)
             <div className="mx-2 mt-2 rounded-lg border border-spark-500/40 bg-spark-500/5 p-2">
               <div className="flex items-center gap-1.5 text-[11px] text-ink-300">
-                <Sparkles size={12} className="shrink-0 text-spark-400" />
+                <MetaLogo className="size-3.5 shrink-0" />
                 <span className="min-w-0 flex-1 truncate">
                   What should Muse do with {imported.length === 1 ? imported[0].split("/").pop() : `these ${imported.length} files`}?
                 </span>
