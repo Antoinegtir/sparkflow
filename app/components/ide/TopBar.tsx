@@ -1,7 +1,7 @@
 "use client";
 
 import clsx from "clsx";
-import { Command, Play, Settings, UserPlus } from "lucide-react";
+import { Command, Play, Settings, UserPlus, UserRound } from "lucide-react";
 import { useState } from "react";
 import type { ProjectState } from "@/lib/shared";
 import type { Person } from "@/lib/shared/share";
@@ -26,8 +26,8 @@ type Props = {
   onTogglePanel: () => void;
   onDeviceSwitching: (name: string | null) => void;
   onDevice: (id: string) => void;
-  /** Opens the app's settings (name, icon, splash, bundle ID…); absent for imported native apps. */
-  onSettings?: () => void;
+  /** Opens the app's settings (name, icon, splash, bundle ID…), or its Account section; absent for imported native apps. */
+  onSettings?: (section?: "account") => void;
   /** Width of the right panel when open: the device and Play end at its edge, over the canvas. */
   panelWidth: number;
   /** Opens the Share dialog; absent when the server can't share (old version) or for guests. */
@@ -121,7 +121,16 @@ export function TopBar(p: Props) {
           </button>
         )}
         {/* Mounted once in the IDE so requireSignIn (Share, joining) has a menu to open. */}
-        <SignIn extra={owner && p.onSettings ? [{ label: "App settings", icon: <Settings size={15} />, onClick: p.onSettings }] : undefined} />
+        <SignIn
+          extra={
+            owner && p.onSettings
+              ? [
+                  { label: "App settings", icon: <Settings size={15} />, onClick: () => p.onSettings!() },
+                  { label: "Profile", icon: <UserRound size={15} />, onClick: () => p.onSettings!("account") },
+                ]
+              : undefined
+          }
+        />
       </div>
     </header>
   );

@@ -2,7 +2,7 @@
 
 import clsx from "clsx";
 import type { User } from "firebase/auth";
-import { Loader2, LogOut, UserRound } from "lucide-react";
+import { Loader2, LogOut } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { SIGNIN_CLOSED, SIGNIN_EVENT, signIn, signOutUser, watchUser, type Provider, type SignInRequest } from "@/lib/web/auth";
@@ -28,7 +28,7 @@ function GithubIcon() {
 }
 
 /** Topbar sign-in: Google or GitHub through Firebase Auth; signed in, the user's avatar with a sign-out menu. */
-/** `extra`: entries above Profile (the IDE adds App settings). */
+/** `extra`: entries above Sign out (the IDE adds App settings and Profile, which open its Settings). */
 export function SignIn({ extra }: { extra?: { label: string; icon: React.ReactNode; onClick: () => void }[] } = {}) {
   const [user, setUser] = useState<User | null | undefined>(undefined);
   const [open, setOpen] = useState(false);
@@ -41,7 +41,7 @@ export function SignIn({ extra }: { extra?: { label: string; icon: React.ReactNo
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => watchUser(setUser), []);
-  // A new name or picture (settings/accounts): same user object, redrawn.
+  // A new name or picture (Settings › Account): same user object, redrawn.
   const [, redraw] = useState(0);
   useEffect(() => {
     const on = () => redraw((n) => n + 1);
@@ -120,9 +120,6 @@ export function SignIn({ extra }: { extra?: { label: string; icon: React.ReactNo
               {x.icon} {x.label}
             </button>
           ))}
-          <a href="/settings/accounts" className={item} onClick={() => setOpen(false)}>
-            <UserRound size={15} /> Profile
-          </a>
           <button type="button" className={item} onClick={() => void signOutUser().then(() => setOpen(false))}>
             <LogOut size={15} /> Sign out
           </button>

@@ -1,10 +1,11 @@
 "use client";
 
 import clsx from "clsx";
-import { Check, ImagePlus, Loader2, LogOut, SlidersHorizontal, Smartphone, User as UserIcon, X } from "lucide-react";
+import { Camera, Check, ImagePlus, Loader2, LogOut, Pencil, RotateCcw, SlidersHorizontal, Smartphone, User as UserIcon, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { requireSignIn, signOutUser } from "@/lib/web/auth";
 import { backendUrl } from "@/lib/web/backend";
+import { providerPhoto, saveProfile } from "@/lib/web/profile";
 import { savePrefs, useAccount, type Prefs } from "@/lib/web/user-prefs";
 import { GitHubMark, GitHubPanel } from "./GitHubSetup";
 
@@ -25,8 +26,8 @@ type Settings = {
  */
 type Section = "app" | "github" | "account" | "preferences";
 
-export function AppSettings({ projectId, appName, onClose }: { projectId: string; appName: string; onClose: () => void }) {
-  const [section, setSection] = useState<Section>("app");
+export function AppSettings({ projectId, appName, initial = "app", onClose }: { projectId: string; appName: string; initial?: Section; onClose: () => void }) {
+  const [section, setSection] = useState<Section>(initial);
   const account = useAccount();
   const [s, setS] = useState<Settings | null>(null);
   const [icon, setIcon] = useState<File | null>(null);
@@ -222,22 +223,8 @@ function AccountSection({ user, projectId }: { user: ReturnType<typeof useAccoun
       {user === undefined ? (
         <Loader2 size={16} className="animate-spin text-ink-500" />
       ) : user ? (
-        <div className="flex items-center gap-4">
-          {user.photoURL ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={user.photoURL} alt="" className="size-16 rounded-full" referrerPolicy="no-referrer" />
-          ) : (
-            <span className="grid size-16 place-items-center rounded-full bg-spark-500 text-[22px] font-semibold text-white">{(user.displayName ?? user.email ?? "?")[0]?.toUpperCase()}</span>
-          )}
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-[16px] font-semibold text-ink-100">{user.displayName ?? user.email}</p>
-            {user.email && <p className="truncate text-[13px] text-ink-400">{user.email}</p>}
-            {provider && (
-              <p className="mt-1 flex items-center gap-1.5 text-[12px] text-ink-500">
-                {provider === "GitHub" && <GitHubMark className="size-3" />} Signed in with {provider}
-              </p>
-            )}
-          </div>
+        <div className="flex items-start gap-4">
+          <Profile user={user} provider={provider} />
           <button onClick={() => void signOutUser()} className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--line)] px-3 py-1.5 text-[12.5px] text-ink-300 hover:bg-ink-800">
             <LogOut size={13} /> Sign out
           </button>
@@ -259,6 +246,102 @@ function AccountSection({ user, projectId }: { user: ReturnType<typeof useAccoun
           {gh === undefined ? "Checking…" : gh ? `The GitHub CLI is signed in as ${gh}: repositories are created in this account.` : "The GitHub CLI isn't signed in. Run gh auth login in a terminal to create repositories from Sparkflow."}
         </p>
       </div>
+    </div>
+  );
+}
+
+/**
+ * The picture and name shown on comments and to the people the user shares apps with: click the picture
+ * to upload another, the pencil to rename. Saved on the account (lib/web/profile.ts).
+ */
+function Profile({ user, provider }: { user: NonNullable<ReturnType<typeof useAccount>["user"]>; provider: string | null }) {
+  const file = useRef<HTMLInputElement>(null);
+  const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  // The user object changes in place on save: this redraws with it.
+  const [, redraw] = useState(0);
+  const original = providerPhoto(user);
+  const save = async (p: Parameters<typeof saveProfile>[0]) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await saveProfile(p);
+      redraw((n) => n + 1);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't save. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="flex-1">
+      <div className="flex items-center gap-4">
+        <button type="button" disabled={busy} onClick={() => file.current?.click()} title="Change your picture" className="group relative size-16 shrink-0 cursor-pointer overflow-hidden rounded-full">
+          {user.photoURL ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={user.photoURL} alt="" className="size-full object-cover" referrerPolicy="no-referrer" />
+          ) : (
+            <span className="grid size-full place-items-center bg-spark-500 text-[22px] font-semibold text-white">{(user.displayName ?? user.email ?? "?")[0]?.toUpperCase()}</span>
+          )}
+          <span className={clsx("absolute inset-0 grid place-items-center bg-black/55 text-white transition", busy ? "opacity-100" : "opacity-0 group-hover:opacity-100")}>
+            {busy ? <Loader2 size={18} className="animate-spin" /> : <Camera size={18} />}
+          </span>
+        </button>
+        <input
+          ref={file}
+          type="file"
+          accept="image/*"
+          hidden
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            e.target.value = "";
+            if (!f) return;
+            if (f.size > 15 * 1024 * 1024) return setError("This picture is too large (15 MB at most).");
+            void save({ photo: f });
+          }}
+        />
+        <div className="min-w-0 flex-1">
+          {editing ? (
+            <input
+              autoFocus
+              defaultValue={user.displayName ?? ""}
+              maxLength={80}
+              placeholder={user.email?.split("@")[0] ?? "Your name"}
+              onBlur={(e) => {
+                setEditing(false);
+                const v = e.target.value.trim();
+                if (v && v !== user.displayName) void save({ name: v });
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                if (e.key === "Escape") setEditing(false);
+              }}
+              className="w-full rounded-md bg-ink-800 px-2 py-0.5 text-[16px] font-semibold text-ink-100 outline-none"
+            />
+          ) : (
+            <button type="button" onClick={() => setEditing(true)} title="Change your name" className="group flex max-w-full cursor-pointer items-center gap-1.5 text-left">
+              <span className="truncate text-[16px] font-semibold text-ink-100">{user.displayName ?? user.email}</span>
+              <Pencil size={13} className="shrink-0 text-ink-500 opacity-0 transition group-hover:opacity-100" />
+            </button>
+          )}
+          {user.email && <p className="truncate text-[13px] text-ink-400">{user.email}</p>}
+          {provider && (
+            <p className="mt-1 flex items-center gap-1.5 text-[12px] text-ink-500">
+              {provider === "GitHub" && <GitHubMark className="size-3" />} Signed in with {provider}
+            </p>
+          )}
+        </div>
+      </div>
+      <p className="mt-3 flex flex-wrap items-center gap-x-3 text-[12px] text-ink-500">
+        Click your picture or name to change them: they show on your comments and to the people you share apps with.
+        {original && user.photoURL !== original && (
+          <button type="button" disabled={busy} onClick={() => void save({ providerPhoto: true })} className="flex cursor-pointer items-center gap-1 text-ink-300 hover:text-ink-100">
+            <RotateCcw size={12} /> Use my {provider ?? "original"} picture
+          </button>
+        )}
+      </p>
+      {error && <p className="mt-2 text-[12px] text-red-400">{error}</p>}
     </div>
   );
 }
