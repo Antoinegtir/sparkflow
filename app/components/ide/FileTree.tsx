@@ -1,7 +1,7 @@
 "use client";
 
 import clsx from "clsx";
-import { ArrowUp, ChevronDown, ChevronRight, CornerDownRight, File, FileUp, FolderUp, GripVertical, Home, LayoutGrid, Sparkles, Trash2, X } from "lucide-react";
+import { ArrowUp, ChevronDown, ChevronRight, CornerDownRight, File, FileUp, FolderPlus, FolderUp, GripVertical, Home, LayoutGrid, Sparkles, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
 import { can, useAccess } from "@/lib/web/access";
 import type { ProjectState } from "@/lib/shared";
@@ -247,6 +247,15 @@ export function FileTree({ projectId, state, focused, onOpenPage, onOpenFile, on
     setAsk("");
   };
 
+  const newFolder = async () => {
+    let n = 1;
+    const names = new Set(entries.map((e) => e.path));
+    while (names.has(`${cwd}/untitled folder${n > 1 ? ` ${n}` : ""}`)) n++;
+    const p = `${cwd}/untitled folder${n > 1 ? ` ${n}` : ""}`;
+    await op({ type: "mkdir", path: p });
+    setRenaming(p);
+  };
+
   const rename = async (from: string, name: string) => {
     setRenaming(null);
     const clean = name.trim();
@@ -348,6 +357,9 @@ export function FileTree({ projectId, state, focused, onOpenPage, onOpenFile, on
             })}
             {writable && (
               <span className="ml-auto flex items-center">
+                <button onClick={() => void newFolder()} title="New folder" className="cursor-pointer rounded p-1 text-ink-500 hover:bg-ink-800 hover:text-ink-200">
+                  <FolderPlus size={13} />
+                </button>
                 {/* One button: a browser picker takes files or a folder, never both, so it asks which. */}
                 <span className="relative">
                   <button onClick={() => setImportMenu((m) => !m)} title="Import from Finder" aria-expanded={importMenu} className="cursor-pointer rounded p-1 text-ink-500 hover:bg-ink-800 hover:text-ink-200">
