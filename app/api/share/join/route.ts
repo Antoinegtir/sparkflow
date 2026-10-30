@@ -30,6 +30,8 @@ export const POST = handle(async (req: Request) => {
   }
   if (limited(`uid:${ident.uid}`)) return tooMany();
   const r = await redeemInvite(body.invite, ident);
+  // A new member can read the project's cloud copy (its pages while this Mac is off).
+  if (!("error" in r) && !("owner" in r)) orchestrator().cloudSync(r.projectId);
   if ("error" in r) return Response.json({ error: "This invite no longer works", code: r.error }, { status: 410 });
   if ("owner" in r) {
     // The owner opened their own link: send them to the project itself.

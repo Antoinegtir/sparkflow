@@ -4,6 +4,7 @@ import { lstat, readdir, readFile, readlink, symlink, unlink } from "node:fs/pro
 import os from "node:os";
 import path from "node:path";
 import { isCode, rewriteImports } from "./rename";
+import { scheduleSnapshot } from "../share/cloud";
 import sharp from "sharp";
 import {
   appSlugs,
@@ -134,12 +135,24 @@ export class Orchestrator {
         }
         rt.meter = new UsageMeter(this.provider, this.cfg.maxCostUsd, (u) => rt.emit({ type: "usage", ...u }), rt.state.usage);
         void this.pruneDeleted(rt).catch(() => {});
+        // Shared projects keep a read-only copy in the cloud (pages, links, screenshots) for when this Mac is off.
+        rt.listeners.add((e) => {
+          if (["plan", "screenshot", "dark_shot", "nav", "renamed", "run_status"].includes(e.type)) this.cloudSync(id);
+        });
         return rt;
       })();
       this.runtimes.set(id, p);
       p.catch(() => this.runtimes.delete(id));
     }
     return p;
+  }
+
+  /** Refreshes a shared project's cloud copy soon (nothing happens for a project shared with no one). */
+  cloudSync(id: string) {
+    scheduleSnapshot(id, async () => {
+      const rt = await this.runtime(id);
+      return { state: rt.state, readShot: (name: string) => this.store.readShot(id, name) };
+    });
   }
 
   /**

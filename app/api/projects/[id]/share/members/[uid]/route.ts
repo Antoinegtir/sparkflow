@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { requireOwner } from "@/lib/share/actor";
 import { removeMember, renameMember, setRole } from "@/lib/share/store";
-import { handle, type RouteCtx } from "@/lib/web/server";
+import { handle, orchestrator, type RouteCtx } from "@/lib/web/server";
 
 export const dynamic = "force-dynamic";
 
@@ -22,5 +22,7 @@ export const DELETE = handle(async (req: Request, { params }: Ctx) => {
   requireOwner(req);
   const { id, uid } = await params;
   await removeMember(id, uid);
+  // Out of the cloud copy's readers too.
+  orchestrator().cloudSync(id);
   return Response.json({ ok: true });
 });

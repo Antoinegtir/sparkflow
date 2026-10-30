@@ -208,3 +208,6 @@ export const forgetProject = (pid: string) =>
 
 export const hasActiveSharing = () =>
   locked((d) => Object.values(d.projects).some((p) => p.members.some((m) => !m.revokedAt) || p.invites.some((i) => !inviteState(i))), false);
+
+/** The uids of a project's current members (for the cloud copy's access list). */
+export const activeMemberUids = (pid: string) => locked((d) => (d.projects[pid]?.members ?? []).filter((m) => !m.revokedAt).map((m) => m.uid), false);

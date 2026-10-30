@@ -5,6 +5,8 @@ import { IDE } from "@/app/components/ide/IDE";
 import { SignIn } from "@/app/components/SignIn";
 import type { Access, JoinResult, SharedEntry } from "@/lib/shared/share";
 import { requireSignIn } from "@/lib/web/auth";
+import { loadCloudCopy } from "@/lib/web/cloud-copy";
+import { OfflineCopy } from "./OfflineCopy";
 import { entryId, getTicket, loadShared, openSession, saveShared, ShareError, updateShared, watchServer, writeProof } from "@/lib/web/share";
 
 type Phase = { kind: "signin" } | { kind: "connecting" } | { kind: "gone" } | { kind: "error"; message: string } | { kind: "ready"; access: Access; slug: string };
@@ -26,6 +28,16 @@ export function SharedShell({ serverUid, projectId, page }: { serverUid: string;
     return e?.devUrl ?? undefined;
   });
   const [unreachable, setUnreachable] = useState(false);
+  // While the owner's computer is offline: the project's cloud copy (its last saved pages), if any.
+  const [copy, setCopy] = useState<Awaited<ReturnType<typeof loadCloudCopy>>>(null);
+  useEffect(() => {
+    if (!unreachable || phase.kind === "ready") return setCopy(null);
+    let live = true;
+    void requireSignIn("Sign in to see this shared project").then((ok) => ok && loadCloudCopy(serverUid, projectId).then((c) => live && setCopy(c)));
+    return () => {
+      live = false;
+    };
+  }, [unreachable, phase.kind, serverUid, projectId]);
   const sessionTried = useRef(false);
 
   // The owner's tunnel link follows their computer: offline, restarted, back.
@@ -114,6 +126,8 @@ export function SharedShell({ serverUid, projectId, page }: { serverUid: string;
         <IDE id={projectId} slug={phase.slug} initialPage={page} access={phase.access} basePath={`/s/${serverUid}/${projectId}`} />
       </>
     );
+
+  if (copy) return <OfflineCopy copy={copy} />;
 
   return (
     <div data-ide className="grid h-screen place-items-center px-4 text-center text-sm text-ink-400">
