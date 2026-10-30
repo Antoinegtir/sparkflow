@@ -76,15 +76,25 @@ const Op = z.discriminatedUnion("type", [
   z.object({ type: z.literal("move"), from: z.string(), to: z.string() }),
   z.object({ type: z.literal("delete"), path: z.string() }),
   z.object({ type: z.literal("write"), path: z.string(), content: z.string().max(2_000_000) }),
+  // Source actions (the explorer's Source menu): imports follow a renamed or moved file.
+  z.object({ type: z.literal("srcMove"), from: z.string(), to: z.string() }),
+  z.object({ type: z.literal("srcDelete"), path: z.string() }),
+  z.object({ type: z.literal("srcNewFile"), path: z.string() }),
+  z.object({ type: z.literal("srcMkdir"), path: z.string() }),
 ]);
 
 export const PATCH = handle(async (req: Request, { params }: RouteCtx) => {
   const { id } = await params;
   const actor = requireRole(req, "edit");
   const op = Op.parse(await req.json());
-  const blocked = await guestBlocks(id, actor, op.type === "move" ? [op.from, op.to] : [op.path]);
+  const blocked = await guestBlocks(id, actor, op.type === "move" || op.type === "srcMove" ? [op.from, op.to] : [op.path]);
   if (blocked) return forbidden(blocked);
-  if (op.type === "write") await orchestrator().writeProjectFile(id, op.path, op.content);
-  else await orchestrator().assetOp(id, op);
+  const o = orchestrator();
+  if (op.type === "write") await o.writeProjectFile(id, op.path, op.content);
+  else if (op.type === "srcMove") await o.sourceOp(id, { type: "move", from: op.from, to: op.to });
+  else if (op.type === "srcDelete") await o.sourceOp(id, { type: "delete", path: op.path });
+  else if (op.type === "srcNewFile") await o.sourceOp(id, { type: "newfile", path: op.path });
+  else if (op.type === "srcMkdir") await o.sourceOp(id, { type: "mkdir", path: op.path });
+  else await o.assetOp(id, op);
   return Response.json({ ok: true });
 });

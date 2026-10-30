@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { lstat, readdir, readFile, readlink, symlink, unlink } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { isCode, rewriteImports } from "./rename";
 import sharp from "sharp";
 import {
   appSlugs,
@@ -1282,6 +1283,85 @@ export class Orchestrator {
       if (sha) rt.emit({ type: "commit", sha, message, routes: [] });
       await this.emitTree(rt);
     }
+  }
+
+  /**
+   * File actions on the app's source, as in VS Code: rename or move (every import of a moved file follows
+   * it, and a page whose file moves keeps its place in the plan), delete, new file, new folder. One commit.
+   */
+  async sourceOp(
+    id: string,
+    op: { type: "move"; from: string; to: string } | { type: "delete"; path: string } | { type: "newfile"; path: string } | { type: "mkdir"; path: string },
+  ) {
+    const rt = await this.runtime(id);
+    const sb = await this.sandbox(rt);
+    if (!rt.meta.native && rt.running) throw new BusyError();
+    const clean = (x: string) => {
+      const r = this.checkRel(x.replace(/^\/+|\/+$/g, ""));
+      if (/^(\.git|node_modules)(\/|$)/.test(r)) throw new Error("Not a source path");
+      return r;
+    };
+    const all = await sb.listFiles();
+    let message = "";
+    if (op.type === "move") {
+      const from = clean(op.from);
+      const to = clean(op.to);
+      if (from === to) return;
+      if (all.includes(to) || all.some((f) => f.startsWith(to + "/"))) throw new Error(`${to} already exists`);
+      const moved = new Map(all.includes(from) ? [[from, to]] : all.filter((f) => f.startsWith(from + "/")).map((f) => [f, to + f.slice(from.length)] as [string, string]));
+      if (!moved.size) throw new Error(`${from} not found`);
+      const code = new Map<string, string>();
+      for (const f of all.filter(isCode)) code.set(f, await sb.readFile(f).catch(() => ""));
+      const rewrites = rewriteImports(code, moved);
+      await sb.exec(`mkdir -p "$(dirname -- ${shq(to)})" && mv -- ${shq(from)} ${shq(to)}`);
+      for (const [f, text] of rewrites) await sb.writeFile(f, text);
+      // Pages whose file moved: same page, at its new file (and route, for a file under app/).
+      const plan = rt.state.plan;
+      if (plan && plan.screens.some((sc) => moved.has(sc.file))) {
+        const route = new Map(plan.screens.filter((sc) => moved.has(sc.file)).map((sc) => [sc.route, rt.meta.native || !moved.get(sc.file)!.startsWith("app/") ? sc.route : fileToRoute(moved.get(sc.file)!)]));
+        const next = {
+          ...plan,
+          screens: plan.screens.map((sc) => ({
+            ...sc,
+            ...(moved.has(sc.file) ? { file: moved.get(sc.file)!, route: route.get(sc.route)!, previewPath: previewPathFor(route.get(sc.route)!) } : {}),
+            navigatesTo: sc.navigatesTo.map((r) => route.get(r) ?? r),
+          })),
+        };
+        const removed = [...route].filter(([a, b]) => a !== b).map(([a]) => a);
+        rt.emit({ type: "plan", plan: next, ...(removed.length ? { removed } : {}) });
+      }
+      message = `Rename ${from} to ${to}${rewrites.size ? ` (imports updated in ${rewrites.size} file${rewrites.size > 1 ? "s" : ""})` : ""}`;
+    } else if (op.type === "delete") {
+      const target = clean(op.path);
+      if (rt.meta.native) {
+        // Native projects are the user's own folder: delete to the macOS Trash.
+        await sb.exec(`mv -- ${shq(target)} ${shq(path.join(os.homedir(), ".Trash", `${path.basename(target)} ${Date.now()}`))}`);
+      } else await sb.exec(`rm -rf -- ${shq(target)}`);
+      const plan = rt.state.plan;
+      const gone = new Set(plan?.screens.filter((sc) => sc.file === target || sc.file.startsWith(target + "/")).map((sc) => sc.route) ?? []);
+      if (plan && gone.size) {
+        const next = { ...plan, screens: plan.screens.filter((sc) => !gone.has(sc.route)).map((sc) => ({ ...sc, navigatesTo: sc.navigatesTo.filter((r) => !gone.has(r)) })) };
+        rt.emit({ type: "plan", plan: next, removed: [...gone] });
+      }
+      message = `Delete ${target}`;
+    } else if (op.type === "newfile") {
+      const target = clean(op.path);
+      if (all.includes(target)) throw new Error(`${target} already exists`);
+      await sb.exec(`mkdir -p "$(dirname -- ${shq(target)})"`);
+      await sb.writeFile(target, "");
+      message = `New file ${target}`;
+    } else {
+      const target = clean(op.path);
+      // Git keeps no empty folder: a .gitkeep holds it (hidden in the explorer).
+      await sb.exec(`mkdir -p -- ${shq(target)} && touch -- ${shq(target + "/.gitkeep")}`);
+      message = `New folder ${target}`;
+    }
+    if (!rt.meta.native) {
+      const sha = await gitCommit(sb, message);
+      if (sha) rt.emit({ type: "commit", sha, message, routes: [] });
+      await this.updateNav(rt).catch(() => {});
+    }
+    await this.emitTree(rt);
   }
 
   // ---------- native projects ----------

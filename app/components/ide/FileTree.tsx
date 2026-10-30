@@ -2,7 +2,8 @@
 
 import clsx from "clsx";
 import { ChevronDown, ChevronRight, CornerDownRight, File, FileUp, FolderPlus, FolderUp, GripVertical, Home, LayoutGrid, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { can, useAccess } from "@/lib/web/access";
 import type { ProjectState } from "@/lib/shared";
 import { History } from "./History";
@@ -271,6 +272,88 @@ export function FileTree({ projectId, state, focused, onOpenPage, onOpenFile, on
     } else await uploadFiles(await droppedFiles(e.dataTransfer), target);
   };
 
+  // ---- source actions (right-click a file or folder, as in VS Code) ----
+  const [srcMenu, setSrcMenu] = useState<{ x: number; y: number; path: string; file: boolean } | null>(null);
+  const [srcRenaming, setSrcRenaming] = useState<string | null>(null);
+  const [srcCreating, setSrcCreating] = useState<{ dir: string; kind: "file" | "folder" } | null>(null);
+  const [srcError, setSrcError] = useState<string | null>(null);
+  const srcOp = async (body: Record<string, string>) => {
+    setSrcError(null);
+    const res = await fetch(`/api/projects/${projectId}/files`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }).catch(() => null);
+    if (!res?.ok) {
+      setSrcError((await res?.json().catch(() => null))?.error ?? "That didn't work");
+      return false;
+    }
+    await refresh();
+    return true;
+  };
+  const sourceActions: SourceActions = {
+    writable,
+    renaming: srcRenaming,
+    creating: srcCreating,
+    menu: (e, path, file) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setSrcMenu({ x: e.clientX, y: e.clientY, path, file });
+    },
+    rename: async (from, name) => {
+      setSrcRenaming(null);
+      const clean = name.trim();
+      if (!clean || clean.includes("/") || clean === from.split("/").pop()) return;
+      const to = [...from.split("/").slice(0, -1), clean].join("/");
+      if (await srcOp({ type: "srcMove", from, to })) {
+        onDeleted?.(from);
+        if (active === from) onOpenFile(to);
+      }
+    },
+    create: async (name) => {
+      const c = srcCreating;
+      setSrcCreating(null);
+      const clean = name.trim().replace(/^\/+|\/+$/g, "");
+      if (!c || !clean) return;
+      const target = c.dir ? `${c.dir}/${clean}` : clean;
+      if (await srcOp({ type: c.kind === "file" ? "srcNewFile" : "srcMkdir", path: target })) if (c.kind === "file") onOpenFile(target);
+    },
+    cancel: () => {
+      setSrcRenaming(null);
+      setSrcCreating(null);
+    },
+  };
+  const menuItems = (m: NonNullable<typeof srcMenu>) => {
+    const dir = m.file ? m.path.split("/").slice(0, -1).join("/") : m.path;
+    const name = m.path.split("/").pop() ?? m.path;
+    return [
+      ...(writable ? [{ label: "New file…", run: () => setSrcCreating({ dir, kind: "file" }) }, { label: "New folder…", run: () => setSrcCreating({ dir, kind: "folder" }) }] : []),
+      ...(m.path && writable ? [{ label: "Rename…", hint: "F2", run: () => setSrcRenaming(m.path) }] : []),
+      ...(m.path && onImported ? [{ label: "Add to prompt", run: () => onImported([m.path]) }] : []),
+      ...(m.path ? [{ label: "Copy path", run: () => void navigator.clipboard?.writeText(m.path) }] : []),
+      ...(m.path ? [{ label: "Reveal in Finder", run: () => void fetch(`/api/projects/${projectId}/reveal?path=${encodeURIComponent(m.path)}`, { method: "POST" }) }] : []),
+      ...(m.path && writable
+        ? [
+            {
+              label: "Delete",
+              danger: true,
+              run: () => {
+                if (!confirm(`Delete ${name}${m.file ? "" : " and everything in it"}? The change is saved in History, so it can be undone.`)) return;
+                void srcOp({ type: "srcDelete", path: m.path }).then((ok) => ok && onDeleted?.(m.path));
+              },
+            },
+          ]
+        : []),
+    ];
+  };
+  // F2 renames the open file, as in VS Code.
+  useEffect(() => {
+    if (!writable) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "F2" || !active || !source.includes(active) || (e.target as HTMLElement)?.closest("input,textarea,[contenteditable]")) return;
+      e.preventDefault();
+      setSrcRenaming(active);
+    };
+    addEventListener("keydown", onKey);
+    return () => removeEventListener("keydown", onKey);
+  });
+
   const crumbs = cwd.split("/");
   const source = files.filter((f) => !f.startsWith("assets/") && !f.startsWith("components/sparkflow") && !f.startsWith(".expo/") && !/(^|\/)(package-lock\.json|yarn\.lock|pnpm-lock\.yaml|bun\.lockb?|\.DS_Store|Thumbs\.db|desktop\.ini|\.keep|\.gitkeep|npm-debug\.log.*|yarn-error\.log)$/.test(f));
   const headSha = state.commits.at(-1)?.sha;
@@ -482,6 +565,9 @@ export function FileTree({ projectId, state, focused, onOpenPage, onOpenFile, on
     ),
     source: (
         <Section handle={grip("source")} title={pageFile && !allSource ? "Source · this page" : "Source"} count={pageFile && !allSource ? pageFiles.length : source.length} openKey={reveal}>
+          <SourceCtx.Provider value={sourceActions}>
+          <div onContextMenu={(e) => sourceActions.menu(e, "", false)}>
+          {srcCreating?.dir === "" && <NameInput depth={0} folder={srcCreating.kind === "folder"} onDone={sourceActions.create} onCancel={sourceActions.cancel} />}
           {pageFile && !allSource ? (
             // A focused page only lists the files it is built from, in their folders.
             <div className="pb-1">
@@ -500,6 +586,14 @@ export function FileTree({ projectId, state, focused, onOpenPage, onOpenFile, on
               )}
             </>
           )}
+          </div>
+          {srcError && <p className="px-3 pt-1 text-[11px] text-red-400">{srcError}</p>}
+          {srcMenu &&
+            createPortal(
+              <ContextMenu x={srcMenu.x} y={srcMenu.y} items={menuItems(srcMenu)} onClose={() => setSrcMenu(null)} />,
+              document.body,
+            )}
+          </SourceCtx.Provider>
         </Section>
     ),
     history: native ? null : (
@@ -565,6 +659,84 @@ type Tree = { name: string; path: string; children: Map<string, Tree>; file: boo
 
 type Reveal = { active?: string | null; reveal?: number };
 
+type SourceActions = {
+  writable: boolean;
+  renaming: string | null;
+  creating: { dir: string; kind: "file" | "folder" } | null;
+  menu: (e: React.MouseEvent, path: string, file: boolean) => void;
+  rename: (from: string, name: string) => void;
+  create: (name: string) => void;
+  cancel: () => void;
+};
+const SourceCtx = createContext<SourceActions | null>(null);
+
+/** A name typed in place in the tree (rename, new file, new folder): Enter saves, Escape cancels. */
+function NameInput({ depth, value = "", folder, onDone, onCancel }: { depth: number; value?: string; folder?: boolean; onDone: (name: string) => void; onCancel: () => void }) {
+  const done = useRef(false);
+  return (
+    <div className="flex items-center gap-1.5 py-0.5 pr-2" style={{ paddingLeft: (folder ? 12 : 24) + depth * 12 }}>
+      <MaterialIcon name={value || (folder ? "folder" : "file")} folder={folder} />
+      <input
+        autoFocus
+        defaultValue={value}
+        onFocus={(e) => {
+          // The name without its extension, as VS Code selects it.
+          const dot = value.lastIndexOf(".");
+          e.target.setSelectionRange(0, dot > 0 && !folder ? dot : value.length);
+        }}
+        onKeyDown={(e) => {
+          e.stopPropagation();
+          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+          if (e.key === "Escape") {
+            done.current = true;
+            onCancel();
+          }
+        }}
+        onBlur={(e) => !done.current && ((done.current = true), onDone(e.target.value))}
+        className="min-w-0 flex-1 rounded border border-spark-500 bg-ink-900 px-1 text-[12px] text-ink-100 outline-none"
+      />
+    </div>
+  );
+}
+
+/** A right-click menu at the pointer, closed by any click elsewhere or Escape. */
+function ContextMenu({ x, y, items, onClose }: { x: number; y: number; items: { label: string; hint?: string; danger?: boolean; run: () => void }[]; onClose: () => void }) {
+  useEffect(() => {
+    const close = () => onClose();
+    const key = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    addEventListener("pointerdown", close);
+    addEventListener("keydown", key);
+    addEventListener("blur", close);
+    return () => {
+      removeEventListener("pointerdown", close);
+      removeEventListener("keydown", key);
+      removeEventListener("blur", close);
+    };
+  }, [onClose]);
+  if (!items.length) return null;
+  return (
+    <div
+      role="menu"
+      onPointerDown={(e) => e.stopPropagation()}
+      className="fixed z-[100] w-52 rounded-lg border border-[var(--line)] bg-ink-950 p-1 shadow-2xl"
+      style={{ left: Math.min(x, innerWidth - 216), top: Math.min(y, innerHeight - items.length * 30 - 12) }}>
+      {items.map((it) => (
+        <button
+          key={it.label}
+          role="menuitem"
+          onClick={() => {
+            onClose();
+            it.run();
+          }}
+          className={clsx("flex w-full cursor-pointer items-center justify-between rounded-md px-2.5 py-1.5 text-left text-[12.5px] hover:bg-spark-500 hover:text-white", it.danger ? "text-red-400" : "text-ink-200")}>
+          {it.label}
+          {it.hint && <span className="text-[11px] opacity-60">{it.hint}</span>}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function SourceTree({ files, onOpen, expanded, active, reveal }: { files: string[]; onOpen: (p: string) => void; expanded?: boolean } & Reveal) {
   const root = useMemo(() => {
     const r: Tree = { name: "", path: "", children: new Map(), file: false };
@@ -605,32 +777,46 @@ export function MaterialIcon({ name, folder, open }: { name: string; folder?: bo
 
 function FolderRow({ node, depth, onOpen, expanded, active, reveal }: { node: Tree; depth: number; onOpen: (p: string) => void; expanded?: boolean } & Reveal) {
   const [open, setOpen] = useState(!!expanded);
+  const act = useContext(SourceCtx);
+  const creatingHere = act?.creating?.dir === node.path;
   // Unfolds to show the open file when it's revealed.
   useEffect(() => {
     if (reveal && active?.startsWith(node.path + "/")) setOpen(true);
   }, [reveal, active, node.path]);
   return (
     <>
-      <button onClick={() => setOpen((o) => !o)} className="flex w-full cursor-pointer items-center gap-1.5 py-0.5 text-left text-[12px] text-ink-300 hover:bg-ink-800/60" style={{ paddingLeft: 12 + depth * 12 }}>
-        {open ? <ChevronDown size={11} className="shrink-0 text-ink-600" /> : <ChevronRight size={11} className="shrink-0 text-ink-600" />}
-        <MaterialIcon name={node.name} folder open={open} />
-        <span className="truncate">{node.name}</span>
-      </button>
-      {open && <TreeLevel node={node} depth={depth + 1} onOpen={onOpen} expanded={expanded} active={active} reveal={reveal} />}
+      {act?.renaming === node.path ? (
+        <NameInput depth={depth} value={node.name} folder onDone={(n) => act.rename(node.path, n)} onCancel={act.cancel} />
+      ) : (
+        <button
+          onClick={() => setOpen((o) => !o)}
+          onContextMenu={(e) => act?.menu(e, node.path, false)}
+          className="flex w-full cursor-pointer items-center gap-1.5 py-0.5 text-left text-[12px] text-ink-300 hover:bg-ink-800/60"
+          style={{ paddingLeft: 12 + depth * 12 }}>
+          {open ? <ChevronDown size={11} className="shrink-0 text-ink-600" /> : <ChevronRight size={11} className="shrink-0 text-ink-600" />}
+          <MaterialIcon name={node.name} folder open={open} />
+          <span className="truncate">{node.name}</span>
+        </button>
+      )}
+      {(open || creatingHere) && creatingHere && <NameInput depth={depth + 1} folder={act!.creating!.kind === "folder"} onDone={act!.create} onCancel={act!.cancel} />}
+      {(open || creatingHere) && <TreeLevel node={node} depth={depth + 1} onOpen={onOpen} expanded={expanded} active={active} reveal={reveal} />}
     </>
   );
 }
 
 function FileRow({ node, depth, onOpen, active, reveal }: { node: Tree; depth: number; onOpen: (p: string) => void } & Reveal) {
   const row = useRef<HTMLButtonElement>(null);
+  const act = useContext(SourceCtx);
   const on = active === node.path;
   useEffect(() => {
     if (reveal && on) row.current?.scrollIntoView({ block: "center", behavior: "smooth" });
   }, [reveal, on]);
+  if (act?.renaming === node.path) return <NameInput depth={depth} value={node.name} onDone={(n) => act.rename(node.path, n)} onCancel={act.cancel} />;
   return (
     <button
       ref={row}
       onClick={() => onOpen(node.path)}
+      onContextMenu={(e) => act?.menu(e, node.path, true)}
       className={clsx("flex w-full cursor-pointer items-center gap-1.5 py-0.5 text-left text-[12px] hover:bg-ink-800/60", on ? "bg-spark-500/15 text-ink-100" : "text-ink-300")}
       style={{ paddingLeft: 24 + depth * 12 }}>
       <MaterialIcon name={node.name} />
