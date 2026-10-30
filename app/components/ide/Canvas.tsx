@@ -258,6 +258,7 @@ function Flow(p: Props) {
         data: {
           text: t.text,
           editing: editing === t.id,
+          canEdit: true,
           onChange: (v) => board.setText(t.id, v),
           onEdit: () => setEditing(t.id),
           onDone: () => {

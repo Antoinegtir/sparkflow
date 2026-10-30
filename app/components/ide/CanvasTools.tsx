@@ -2,7 +2,7 @@
 
 import { NodeResizer, useStore, type Node, type NodeProps } from "@xyflow/react";
 import clsx from "clsx";
-import { Check, ChevronDown, Frame, Hand, MessageCircle, MousePointer2, PanelTop, Send, Smartphone, Trash2, Type, X } from "lucide-react";
+import { Check, ChevronDown, Frame, Hand, MessageCircle, MousePointer2, PanelTop, Pencil, Send, Smartphone, Trash2, Type, X } from "lucide-react";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { PHONE_H, PHONE_W } from "@/lib/web/layout";
 
@@ -247,11 +247,12 @@ const useUnzoom = () => {
   return { transform: `scale(${1 / zoom})`, transformOrigin: "top left" } as const;
 };
 
-export type TextData = { text: string; editing: boolean; onChange: (text: string) => void; onDone: () => void; onEdit: () => void; onRemove: () => void };
+export type TextData = { text: string; editing: boolean; canEdit: boolean; onChange: (text: string) => void; onDone: () => void; onEdit: () => void; onRemove: () => void };
 
-/** Text on the canvas, as in Figma: typed in place, double-click to edit again; an empty one goes away. */
+/** Text on the canvas, as in Figma: typed in place; hovered, it offers Edit and Delete (double-click edits too); an empty one goes away. */
 export const TextNode = memo(function TextNode({ data, selected }: NodeProps<Node<TextData>>) {
   const ref = useFocusWhen(data.editing);
+  const unzoom = useUnzoom();
   const fit = (el: HTMLTextAreaElement | null) => {
     if (!el) return;
     el.style.height = "0";
@@ -259,7 +260,7 @@ export const TextNode = memo(function TextNode({ data, selected }: NodeProps<Nod
   };
   useEffect(() => fit(ref.current), [data.text, data.editing]);
   return (
-    <div className={clsx("rounded-md px-1.5 py-0.5", (selected || data.editing) && "ring-1 ring-spark-400")} onDoubleClick={data.onEdit}>
+    <div className={clsx("group relative rounded-md px-1.5 py-0.5", data.editing || selected ? "ring-1 ring-spark-400" : "hover:ring-1 hover:ring-ink-500")} onDoubleClick={data.onEdit}>
       {data.editing ? (
         <textarea
           ref={ref}
@@ -276,10 +277,18 @@ export const TextNode = memo(function TextNode({ data, selected }: NodeProps<Nod
       ) : (
         <p className="max-w-[320px] text-[24px] leading-snug font-medium whitespace-pre-wrap text-ink-100">{data.text}</p>
       )}
-      {selected && !data.editing && (
-        <button type="button" onClick={data.onRemove} aria-label="Delete text" className="nodrag absolute -top-3 -right-3 grid size-6 cursor-pointer place-items-center rounded-full bg-ink-800 text-ink-300 shadow hover:text-red-400">
-          <Trash2 size={12} />
-        </button>
+      {/* On hover (or selected): edit and delete, the same size whatever the zoom. */}
+      {!data.editing && data.canEdit && (
+        <div className={clsx("absolute bottom-full left-0 pb-1 transition-opacity", selected ? "opacity-100" : "opacity-0 group-hover:opacity-100")} style={{ ...unzoom, transformOrigin: "bottom left" }}>
+          <div className="nodrag flex items-center gap-0.5 rounded-lg border border-[var(--line)] bg-[var(--panel)] p-0.5 shadow-lg">
+            <button type="button" onClick={data.onEdit} aria-label="Edit text" title="Edit" className="grid size-7 cursor-pointer place-items-center rounded-md text-ink-300 hover:bg-ink-800 hover:text-ink-100">
+              <Pencil size={13} />
+            </button>
+            <button type="button" onClick={data.onRemove} aria-label="Delete text" title="Delete" className="grid size-7 cursor-pointer place-items-center rounded-md text-ink-300 hover:bg-ink-800 hover:text-red-400">
+              <Trash2 size={13} />
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
