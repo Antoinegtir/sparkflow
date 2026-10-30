@@ -17,6 +17,7 @@ import {
   type Node,
   type NodeChange,
   type NodeProps,
+  useStore,
 } from "@xyflow/react";
 import clsx from "clsx";
 import { Sparkles } from "lucide-react";
@@ -656,6 +657,11 @@ function Flow(p: Props) {
     setTool("move");
   };
 
+  // The prompt bar is centered over the canvas, up to 760 px wide (32 px of margin): on a narrow canvas
+  // (the right panel dragged wide) it would cover the zoom buttons in the bottom-left corner, so they go.
+  const paneWidth = useStore((s) => s.width);
+  const barOverControls = paneWidth > 0 && (paneWidth - Math.min(760, paneWidth - 32)) / 2 < 64;
+
   return (
     <ReactFlow
       className={clsx(p.dimmed && "canvas-focused", `canvas-tool-${tool}`)}
@@ -692,7 +698,7 @@ function Flow(p: Props) {
       zoomOnPinch
       proOptions={{ hideAttribution: true }}>
       <Background variant={BackgroundVariant.Dots} gap={22} size={1.8} color="var(--canvas-dot)" />
-      {!p.dimmed && <Controls position="bottom-left" showInteractive={false} />}
+      {!p.dimmed && !barOverControls && <Controls position="bottom-left" showInteractive={false} />}
       {!p.dimmed && drawing && canvasOk && (
         <div
           className="absolute inset-0 z-[6] cursor-crosshair"
