@@ -162,31 +162,34 @@ export function FileTree({ projectId, state, focused, onOpenPage, onOpenFile, on
     void refresh();
   }, [refresh, state.commits.length]);
 
-  // ---- pages tree: native via file path, web via the first incoming link ----
+  // ---- pages tree: native via file path; web under every page that links to it (a page opened from
+  // two pages shows under both, and selecting it highlights each) ----
   const pages = useMemo(() => {
-    const parent = new Map<string, string>();
+    const parents = new Map<string, string[]>();
     if (native) {
       for (const r of state.order) {
         const seg = r.split("/").filter(Boolean);
-        if (seg.length > 1) parent.set(r, "/" + seg[0]);
+        if (seg.length > 1) parents.set(r, ["/" + seg[0]]);
       }
     } else {
       for (const [i, r] of state.order.entries()) {
         if (i === 0 || r.includes("/(")) continue;
-        const inc = state.edges.find((e) => e.to === r && state.order.includes(e.from) && e.from !== r);
-        if (inc) parent.set(r, inc.from);
+        const from = [...new Set(state.edges.filter((e) => e.to === r && e.from !== r && state.order.includes(e.from)).map((e) => e.from))];
+        if (from.length) parents.set(r, from);
       }
     }
-    const out: { route: string; depth: number }[] = [];
-    const visit = (r: string, depth: number, seen: Set<string>) => {
-      if (seen.has(r)) return;
-      seen.add(r);
-      out.push({ route: r, depth });
-      for (const c of state.order) if (parent.get(c) === r) visit(c, depth + 1, seen);
+    const out: { route: string; depth: number; key: string }[] = [];
+    // `path`: the pages above, so a loop (Notes → Note detail → Notes) stops instead of nesting forever.
+    const visit = (r: string, depth: number, path: string[]) => {
+      out.push({ route: r, depth, key: [...path, r].join(">") });
+      for (const c of state.order) if (parents.get(c)?.includes(r) && !path.includes(c) && c !== r) visit(c, depth + 1, [...path, r]);
     };
-    const seen = new Set<string>();
-    for (const r of state.order) if (!parent.has(r) || !state.order.includes(parent.get(r)!)) visit(r, 0, seen);
-    for (const r of state.order) visit(r, 0, seen);
+    const listed = new Set<string>();
+    const roots = state.order.filter((r) => !parents.get(r)?.some((p) => state.order.includes(p)));
+    for (const r of roots) visit(r, 0, []);
+    for (const x of out) listed.add(x.route);
+    // Pages only reachable through a loop: listed once at the top.
+    for (const r of state.order) if (!listed.has(r)) visit(r, 0, []);
     return out;
   }, [state.order, state.edges, native]);
 
@@ -321,13 +324,13 @@ export function FileTree({ projectId, state, focused, onOpenPage, onOpenFile, on
     pages: (
         <Section handle={grip("pages")} title="Pages" count={state.order.length}>
           {!pages.length && <p className="px-4 py-1 text-[12px] text-ink-500">Waiting for the plan…</p>}
-          {pages.map(({ route, depth }, i) => {
+          {pages.map(({ route, depth, key }, i) => {
             const s = state.screens[route];
             if (!s) return null;
             const Icon = depth > 0 ? CornerDownRight : i === 0 ? Home : LayoutGrid;
             return (
               <button
-                key={route}
+                key={key}
                 onClick={() => onOpenPage(route)}
                 className={clsx("flex w-full cursor-pointer items-center gap-2 py-1 pr-3 text-left text-[12.5px] hover:bg-ink-800/60", focused === route ? "bg-spark-500/10 text-ink-100" : "text-ink-300")}
                 style={{ paddingLeft: 14 + depth * 14 }}>
