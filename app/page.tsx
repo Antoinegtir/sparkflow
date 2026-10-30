@@ -61,8 +61,8 @@ export default function Home() {
       <div className="h-16" />
 
 
-      {/* Fills the first screen at any window height (or zoom), so the phone's edge always starts just below the fold. */}
-      <section className="hero-scale relative mx-auto flex min-h-svh max-w-3xl flex-col items-center justify-center px-6 pb-16 pt-24 text-center">
+      {/* Fills the first screen at any window height (or zoom), so the phone's edge always starts just below the fold; its content stays near the top bar. */}
+      <section className="hero-scale relative mx-auto flex min-h-svh max-w-3xl flex-col items-center px-6 pb-16 pt-20 text-center">
         <div className="relative">
         {/* Android and Apple glass logos on each side of the headline (wide screens only), anchored to it so they
             stay level with it however tall the window is. */}
