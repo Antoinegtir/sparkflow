@@ -370,8 +370,11 @@ function Capture({ url, title, blurred }: { url: string; title: string; blurred:
       />
       {tall && (
         <div className={clsx(cls, "flex flex-col")}>
-          <div className="min-h-0 flex-1" style={{ backgroundImage: `url(${url})`, backgroundSize: "100% auto", backgroundPosition: "top" }} />
-          <div className="h-[22%] shrink-0" style={{ backgroundImage: `url(${url})`, backgroundSize: "100% auto", backgroundPosition: "bottom" }} />
+          {/* Real images, not CSS backgrounds: on the hosted site only img src is sent to your computer. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={url} alt="" draggable={false} className="min-h-0 w-full flex-1 object-cover object-top" />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={url} alt="" draggable={false} className="h-[22%] w-full shrink-0 object-cover object-bottom" />
         </div>
       )}
     </>
