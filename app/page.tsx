@@ -67,7 +67,8 @@ export default function Home() {
         <LoopVideo className="hero-logo h-56 w-56 rotate-6" src="/videos/apple.mp4#t=7.5" />
       </div>
 
-      <section className="relative mx-auto flex max-w-3xl flex-col items-center px-6 pb-4 pt-16 text-center sm:pt-24">
+      {/* Fills the first screen at any window height (or zoom), so the phone's edge always starts just below the fold. */}
+      <section className="relative mx-auto flex min-h-svh max-w-3xl flex-col items-center justify-center px-6 pb-16 pt-24 text-center">
         <p className="mb-6 text-[13px] tracking-wide text-ink-400">
           Built on <span className="text-ink-200">Muse Spark</span>, <span className="text-ink-200">Muse Image</span> and{" "}
           <span className="text-ink-200">SAM 3.1</span> by{" "}
