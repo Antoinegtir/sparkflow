@@ -276,20 +276,34 @@ export function IDE({ id, slug: initialSlug, initialPage, access: given, basePat
   }, [state?.status]);
 
   const send = useCallback(
-    async (text: string, image?: MediaInput, audio?: MediaInput, routeOverride?: string | null) => {
+    async (text: string, image?: MediaInput, audio?: MediaInput, routeOverride?: string | null, plain = false) => {
       askToNotify();
       const route = routeOverride !== undefined ? (routeOverride ?? undefined) : (focused ?? undefined);
-      const first = selections[0];
-      const needsPicks = selections.length > 1 || selections.some((s) => s.layout);
-      const ok = await api.sendPrompt({
+      // `plain`: a request that isn't about what is selected (queued ones, canvas actions) leaves the selection alone.
+      const picked = plain ? [] : selections;
+      const first = picked[0];
+      const needsPicks = picked.length > 1 || picked.some((s) => s.layout);
+      const req = {
         text,
         ...(route ? { route } : {}),
         ...(first ? { testId: first.testId, ...(first.area ? { area: first.area } : {}) } : {}),
-        ...(needsPicks ? { picks: selections.map((s) => ({ testId: s.testId, ...(s.area ? { area: s.area } : {}), ...(s.file ? { file: s.file, line: s.line } : {}) })) } : {}),
+        ...(needsPicks ? { picks: picked.map((s) => ({ testId: s.testId, ...(s.area ? { area: s.area } : {}), ...(s.file ? { file: s.file, line: s.line } : {}) })) } : {}),
         ...(image ? { image } : {}),
         ...(audio ? { audio } : {}),
-      });
-      if (ok) {
+      };
+      let ok: unknown;
+      if (plain) {
+        // Queued requests: "still busy" (the last run is saving its work) is retried, not shown.
+        try {
+          ok = await api.trySendPrompt(req);
+        } catch (err) {
+          const msg = (err as Error).message;
+          if (/already working/i.test(msg)) return "busy" as const;
+          api.setToast(msg);
+          ok = null;
+        }
+      } else ok = await api.sendPrompt(req);
+      if (ok && !plain) {
         setSelections([]);
         setInspect(false);
       }
@@ -297,25 +311,74 @@ export function IDE({ id, slug: initialSlug, initialPage, access: given, basePat
     },
     [api, focused, selections],
   );
-  // Requests made while the agent works (assets to integrate, one after the other): run in order as it frees up.
-  const [queue, setQueue] = useState<string[]>([]);
+  // Requests made while the agent works (assets to integrate, new pages, comments): run in order, one at
+  // a time, as it frees up. Each resolves once sent (true) or refused (false).
+  type Queued = { text: string; route: string | null; done: (ok: boolean) => void; tries: number };
+  const [queue, setQueue] = useState<Queued[]>([]);
   const busy = state?.status === "running";
-  const enqueue = (text: string) => {
-    if (!busy && !queue.length) return void send(text, undefined, undefined, null);
-    setQueue((q) => [...q, text]);
-    api.setToast(`Queued for Muse · ${queue.length + 1} waiting`);
-  };
+  // A queued request just sent: the next one waits until the agent is seen working, then free again.
+  const inFlight = useRef<number | false>(false);
+  // Re-runs the queue: a refused send, a retry after "still busy", or a run never seen (too quick).
+  const [kick, setKick] = useState(0);
+  // Bumped by Stop: a request in flight when it was pressed isn't retried.
+  const stopGen = useRef(0);
+  const enqueue = (text: string, route: string | null = null) =>
+    new Promise<boolean>((done) => {
+      // Always through the queue (sent right away when the agent is free), so two quick requests never race.
+      setQueue((q) => [...q, { text, route, done, tries: 0 }]);
+      if (busy || queue.length || inFlight.current) api.setToast(`Queued for Muse · ${queue.length + 1} waiting`);
+    });
   useEffect(() => {
-    if (busy || !queue.length) return;
+    if (busy) inFlight.current = false;
+    if (busy || inFlight.current || !queue.length) return;
     const [next, ...rest] = queue;
     setQueue(rest);
-    void send(next, undefined, undefined, null);
+    const mine = Date.now();
+    const gen = stopGen.current;
+    inFlight.current = mine;
+    void send(next.text, undefined, undefined, next.route, true).then((ok) => {
+      if (ok === "busy" && gen === stopGen.current) {
+        if (next.tries < 20) {
+          // Another run (just started, or the last one still saving its work): back to the front, tried
+          // again once the agent is free (or shortly, if that run is never seen).
+          setQueue((q) => [{ ...next, tries: next.tries + 1 }, ...q]);
+          setTimeout(() => {
+            if (inFlight.current !== mine) return;
+            inFlight.current = false;
+            setKick((k) => k + 1);
+          }, 1500);
+          return;
+        }
+        api.setToast("Muse stayed busy: a queued request was dropped");
+      }
+      // Already moved on (the run was seen, or Stop): just report how this one went.
+      if (inFlight.current !== mine) return next.done(ok === true);
+      next.done(ok === true);
+      if (ok !== true) {
+        // Refused: free for the next one now.
+        inFlight.current = false;
+        setKick((k) => k + 1);
+        return;
+      }
+      setTimeout(() => {
+        if (inFlight.current !== mine) return;
+        inFlight.current = false;
+        setKick((k) => k + 1);
+      }, 5000);
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [busy, queue.length]);
+  }, [busy, queue.length, kick]);
+  // Stopping the agent drops what was waiting for it too.
+  const stopAll = () => {
+    stopGen.current++;
+    inFlight.current = false;
+    setQueue((q) => (q.forEach((x) => x.done(false)), []));
+    void api.stop();
+  };
   const runFlow = (a: FlowAction) => {
-    if (!state || !can(access, "agent")) return;
+    if (!state || !can(access, "agent")) return Promise.resolve(false);
     const { text, route } = flowPrompt(a, (r) => state.screens[r]?.title ?? r);
-    void send(text, undefined, undefined, route ?? null);
+    return enqueue(text, route ?? null);
   };
 
   // ---- app scheme ----
@@ -525,7 +588,7 @@ export function IDE({ id, slug: initialSlug, initialPage, access: given, basePat
       ? [{ id: "undo", group: "Actions" as const, label: `Undo last change on ${title(focused)}`, needs: "agent" as const, run: () => void api.undo(focused) }]
       : []),
     ...(state.native ? [{ id: "recapture", group: "Actions" as const, label: "Recapture pages from the simulator", needs: "owner" as const, run: () => void api.capture({ refresh: true }) }] : []),
-    ...(running ? [{ id: "stop", group: "Actions" as const, label: "Stop the agent", needs: "agent" as const, run: () => void api.stop() }] : []),
+    ...(running ? [{ id: "stop", group: "Actions" as const, label: "Stop the agent", needs: "agent" as const, run: stopAll }] : []),
     ...(!state.native && state.plan ? [{ id: "export", group: "Project" as const, label: "Export .zip", needs: "owner" as const, run: () => (location.href = `/api/projects/${id}/export`) }] : []),
     { id: "projects", group: "Project", label: "All projects", needs: "owner", run: () => (location.href = "/") },
     { id: "panel", group: "View", label: panelOpen ? "Hide activity panel" : "Show activity panel", run: () => setPanelOpen((o) => !o) },
@@ -566,7 +629,7 @@ export function IDE({ id, slug: initialSlug, initialPage, access: given, basePat
           state={state}
           focused={focused}
           onOpenPage={open}
-          onAsk={enqueue}
+          onAsk={(text) => void enqueue(text)}
           queued={queue.length}
           active={file.path}
           reveal={reveal}
@@ -587,6 +650,7 @@ export function IDE({ id, slug: initialSlug, initialPage, access: given, basePat
             ipad={ipad}
             // Simulator captures already hold the status bar: drawn bare, like a native app's.
             native={!!state.native || state.previewDevice === "simulator"}
+            nativeApp={!!state.native}
             skin={skin}
             dark={scheme === "dark"}
             device={shotDevice(state.previewDevice)}
@@ -598,7 +662,7 @@ export function IDE({ id, slug: initialSlug, initialPage, access: given, basePat
             onLink={(from, to) => setFlowDraft({ type: "link", from, to })}
             onUnlink={(from, to) => setFlowDraft({ type: "unlink", from, to })}
             onAddPage={(a) => runFlow({ type: "add", ...a })}
-            onAsk={(text, route) => void send(text, undefined, undefined, route)}
+            onAsk={(text, route) => void enqueue(text, route)}
           />
           {focused && focusedScreen && (
             <HeroFocus
@@ -652,8 +716,8 @@ export function IDE({ id, slug: initialSlug, initialPage, access: given, basePat
             onInspect={setInspect}
             onRemoveSelection={(k) => setSelections((s) => s.filter((x) => x.key !== k))}
             onAllPages={close}
-            onSend={(t, img, aud) => send(t, img, aud)}
-            onStop={() => void api.stop()}
+            onSend={(t, img, aud) => send(t, img, aud).then((ok) => ok === true)}
+            onStop={stopAll}
           />
           {api.toast && <div className="animate-fade-in absolute top-4 left-1/2 z-50 -translate-x-1/2 rounded-xl border border-[var(--line)] bg-[var(--panel)] px-4 py-2 text-[12.5px] text-ink-100 shadow-xl">{api.toast}</div>}
         </main>

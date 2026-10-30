@@ -136,6 +136,8 @@ export function useProject(id: string, role: AnyRole = "owner") {
     toast,
     setToast,
     sendPrompt: (req: PromptRequest) => act(() => post(`/api/projects/${id}/prompt`, req)),
+    /** Like sendPrompt, but throws instead of showing a toast (the queue retries when the agent is still busy). */
+    trySendPrompt: (req: PromptRequest) => post(`/api/projects/${id}/prompt`, req),
     stop: () => act(() => post(`/api/projects/${id}/stop`)),
     undo: (route: string) => act(() => post(`/api/projects/${id}/undo`, { route })),
     restore: (route: string, version: number) => act(() => post(`/api/projects/${id}/restore`, { route, version })),

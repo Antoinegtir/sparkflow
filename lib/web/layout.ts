@@ -4,7 +4,7 @@ export const PHONE_W = 200;
 export const PHONE_H = Math.round((200 * 844) / 390);
 export const NODE_W = PHONE_W + 40;
 export const NODE_H = PHONE_H + 80;
-const GAP_X = 70;
+export const GAP_X = 70;
 const GAP_Y = 120;
 
 /**

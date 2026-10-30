@@ -22,7 +22,7 @@ import clsx from "clsx";
 import { Sparkles } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { NavEdge, ScreenState } from "@/lib/shared";
-import { edgeSides, layoutScreens, NODE_H, NODE_W, PHONE_H, PHONE_W } from "@/lib/web/layout";
+import { edgeSides, GAP_X, layoutScreens, NODE_H, NODE_W, PHONE_H, PHONE_W } from "@/lib/web/layout";
 import { CupertinoSpinner, deviceById, DeviceMockup, PhoneFrame, StatusPill } from "./ui";
 import { SkinFrame } from "./SkinFrame";
 import { can, useAccess } from "@/lib/web/access";
@@ -119,7 +119,60 @@ export function ScreenContent({ screen, scanning, light }: { screen: ScreenState
   );
 }
 
-const nodeTypes = { phone: PhoneNode, text: TextNode, comment: CommentNode, newpage: NewPageNode, area: GroupNode };
+type PendingData = { name: string; ipad: boolean; native: boolean; dark: boolean; device?: string; skin?: DeviceSkin | null };
+
+/**
+ * The page the New page tool asked for, until the agent adds it: a phone being built, with the page's
+ * name, where it was placed. Not a page yet: no links, comments or focus.
+ */
+const PendingNode = memo(function PendingNode({ data }: NodeProps<Node<PendingData>>) {
+  const screen: ScreenState = { route: "", title: data.name, file: "", previewPath: "", status: "building", version: 0, attempt: 1, history: [] };
+  return (
+    <div className="pointer-events-none flex flex-col items-center gap-2">
+      <div className="flex items-baseline gap-1.5 text-[12px]">
+        <span className="font-medium text-ink-100">{data.name}</span>
+        <span className="text-ink-500">· planning</span>
+      </div>
+      {data.native && data.skin ? (
+        <SkinFrame skin={data.skin} style={{ width: PHONE_W, height: Math.round((PHONE_W * data.skin.height) / data.skin.width) }}>
+          <ScreenContent screen={screen} />
+        </SkinFrame>
+      ) : data.native ? (
+        <PhoneFrame width={PHONE_W} height={data.ipad ? Math.round(PHONE_W * 1.33) : PHONE_H} radius={data.ipad ? PHONE_W * 0.03 : PHONE_W * 0.137} bezel={Math.max(5, PHONE_W * 0.025)} hardware ipad={data.ipad} glow="spark">
+          <ScreenContent screen={screen} />
+        </PhoneFrame>
+      ) : (
+        <DeviceMockup device={deviceById(data.device)} width={PHONE_W} dark={data.dark} glow="spark">
+          <ScreenContent screen={screen} light={!data.dark} />
+        </DeviceMockup>
+      )}
+      <StatusPill screen={screen} />
+    </div>
+  );
+});
+
+/**
+ * Which New page placeholder each newly added page belongs to: its name first, else the oldest one
+ * whose request was sent before the page appeared.
+ */
+function claimPages<T extends { id: number; name: string; before: Set<string>; sent: number | null }>(pendings: T[], screens: ScreenState[]) {
+  const out = new Map<string, T>();
+  const sent = pendings.filter((x) => x.sent != null).sort((a, b) => a.sent! - b.sent!);
+  const free = (x: T) => screens.filter((s) => !x.before.has(s.route) && !out.has(s.route));
+  const used = new Set<number>();
+  for (const x of sent) {
+    const s = free(x).find((s) => s.title.trim().toLowerCase() === x.name.trim().toLowerCase());
+    if (s) (out.set(s.route, x), used.add(x.id));
+  }
+  for (const x of sent) {
+    if (used.has(x.id)) continue;
+    const s = free(x)[0];
+    if (s) (out.set(s.route, x), used.add(x.id));
+  }
+  return out;
+}
+
+const nodeTypes = { phone: PhoneNode, pending: PendingNode, text: TextNode, comment: CommentNode, newpage: NewPageNode, area: GroupNode };
 // Bottom padding keeps the pages clear of the floating prompt bar.
 const FIT = { padding: { top: "36px", left: "48px", right: "48px", bottom: "180px" }, maxZoom: 1 } as const;
 
@@ -143,13 +196,17 @@ type Props = {
   onLink: (from: string, to: string) => void;
   onUnlink: (from: string, to: string) => void;
   /** A frame placed with the Frame tool: the agent adds that page. */
-  onAddPage: (a: { name: string; description: string; from?: string }) => void;
+  onAddPage: (a: { name: string; description: string; from?: string }) => Promise<boolean>;
+  /** The project is a native app (its new pages arrive with the Simulator's captures, after the run). */
+  nativeApp: boolean;
   /** A comment on a page, sent to the agent as a change for it. */
   onAsk: (text: string, route: string) => void;
 };
 
 type Pos = { x: number; y: number };
 const posKey = (id: string) => `sparkflow.canvas.${id}`;
+/** Where pages the layout placed (never moved by hand) first showed up. */
+const autoKey = (id: string) => `sparkflow.canvas.${id}.auto`;
 function Flow(p: Props) {
   const layout = useMemo(() => layoutScreens(p.screens.map((s) => s.route), p.edges), [p.screens, p.edges]);
   // Pages the user moved, kept per project in this browser; the others follow the automatic layout.
@@ -193,24 +250,89 @@ function Flow(p: Props) {
   const resizing = useRef<string | null>(null);
   // A group being dragged: where it started and what it carries (pages, text, comments, smaller groups).
   const drag = useRef<{ id: string; from: Pos; routes: Record<string, Pos>; items: Record<string, Pos> } | null>(null);
-  // A new page lands where it was placed, once the agent has added it (matched by its name).
-  const placed = useRef(new Map<string, Pos>());
+  // Pages asked for with the New page tool: each shown at once where it was placed (a phone being built),
+  // then handed that spot when the agent adds it. `sent`: when its request reached the agent (it may wait
+  // in the queue first); before that, other runs and their pages aren't its own. `started`/`ended`: its run.
+  type Pending = { id: number; at: Pos; name: string; before: Set<string>; sent: number | null; started: boolean; ended?: number };
+  const [pendings, setPendings] = useState<Pending[]>([]);
+  useEffect(() => setPendings([]), [p.projectId]);
+  const screensRef = useRef(p.screens);
+  screensRef.current = p.screens;
+  const claims = claimPages(pendings, p.screens);
   useEffect(() => {
-    if (!placed.current.size) return;
-    for (const s of p.screens) {
-      const at = placed.current.get(s.title.trim().toLowerCase());
-      if (!at) continue;
-      placed.current.delete(s.title.trim().toLowerCase());
+    if (claims.size) {
       setMoved((m) => {
-        const next = { ...m, [s.route]: at };
+        const next = { ...m };
+        for (const [r, x] of claims) next[r] = x.at;
         try {
           localStorage.setItem(posKey(p.projectId), JSON.stringify(next));
         } catch {}
         return next;
       });
+      const done = new Set([...claims.values()].map((x) => x.id));
+      setPendings((ps) => ps.filter((x) => !done.has(x.id)));
+      return;
     }
-  }, [p.screens, p.projectId]);
-  const posOf = (r: string): Pos => moved[r] ?? layout.get(r) ?? { x: 0, y: 0 };
+    const sent = pendings.filter((x) => x.sent != null);
+    if (!sent.length) return;
+    if (p.status === "running") {
+      if (sent.some((x) => !x.started)) setPendings((ps) => ps.map((x) => (x.sent != null && !x.started ? { ...x, started: true } : x)));
+      return;
+    }
+    if (sent.some((x) => x.started && !x.ended)) return void setPendings((ps) => ps.map((x) => (x.started && !x.ended ? { ...x, ended: Date.now() } : x)));
+    // Its run ended without the page (stopped, failed), or was never seen running (it started and ended
+    // between two updates): the placeholder goes after a grace period. A native app's pages come with the
+    // Simulator's captures, after a run that went through: those wait longer.
+    const deadline = (x: Pending) => (x.started ? x.ended! + (p.nativeApp && p.status === "done" ? 60_000 : 1500) : x.sent! + 4000);
+    const now = Date.now();
+    const expired = new Set(sent.filter((x) => deadline(x) <= now).map((x) => x.id));
+    if (expired.size) return void setPendings((ps) => ps.filter((x) => !expired.has(x.id)));
+    const t = setTimeout(() => setPendings((ps) => [...ps]), Math.min(...sent.map(deadline)) - now + 20);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [p.screens, p.status, p.projectId, pendings]);
+
+  // Pages stay where they first showed up. The automatic layout only places a page the first time:
+  // when a page is added (with no link yet, it lands in the top row, which re-centers it), the others
+  // would otherwise jump around until its links arrive. Kept per project in this browser, so a reload
+  // shows the same arrangement.
+  const shown = useRef(new Map<string, Pos>());
+  const shownDirty = useRef(false);
+  useEffect(() => {
+    try {
+      shown.current = new Map(Object.entries(JSON.parse(localStorage.getItem(autoKey(p.projectId)) ?? "{}") as Record<string, Pos>));
+    } catch {
+      shown.current = new Map();
+    }
+    shownDirty.current = false;
+  }, [p.projectId]);
+  useEffect(() => {
+    // Pages that are gone lose their spot (added back, they're placed again).
+    const live = new Set(p.screens.map((s) => s.route));
+    for (const r of [...shown.current.keys()]) if (!live.has(r)) (shown.current.delete(r), (shownDirty.current = true));
+    if (!shownDirty.current || !p.screens.length) return;
+    shownDirty.current = false;
+    try {
+      localStorage.setItem(autoKey(p.projectId), JSON.stringify(Object.fromEntries(shown.current)));
+    } catch {}
+  });
+  const overlaps = (a: Pos, b: Pos) => Math.abs(a.x - b.x) < NODE_W + GAP_X / 2 && Math.abs(a.y - b.y) < NODE_H;
+  const posOf = (r: string): Pos => {
+    if (moved[r]) return moved[r];
+    // The page the New page placeholder stands for: straight onto its spot, never a stop elsewhere first.
+    const claim = claims.get(r);
+    if (claim) return claim.at;
+    const kept = shown.current.get(r);
+    if (kept) return kept;
+    // A page placed for the first time: its spot in the layout, moved right past any page already there.
+    const others = p.screens.filter((s) => s.route !== r).map((s) => moved[s.route] ?? shown.current.get(s.route)).filter((x): x is Pos => !!x);
+    for (const x of pendings) others.push(x.at);
+    const at = { ...(layout.get(r) ?? { x: 0, y: 0 }) };
+    for (let guard = 0; guard < 50 && others.some((o) => overlaps(o, at)); guard++) at.x += NODE_W + GAP_X;
+    shown.current.set(r, at);
+    shownDirty.current = true;
+    return at;
+  };
 
   // Sizes React Flow measured, handed back with every node: without them it hides the nodes to
   // measure them again, which made the canvas blink while dragging.
@@ -331,6 +453,19 @@ function Flow(p: Props) {
         },
       };
     }),
+    ...pendings.map(
+      (x) =>
+        ({
+          id: `page:pending:${x.id}`,
+          type: "pending",
+          position: x.at,
+          measured: sizes.current.get(`page:pending:${x.id}`),
+          draggable: false,
+          selectable: false,
+          connectable: false,
+          data: { name: x.name, ipad: p.ipad, native: p.native, dark: p.dark, device: p.device, skin: p.skin },
+        }) satisfies Node<PendingData>,
+    ),
     ...(newPage
       ? [
           {
@@ -343,9 +478,13 @@ function Flow(p: Props) {
               running: p.status === "running",
               onCancel: () => setNewPage(null),
               onSubmit: (a) => {
-                placed.current.set(a.name.trim().toLowerCase(), newPage);
-                p.onAddPage(a);
+                const id = Date.now();
+                setPendings((ps) => [...ps, { id, at: newPage, name: a.name, before: new Set(p.screens.map((s) => s.route)), sent: null, started: false }]);
                 setNewPage(null);
+                // Sent: the pages there at that moment aren't its own. Not sent (offline, refused): it goes.
+                void p.onAddPage(a).then((ok) =>
+                  setPendings((ps) => (ok ? ps.map((x) => (x.id === id ? { ...x, before: new Set(screensRef.current.map((s) => s.route)), sent: Date.now() } : x)) : ps.filter((x) => x.id !== id))),
+                );
               },
             },
           } satisfies Node<NewPageData>,
