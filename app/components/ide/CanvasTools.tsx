@@ -623,7 +623,6 @@ export const GroupNode = memo(function GroupNode({ data, selected }: NodeProps<N
   const [name, setName] = useState(g.name);
   useEffect(() => setName(g.name), [g.name]);
   const ref = useFocusWhen(data.editing, true);
-  const unzoom = useUnzoom();
   const done = () => data.onRename(name.trim() || g.name);
   return (
     <div className={clsx("relative h-full w-full", section ? "rounded-[18px] border border-ink-500/50 bg-ink-400/[0.06]" : "border border-ink-400/70")}>
@@ -637,8 +636,8 @@ export const GroupNode = memo(function GroupNode({ data, selected }: NodeProps<N
         onResizeStart={() => data.onResizing(true)}
         onResizeEnd={() => data.onResizing(false)}
       />
-      {/* The name, the same size whatever the zoom: in a tab inside a section, above a frame. */}
-      <div className={clsx("absolute left-0", section ? "top-0 p-2" : "bottom-full pb-1")} style={{ ...unzoom, transformOrigin: section ? "top left" : "bottom left" }}>
+      {/* The name, in a tab inside a section, above a frame: part of the canvas, it zooms with the pages. */}
+      <div className={clsx("absolute left-0", section ? "top-0 p-2" : "bottom-full pb-1")}>
         {data.editing ? (
           <input
             ref={ref}
