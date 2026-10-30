@@ -124,6 +124,8 @@ type Props = {
   focused: string | null;
   onOpenPage: (route: string) => void;
   onOpenFile: (path: string) => void;
+  /** A file or folder just deleted: the code view and the prompt let go of it. */
+  onDeleted?: (path: string) => void;
   /** Files just imported: added to the prompt as context, to say what to do with them. */
   onImported?: (files: string[]) => void;
   /** Requests waiting for the agent to be free. */
@@ -134,7 +136,7 @@ type Props = {
 };
 
 /** Explorer: pages (with status), assets (Finder-like, drag & drop) and source files. */
-export function FileTree({ projectId, state, focused, onOpenPage, onOpenFile, onImported, queued = 0, active, reveal }: Props) {
+export function FileTree({ projectId, state, focused, onOpenPage, onOpenFile, onDeleted, onImported, queued = 0, active, reveal }: Props) {
   const [files, setFiles] = useState<string[]>(state.tree);
   const [cwd, setCwd] = useState("assets");
   const [selected, setSelected] = useState<string | null>(null);
@@ -396,7 +398,7 @@ export function FileTree({ projectId, state, focused, onOpenPage, onOpenFile, on
             onKeyDown={(e) => {
               if (!selected || renaming || !writable) return;
               if ((e.key === "Backspace" || e.key === "Delete") && confirm(`Delete ${selected.split("/").pop()}?`)) {
-                void op({ type: "delete", path: selected });
+                void op({ type: "delete", path: selected }).then(() => onDeleted?.(selected));
                 setSelected(null);
               }
               if (e.key === "Enter") setRenaming(selected);
@@ -466,7 +468,7 @@ export function FileTree({ projectId, state, focused, onOpenPage, onOpenFile, on
               <button
                 onClick={() => {
                   if (confirm(`Delete ${selected.split("/").pop()}?`)) {
-                    void op({ type: "delete", path: selected });
+                    void op({ type: "delete", path: selected }).then(() => onDeleted?.(selected));
                     setSelected(null);
                   }
                 }}

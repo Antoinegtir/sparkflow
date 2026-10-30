@@ -656,6 +656,11 @@ export function IDE({ id, slug: initialSlug, initialPage, access: given, basePat
           focused={focused}
           onOpenPage={open}
           onImported={(files) => files.forEach((f) => addFileContext(f))}
+          onDeleted={(path) => {
+            const gone = (f?: string | null) => !!f && (f === path || f.startsWith(path + "/"));
+            if (gone(file.path)) setFile({ path: null, line: null });
+            setSelections((cur) => cur.filter((x) => !(x.key.startsWith("file:") && gone(x.file))));
+          }}
           queued={queue.length}
           active={file.path}
           reveal={reveal}
