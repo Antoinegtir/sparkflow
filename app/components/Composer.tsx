@@ -11,6 +11,7 @@ import { apiFetch, getBackend, openOnBackend, STATIC_SITE } from "@/lib/web/back
 import { useIsPhone } from "@/lib/web/phone";
 import { patchPresence } from "@/lib/web/presence";
 import { DesktopNote } from "./DesktopNote";
+import { askToNotify } from "@/lib/web/notify";
 
 const PENDING = "sparkflow.pendingPrompt";
 
@@ -100,6 +101,8 @@ export function Composer() {
     if (!ready) return;
     // The hosted site builds on your computer for signed-in people only.
     if (STATIC_SITE && !(await requireSignIn("Sign in to build your app.", buildButton.current))) return;
+    // Asked now, from the click: a build takes minutes, and it says when it's done.
+    askToNotify();
     setBusy(true);
     setError(null);
     try {

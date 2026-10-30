@@ -23,6 +23,7 @@ import { AppSettings } from "./AppSettings";
 import { PlayMode } from "./PlayMode";
 import { PromptBar, type Selection } from "./PromptBar";
 import { TopBar } from "./TopBar";
+import { askToNotify, markTitle, notify } from "@/lib/web/notify";
 
 const PANEL_KEY = "sparkflow-panel-width";
 const EXPLORER_KEY = "sparkflow-explorer-width";
@@ -219,8 +220,27 @@ export function IDE({ id, slug: initialSlug, initialPage }: { id: string; slug: 
   };
 
   // ---- prompts ----
+  // When a run ends: a system notification if the tab is in the background (else a toast), and a mark
+  // on the tab's title until it's looked at. Not for a run the user stopped.
+  const lastStatus = useRef<string | null>(null);
+  useEffect(() => {
+    if (!state) return;
+    const prev = lastStatus.current;
+    lastStatus.current = state.status;
+    if (prev !== "running" || state.status === "running" || state.status === "stopped" || state.status === "idle") return;
+    const ok = state.status === "done";
+    const verified = state.order.filter((r) => state.screens[r]?.status === "done").length;
+    const said = state.timeline.findLast((t) => t.kind === "agent")?.text;
+    const title = ok ? `${state.name} is ready` : `${state.name}: Sparkflow stopped on an error`;
+    const body = ok ? `${verified}/${state.order.length} pages verified${said ? ` · ${said.slice(0, 120)}` : ""}` : "Open it to see what went wrong.";
+    if (!notify(title, body, `sparkflow-${id}`)) api.setToast(ok ? `Done · ${verified}/${state.order.length} pages verified` : title);
+    markTitle(ok ? "✓" : "!");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state?.status]);
+
   const send = useCallback(
     async (text: string, image?: MediaInput, audio?: MediaInput, routeOverride?: string | null) => {
+      askToNotify();
       const route = routeOverride !== undefined ? (routeOverride ?? undefined) : (focused ?? undefined);
       const first = selections[0];
       const needsPicks = selections.length > 1 || selections.some((s) => s.layout);
