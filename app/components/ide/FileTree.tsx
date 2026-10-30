@@ -1,8 +1,7 @@
 "use client";
 
-import { MetaLogo } from "../MetaLogo";
 import clsx from "clsx";
-import { ArrowUp, ChevronDown, ChevronRight, CornerDownRight, File, FileUp, FolderPlus, FolderUp, GripVertical, Home, LayoutGrid, Trash2, X } from "lucide-react";
+import { ChevronDown, ChevronRight, CornerDownRight, File, FileUp, FolderPlus, FolderUp, GripVertical, Home, LayoutGrid, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
 import { can, useAccess } from "@/lib/web/access";
 import type { ProjectState } from "@/lib/shared";
@@ -125,8 +124,8 @@ type Props = {
   focused: string | null;
   onOpenPage: (route: string) => void;
   onOpenFile: (path: string) => void;
-  /** Sends a request to the agent (what to do with files just imported). */
-  onAsk?: (text: string) => void;
+  /** Files just imported: added to the prompt as context, to say what to do with them. */
+  onImported?: (files: string[]) => void;
   /** Requests waiting for the agent to be free. */
   queued?: number;
   /** The file open in the code view, and a counter bumped to reveal it in Source. */
@@ -135,7 +134,7 @@ type Props = {
 };
 
 /** Explorer: pages (with status), assets (Finder-like, drag & drop) and source files. */
-export function FileTree({ projectId, state, focused, onOpenPage, onOpenFile, onAsk, queued = 0, active, reveal }: Props) {
+export function FileTree({ projectId, state, focused, onOpenPage, onOpenFile, onImported, queued = 0, active, reveal }: Props) {
   const [files, setFiles] = useState<string[]>(state.tree);
   const [cwd, setCwd] = useState("assets");
   const [selected, setSelected] = useState<string | null>(null);
@@ -144,9 +143,6 @@ export function FileTree({ projectId, state, focused, onOpenPage, onOpenFile, on
   const [error, setError] = useState<string | null>(null);
   const [dropping, setDropping] = useState(false);
   const [hoverFolder, setHoverFolder] = useState<string | null>(null);
-  // What was just imported, until the user says what to do with it (or dismisses it).
-  const [imported, setImported] = useState<string[] | null>(null);
-  const [ask, setAsk] = useState("");
   const [importMenu, setImportMenu] = useState(false);
   const pickFiles = useRef<HTMLInputElement>(null);
   const pickFolder = useRef<HTMLInputElement>(null);
@@ -240,17 +236,8 @@ export function FileTree({ projectId, state, focused, onOpenPage, onOpenFile, on
     }
     setUpload(null);
     await refresh();
-    // Ask what they're for: the app icon, an image for a page, a font…
-    setImported(added);
-    setAsk("");
-  };
-
-  const askAbout = () => {
-    const text = ask.trim();
-    if (!text || !imported?.length || !onAsk) return;
-    onAsk(`I added ${imported.length === 1 ? "this file" : "these files"} to the project: ${imported.join(", ")}. ${text}`);
-    setImported(null);
-    setAsk("");
+    // In the prompt as context, ready for "make it the app icon", "put it on the Notes page"…
+    if (added.length) onImported?.(added);
   };
 
   const newFolder = async () => {
@@ -470,40 +457,6 @@ export function FileTree({ projectId, state, focused, onOpenPage, onOpenFile, on
               );
             })}
           </div>
-          {imported && onAsk && (
-            // Right after an import: what should Muse do with it? (Set it as the app icon, put it on a page…)
-            <div className="mx-2 mt-2 rounded-lg border border-spark-500/40 bg-spark-500/5 p-2">
-              <div className="flex items-center gap-1.5 text-[11px] text-ink-300">
-                <MetaLogo className="size-3.5 shrink-0" />
-                <span className="min-w-0 flex-1 truncate">
-                  What should Muse do with {imported.length === 1 ? imported[0].split("/").pop() : `these ${imported.length} files`}?
-                </span>
-                <button onClick={() => setImported(null)} title="Nothing for now" className="cursor-pointer rounded p-0.5 text-ink-500 hover:text-ink-200">
-                  <X size={12} />
-                </button>
-              </div>
-              <div className="mt-1.5 flex items-end gap-1.5">
-                <textarea
-                  autoFocus
-                  rows={2}
-                  value={ask}
-                  onChange={(e) => setAsk(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      askAbout();
-                    }
-                    if (e.key === "Escape") setImported(null);
-                  }}
-                  placeholder={IMAGE.test(imported[0] ?? "") ? "Make it the app icon, or put it at the top of the Notes page…" : "Where it goes in the app…"}
-                  className="min-w-0 flex-1 resize-none rounded-md bg-ink-900 px-2 py-1.5 text-[12px] text-ink-100 outline-none placeholder:text-ink-600"
-                />
-                <button onClick={askAbout} disabled={!ask.trim()} title="Ask Muse" className="grid size-7 shrink-0 cursor-pointer place-items-center rounded-md bg-spark-500 text-white disabled:cursor-not-allowed disabled:opacity-40">
-                  <ArrowUp size={14} />
-                </button>
-              </div>
-            </div>
-          )}
           {!entries.length && <p className="px-4 py-2 text-[11.5px] text-ink-500">{writable ? "Empty folder. Drop files here." : "Empty folder."}</p>}
           <div className="flex items-center justify-between px-3 pt-1.5 text-[10.5px] text-ink-600">
             <span>{upload ?? error ?? (queued ? `${queued} request${queued > 1 ? "s" : ""} queued for Muse` : writable ? "Enter to rename · drag onto a folder" : "")}</span>

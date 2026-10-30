@@ -19,6 +19,8 @@ type Props = {
   diagnostics: { line: number; message: string }[];
   onChange: (v: string) => void;
   onOpenFile: (path: string, line: number) => void;
+  /** The selected lines (null: nothing selected), for adding them to the prompt. */
+  onSelection?: (sel: { start: number; end: number } | null) => void;
 };
 
 const LANG: Record<string, string> = {
@@ -279,7 +281,9 @@ function setup(m: Monaco) {
   });
 }
 
-export function CodeEditor({ projectId, file, value, line, diagnostics, onChange, onOpenFile }: Props) {
+export function CodeEditor({ projectId, file, value, line, diagnostics, onChange, onOpenFile, onSelection }: Props) {
+  const onSel = useRef(onSelection);
+  onSel.current = onSelection;
   const editor = useRef<Ed.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
   const lens = useRef<Ed.IEditorDecorationsCollection | null>(null);
@@ -357,6 +361,7 @@ export function CodeEditor({ projectId, file, value, line, diagnostics, onChange
         onMount={(ed, monaco) => {
           editor.current = ed;
           monacoRef.current = monaco;
+          ed.onDidChangeCursorSelection(({ selection: r }) => onSel.current?.(r.isEmpty() ? null : { start: r.startLineNumber, end: r.endColumn === 1 && r.endLineNumber > r.startLineNumber ? r.endLineNumber - 1 : r.endLineNumber }));
           // ⌘S out of habit: it's saved anyway.
           ed.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {});
           if (line) {

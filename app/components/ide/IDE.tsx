@@ -255,6 +255,15 @@ export function IDE({ id, slug: initialSlug, initialPage, access: given, basePat
     },
     [id, state],
   );
+  // A file (an asset, or code and its selected lines) in the prompt as context, like a picked element: sent
+  // as a pick with its file (and first line, for the code around it). Added again, it stays (no toggle).
+  const addFileContext = (f: string, start?: number, end?: number) => {
+    const name = f.split("/").pop() ?? f;
+    const range = start ? `:${start}${end && end !== start ? `-${end}` : ""}` : "";
+    const key = `file:${f}${range}`;
+    if (selections.some((x) => x.key === key)) return;
+    void addSelection({ key, testId: `${name}${range}`, label: `${name}${range}`, file: f, ...(start ? { line: start } : {}), layout: true });
+  };
   const onHeroSelect = (s: { testId: string; text: string; anchors?: Selection["anchors"]; rect?: { x: number; y: number; width: number; height: number }; area?: { x: number; y: number; width: number; height: number } }) => {
     const area = s.area ?? (s.rect ? { x: s.rect.x / 390, y: s.rect.y / 844, width: s.rect.width / 390, height: s.rect.height / 844 } : undefined);
     const key = `${s.testId}@${area ? [area.x, area.y, area.width, area.height].map((n) => n.toFixed(3)).join(",") : ""}`;
@@ -646,7 +655,7 @@ export function IDE({ id, slug: initialSlug, initialPage, access: given, basePat
           state={state}
           focused={focused}
           onOpenPage={open}
-          onAsk={(text) => void enqueue(text)}
+          onImported={(files) => files.forEach((f) => addFileContext(f))}
           queued={queue.length}
           active={file.path}
           reveal={reveal}
@@ -757,6 +766,7 @@ export function IDE({ id, slug: initialSlug, initialPage, access: given, basePat
                 onReveal={() => setReveal((n) => n + 1)}
                 onLayoutHover={setLayoutHover}
                 onLayoutPick={onLayoutPick}
+                onContext={({ file: f, start, end }) => addFileContext(f, start, end)}
                 selectedKeys={new Set(selections.map((x) => x.key))}
                 onOpenPage={open}
                 onFlow={runFlow}

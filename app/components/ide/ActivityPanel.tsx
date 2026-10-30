@@ -1,7 +1,7 @@
 "use client";
 
 import clsx from "clsx";
-import { FolderOpen } from "lucide-react";
+import { FolderOpen, Plus } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { NavEdge, ProjectState } from "@/lib/shared";
 import type { Person } from "@/lib/shared/share";
@@ -32,6 +32,8 @@ type Props = {
   selectedKeys: Set<string>;
   onOpenPage: (route: string) => void;
   onFlow: (action: FlowAction) => void;
+  /** Adds the open file (or its selected lines) to the prompt as context. */
+  onContext?: (c: { file: string; start?: number; end?: number }) => void;
 };
 
 export type FlowAction =
@@ -69,7 +71,7 @@ export function ActivityPanel(p: Props) {
             </div>
           </div>
         )}
-        {p.tab === "code" && <CodeView projectId={p.projectId} state={p.state} file={p.file} line={p.line} onReveal={p.onReveal} onFile={p.onFile} />}
+        {p.tab === "code" && <CodeView projectId={p.projectId} state={p.state} file={p.file} line={p.line} onReveal={p.onReveal} onFile={p.onFile} onContext={p.onContext} />}
         {p.tab === "layout" &&
           (p.focused || p.state.native ? (
             <LayoutTree projectId={p.projectId} state={p.state} route={p.focused} selectedKeys={p.selectedKeys} onHover={p.onLayoutHover} onPick={p.onLayoutPick} onJump={(f, l) => p.onFile(f, l)} />
@@ -154,7 +156,26 @@ function Bubble({ who, sub, by, people, children }: { who: "user" | "agent"; sub
 const CODE = /\.(tsx?|jsx?|json|mjs|cjs|md|css|swift)$/i;
 const IMAGE = /\.(png|jpe?g|gif|webp|svg)$/i;
 
-function CodeView({ projectId, state, file, line, onReveal, onFile }: { projectId: string; state: ProjectState; file: string | null; line: number | null; onReveal: () => void; onFile: (p: string, l?: number | null) => void }) {
+function CodeView({
+  projectId,
+  state,
+  file,
+  line,
+  onReveal,
+  onFile,
+  onContext,
+}: {
+  projectId: string;
+  state: ProjectState;
+  file: string | null;
+  line: number | null;
+  onReveal: () => void;
+  onFile: (p: string, l?: number | null) => void;
+  onContext?: (c: { file: string; start?: number; end?: number }) => void;
+}) {
+  // Lines selected in the editor: the + button adds just those.
+  const [sel, setSel] = useState<{ start: number; end: number } | null>(null);
+  useEffect(() => setSel(null), [file]);
   const access = useAccess();
   const owner = access.role === "owner";
   const writable = can(access, "files.write");
@@ -275,7 +296,18 @@ function CodeView({ projectId, state, file, line, onReveal, onFile }: { projectI
         )}
         {owner && !state.native && <GitHubSetup projectId={projectId} appName={state.name} />}
       </div>
-      <div ref={scroller} className={clsx("min-h-0 flex-1", draft != null && file ? "overflow-hidden" : "overflow-auto")}>
+      <div ref={scroller} className={clsx("relative min-h-0 flex-1", draft != null && file ? "overflow-hidden" : "overflow-auto")}>
+        {file && onContext && (
+          // Floating, like picking elements of a page: the file (or its selected lines) joins the prompt.
+          <button
+            type="button"
+            onClick={() => onContext({ file, ...(sel ? { start: sel.start, end: sel.end } : {}) })}
+            title={sel ? `Add lines ${sel.start}–${sel.end} to the prompt` : `Add ${name} to the prompt`}
+            className="absolute right-4 bottom-4 z-20 flex cursor-pointer items-center gap-1.5 rounded-full bg-spark-500 py-2 pr-3.5 pl-2.5 text-[12.5px] font-medium text-white shadow-xl shadow-black/40 hover:bg-spark-400">
+            <Plus size={15} strokeWidth={2.5} />
+            {sel ? `Lines ${sel.start}${sel.end !== sel.start ? `–${sel.end}` : ""}` : "Add to prompt"}
+          </button>
+        )}
         {!file && <p className="p-4 text-[12px] text-ink-500">Open a file from Source in the explorer, or click an element in the Layout tab. Edits save automatically.</p>}
         {file && IMAGE.test(file) && (
           <div className="p-4">
@@ -290,7 +322,7 @@ function CodeView({ projectId, state, file, line, onReveal, onFile }: { projectI
         {file && !IMAGE.test(file) && !CODE.test(file) && draft == null && !error && <p className="p-4 text-[12px] text-ink-500">Binary file.</p>}
         {error && <p className="px-4 py-2 text-[12px] text-red-400">{error}</p>}
         {draft != null && file && (
-          <CodeEditor projectId={projectId} file={file} value={draft} line={line} diagnostics={diags} onChange={setDraft} onOpenFile={(p, l) => onFile(p, l)} />
+          <CodeEditor projectId={projectId} file={file} value={draft} line={line} diagnostics={diags} onChange={setDraft} onOpenFile={(p, l) => onFile(p, l)} onSelection={setSel} />
         )}
       </div>
     </div>
