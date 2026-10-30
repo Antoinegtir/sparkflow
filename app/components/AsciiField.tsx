@@ -379,8 +379,38 @@ function transit(fs: Flight[], p: number, cols: number, rows: number) {
   return grid;
 }
 
-function frame(step: number, t: number, cols: number, rows: number) {
-  return html(chars(step, t, cols, rows), cols);
+/** The cursor over the field, in cells (cw/ch: a cell's size in px, to keep the lens round), and how present it is (0..1). */
+type Lens = { x: number; y: number; cw: number; ch: number; on: number };
+const LENS_R = 90; // px
+
+/**
+ * The cursor's lens on the field, in place of the dot grid's: what is under it is magnified (each cell
+ * shows a character from closer to the cursor) and turns white, with a faint ring at its edge.
+ */
+function lensed(grid: string[], cols: number, rows: number, l: Lens) {
+  if (l.on < 0.02) return grid;
+  const out = grid.slice();
+  const R = LENS_R * l.on;
+  for (let y = Math.max(0, Math.floor(l.y - R / l.ch)); y <= Math.min(rows - 1, Math.ceil(l.y + R / l.ch)); y++)
+    for (let x = Math.max(0, Math.floor(l.x - R / l.cw)); x <= Math.min(cols - 1, Math.ceil(l.x + R / l.cw)); x++) {
+      const dx = (x - l.x) * l.cw;
+      const dy = (y - l.y) * l.ch;
+      const d = Math.hypot(dx, dy) / R;
+      if (d >= 1) continue;
+      // Magnify: up to 2x at the middle, none at the edge.
+      const k = 0.5 + 0.5 * d;
+      const sx = Math.round(l.x + (dx * k) / l.cw);
+      const sy = Math.round(l.y + (dy * k) / l.ch);
+      let c = sx >= 0 && sy >= 0 && sx < cols && sy < rows ? grid[sy * cols + sx] : " ";
+      if (c === " " && d > 0.88) c = "·";
+      out[y * cols + x] = c === " " || c.startsWith(WHITE) ? c : WHITE + c;
+    }
+  return out;
+}
+
+function frame(step: number, t: number, cols: number, rows: number, l?: Lens) {
+  const g = chars(step, t, cols, rows);
+  return html(l ? lensed(g, cols, rows, l) : g, cols);
 }
 
 export function AsciiField({ step }: { step: number }) {
@@ -417,10 +447,24 @@ export function AsciiField({ step }: { step: number }) {
     };
     fit();
     addEventListener("resize", fit);
+    // The cursor, in cells; eased toward where it is, like the dot grid's lens.
+    const lens: Lens = { x: -99, y: -99, cw: 6.6, ch: 12, on: 0 };
+    let aim: { x: number; y: number } | null = null;
+    const move = (e: PointerEvent) => {
+      const b = el.getBoundingClientRect();
+      const inside = e.clientX > b.left && e.clientX < b.right && e.clientY > b.top && e.clientY < b.bottom;
+      if (!inside) return void (aim = null);
+      lens.cw = b.width / cols;
+      lens.ch = b.height / rows;
+      const at = { x: (e.clientX - b.left) / lens.cw - 0.5, y: (e.clientY - b.top) / lens.ch - 0.5 };
+      if (!aim && lens.on < 0.05) Object.assign(lens, at);
+      aim = at;
+    };
+    addEventListener("pointermove", move);
     const tick = (now: number) => {
       raf = requestAnimationFrame(tick);
       // About 20 frames a second is enough for text, and cheap.
-      if (now - last < 50) return;
+      if (now - last < (aim || lens.on > 0.02 ? 33 : 50)) return;
       last = now;
       const t = (now - start) / 1000;
       // A new step: the old motif's characters fly over to the new one.
@@ -430,11 +474,20 @@ export function AsciiField({ step }: { step: number }) {
         fs = flights(old, chars(shown, t + TRANSITION, cols, rows), cols);
         changed = t;
       }
+      lens.on += ((aim ? 1 : 0) - lens.on) * 0.25;
+      if (aim) {
+        lens.x += (aim.x - lens.x) * 0.45;
+        lens.y += (aim.y - lens.y) * 0.45;
+      }
       const p = (t - changed) / TRANSITION;
-      el.innerHTML = p < 1 && fs ? html(transit(fs, p, cols, rows), cols) : frame(shown, t, cols, rows);
+      el.innerHTML = p < 1 && fs ? html(lensed(transit(fs, p, cols, rows), cols, rows, lens), cols) : frame(shown, t, cols, rows, lens);
     };
     el.innerHTML = frame(stepRef.current, 1.2, cols, rows);
-    if (still) return () => removeEventListener("resize", fit);
+    if (still)
+      return () => {
+        removeEventListener("resize", fit);
+        removeEventListener("pointermove", move);
+      };
     // Only while on screen.
     const io = new IntersectionObserver(([e]) => {
       visible = e.isIntersecting;
@@ -446,6 +499,7 @@ export function AsciiField({ step }: { step: number }) {
       io.disconnect();
       cancelAnimationFrame(raf);
       removeEventListener("resize", fit);
+      removeEventListener("pointermove", move);
     };
   }, []);
 
@@ -453,6 +507,8 @@ export function AsciiField({ step }: { step: number }) {
     <pre
       ref={pre}
       aria-hidden
+      // The dot grid's lens stays off over the field: the cursor shapes the characters instead.
+      data-no-lens
       className="pointer-events-none ml-auto select-none font-mono text-[11px] leading-[12px] text-spark-400/80"
       // Fades out toward the edges, so the field has no hard border.
       style={{ maskImage: "radial-gradient(ellipse 50% 50% at 50% 50%, black 45%, transparent 100%)", WebkitMaskImage: "radial-gradient(ellipse 50% 50% at 50% 50%, black 45%, transparent 100%)" }}
