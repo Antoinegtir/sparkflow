@@ -1,7 +1,7 @@
 "use client";
 
 import clsx from "clsx";
-import { Command, PanelRight, Play, Settings, UserPlus } from "lucide-react";
+import { Command, Play, Settings, UserPlus } from "lucide-react";
 import { useState } from "react";
 import type { ProjectState } from "@/lib/shared";
 import type { Person } from "@/lib/shared/share";
@@ -76,22 +76,6 @@ export function TopBar(p: Props) {
             {verified}/{s.order.length} pages verified
           </span>
         )}
-        {/* Right after the pages count: never under Commands, which sits over the right panel's edge. */}
-        {owner && p.onShare && (
-          <button onClick={p.onShare} title="Share this app" className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg px-1.5 py-1 text-[12px] text-ink-300 hover:bg-ink-800 hover:text-ink-100">
-            {others.length > 0 ? (
-              <span className="flex -space-x-1.5">
-                {others.slice(0, 3).map(([k, x]) => (
-                  <Avatar key={k} person={x} seed={k} size={20} className="ring-2 ring-[var(--panel)]" />
-                ))}
-                {others.length > 3 && <span className="grid size-5 place-items-center rounded-full bg-ink-700 text-[9.5px] ring-2 ring-[var(--panel)]">+{others.length - 3}</span>}
-              </span>
-            ) : (
-              <UserPlus size={14} />
-            )}
-            Share
-          </button>
-        )}
         {!owner && access.people.owner && (
           <span className="hidden shrink-0 items-center gap-1.5 text-[11.5px] text-ink-400 sm:flex">
             Shared by <Avatar person={access.people.owner} seed="owner" size={16} /> <span className="text-ink-200">{access.people.owner.name}</span> · {ROLE_TEXT[access.role as keyof typeof ROLE_TEXT]}
@@ -120,16 +104,24 @@ export function TopBar(p: Props) {
           className={clsx("hidden cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1.5 text-[12px] text-ink-400 hover:bg-ink-800 hover:text-ink-100 lg:flex", p.panelWidth && "absolute top-1/2 -translate-y-1/2")}>
           <Command size={13} /> Commands <kbd className="rounded border border-[var(--line)] px-1 font-mono text-[10px]">⌘K</kbd>
         </button>
-        {owner && p.onSettings && (
-          <button onClick={p.onSettings} title="App settings" aria-label="App settings" className="grid size-8 cursor-pointer place-items-center rounded-lg text-ink-400 hover:bg-ink-800 hover:text-ink-100">
-            <Settings size={15} />
+        {/* At the right, before the account menu (which holds App settings). */}
+        {owner && p.onShare && (
+          <button onClick={p.onShare} title="Share this app" className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg px-1.5 py-1 text-[12px] text-ink-300 hover:bg-ink-800 hover:text-ink-100">
+            {others.length > 0 ? (
+              <span className="flex -space-x-1.5">
+                {others.slice(0, 3).map(([k, x]) => (
+                  <Avatar key={k} person={x} seed={k} size={20} className="ring-2 ring-[var(--panel)]" />
+                ))}
+                {others.length > 3 && <span className="grid size-5 place-items-center rounded-full bg-ink-700 text-[9.5px] ring-2 ring-[var(--panel)]">+{others.length - 3}</span>}
+              </span>
+            ) : (
+              <UserPlus size={14} />
+            )}
+            Share
           </button>
         )}
-        <button onClick={p.onTogglePanel} aria-label={p.panelOpen ? "Hide the panel" : "Show the panel"} className={clsx("grid size-8 cursor-pointer place-items-center rounded-lg hover:bg-ink-800", p.panelOpen ? "text-ink-100" : "text-ink-500")}>
-          <PanelRight size={15} />
-        </button>
         {/* Mounted once in the IDE so requireSignIn (Share, joining) has a menu to open. */}
-        <SignIn />
+        <SignIn extra={owner && p.onSettings ? [{ label: "App settings", icon: <Settings size={15} />, onClick: p.onSettings }] : undefined} />
       </div>
     </header>
   );

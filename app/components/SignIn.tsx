@@ -28,7 +28,8 @@ function GithubIcon() {
 }
 
 /** Topbar sign-in: Google or GitHub through Firebase Auth; signed in, the user's avatar with a sign-out menu. */
-export function SignIn() {
+/** `extra`: entries above Profile (the IDE adds App settings). */
+export function SignIn({ extra }: { extra?: { label: string; icon: React.ReactNode; onClick: () => void }[] } = {}) {
   const [user, setUser] = useState<User | null | undefined>(undefined);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState<Provider | null>(null);
@@ -107,12 +108,24 @@ export function SignIn() {
       {user ? (
         <>
           <div className="truncate px-3 py-2 text-[12px] text-ink-400">{user.email ?? user.displayName}</div>
-          <button type="button" className={item} onClick={() => void signOutUser().then(() => setOpen(false))}>
-            <LogOut size={15} /> Sign out
-          </button>
+          {extra?.map((x) => (
+            <button
+              key={x.label}
+              type="button"
+              className={item}
+              onClick={() => {
+                setOpen(false);
+                x.onClick();
+              }}>
+              {x.icon} {x.label}
+            </button>
+          ))}
           <a href="/settings/accounts" className={item} onClick={() => setOpen(false)}>
             <UserRound size={15} /> Profile
           </a>
+          <button type="button" className={item} onClick={() => void signOutUser().then(() => setOpen(false))}>
+            <LogOut size={15} /> Sign out
+          </button>
         </>
       ) : (
         <>
