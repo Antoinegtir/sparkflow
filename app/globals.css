@@ -270,3 +270,10 @@ html:has([data-landing]) { scroll-behavior: smooth; }
 @keyframes plan-fill { 0%, 20% { opacity: .35; } 40%, 85% { opacity: 1; } 100% { opacity: .35; } }
 .plan-link { animation: dash .8s linear infinite; }
 @media (prefers-reduced-motion: reduce) { .skeleton-bone, .skeleton-part, .plan-outline, .plan-page, .plan-link { animation: none; } }
+
+/* Canvas tools: the cursor tells what a click does. */
+.canvas-tool-hand .react-flow__pane, .canvas-tool-hand .react-flow__node { cursor: grab; }
+.canvas-tool-hand .react-flow__pane:active { cursor: grabbing; }
+.canvas-tool-frame .react-flow__pane { cursor: crosshair; }
+.canvas-tool-text .react-flow__pane { cursor: text; }
+.canvas-tool-comment .react-flow__pane, .canvas-tool-comment .react-flow__node-phone, .canvas-tool-comment .react-flow__node-phone button { cursor: crosshair; }

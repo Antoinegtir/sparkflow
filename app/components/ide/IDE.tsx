@@ -521,6 +521,8 @@ export function IDE({ id, slug: initialSlug, initialPage }: { id: string; slug: 
             onOpen={open}
             onLink={(from, to) => setFlowDraft({ type: "link", from, to })}
             onUnlink={(from, to) => setFlowDraft({ type: "unlink", from, to })}
+            onAddPage={(a) => runFlow({ type: "add", ...a })}
+            onAsk={(text, route) => void send(text, undefined, undefined, route)}
           />
           {focused && focusedScreen && (
             <HeroFocus

@@ -25,6 +25,7 @@ import type { NavEdge, ScreenState } from "@/lib/shared";
 import { edgeSides, layoutScreens, NODE_W, PHONE_H, PHONE_W } from "@/lib/web/layout";
 import { CupertinoSpinner, deviceById, DeviceMockup, PhoneFrame, StatusPill } from "./ui";
 import { SkinFrame } from "./SkinFrame";
+import { CommentNode, FrameNode, TextNode, ToolBar, useBoard, type CommentData, type FrameData, type TextData, type Tool } from "./CanvasTools";
 import type { DeviceSkin } from "@/lib/web/device-skin";
 
 export type PhoneData = { screen: ScreenState; hidden: boolean; scanning: boolean; ipad: boolean; native: boolean; dark: boolean; device?: string; skin?: DeviceSkin | null; onOpen: (route: string) => void };
@@ -116,7 +117,7 @@ export function ScreenContent({ screen, scanning, light }: { screen: ScreenState
   );
 }
 
-const nodeTypes = { phone: PhoneNode };
+const nodeTypes = { phone: PhoneNode, text: TextNode, comment: CommentNode, frame: FrameNode };
 // Bottom padding keeps the pages clear of the floating prompt bar.
 const FIT = { padding: { top: "36px", left: "48px", right: "48px", bottom: "180px" }, maxZoom: 1 } as const;
 
@@ -139,6 +140,10 @@ type Props = {
   onOpen: (route: string) => void;
   onLink: (from: string, to: string) => void;
   onUnlink: (from: string, to: string) => void;
+  /** A frame placed with the Frame tool: the agent adds that page. */
+  onAddPage: (a: { name: string; description: string; from?: string }) => void;
+  /** A comment on a page, sent to the agent as a change for it. */
+  onAsk: (text: string, route: string) => void;
 };
 
 type Pos = { x: number; y: number };
@@ -158,7 +163,32 @@ function Flow(p: Props) {
   }, [p.projectId]);
   // A page let go after a drag isn't opened by the click that ends it.
   const lastDrag = useRef(0);
-  const open = useCallback((r: string) => Date.now() - lastDrag.current > 250 && p.onOpen(r), [p]);
+  // The tools: what a click on the canvas does (Move opens pages, the others place something).
+  const [tool, setTool] = useState<Tool>("move");
+  const toolRef = useRef(tool);
+  toolRef.current = tool;
+  const open = useCallback((r: string) => toolRef.current === "move" && Date.now() - lastDrag.current > 250 && p.onOpen(r), [p]);
+  const board = useBoard(p.projectId);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [openComment, setOpenComment] = useState<string | null>(null);
+  const [frame, setFrame] = useState<Pos | null>(null);
+  // A frame's page lands where the frame was, once the agent has added it (matched by its name).
+  const placed = useRef(new Map<string, Pos>());
+  useEffect(() => {
+    if (!placed.current.size) return;
+    for (const s of p.screens) {
+      const at = placed.current.get(s.title.trim().toLowerCase());
+      if (!at) continue;
+      placed.current.delete(s.title.trim().toLowerCase());
+      setMoved((m) => {
+        const next = { ...m, [s.route]: at };
+        try {
+          localStorage.setItem(posKey(p.projectId), JSON.stringify(next));
+        } catch {}
+        return next;
+      });
+    }
+  }, [p.screens, p.projectId]);
   const posOf = (r: string): Pos => moved[r] ?? layout.get(r) ?? { x: 0, y: 0 };
 
   // Sizes React Flow measured, handed back with every node: without them it hides the nodes to
@@ -171,12 +201,97 @@ function Flow(p: Props) {
     measured: sizes.current.get(s.route),
     data: { screen: s, hidden: p.hiddenRoute === s.route, scanning: p.scanning.has(s.route), ipad: p.ipad, native: p.native, dark: p.dark, device: p.device, skin: p.skin, onOpen: open },
   }));
+  const title = (r?: string) => (r ? p.screens.find((s) => s.route === r)?.title : undefined);
+  const extras: Node[] = [
+    ...board.board.texts.map(
+      (t): Node<TextData> => ({
+        id: `text:${t.id}`,
+        type: "text",
+        position: { x: t.x, y: t.y },
+        measured: sizes.current.get(`text:${t.id}`),
+        zIndex: 5,
+        data: {
+          text: t.text,
+          editing: editing === t.id,
+          onChange: (v) => board.setText(t.id, v),
+          onEdit: () => setEditing(t.id),
+          onDone: () => {
+            setEditing(null);
+            if (!t.text.trim()) board.remove(t.id);
+          },
+          onRemove: () => board.remove(t.id),
+        },
+      }),
+    ),
+    ...board.board.comments.map(
+      (c, i): Node<CommentData> => ({
+        id: `comment:${c.id}`,
+        type: "comment",
+        position: { x: c.x, y: c.y },
+        measured: sizes.current.get(`comment:${c.id}`),
+        zIndex: openComment === c.id ? 30 : 10,
+        data: {
+          comment: c,
+          index: i + 1,
+          pageTitle: title(c.route),
+          open: openComment === c.id,
+          canSend: p.status !== "running",
+          onOpen: () => setOpenComment(c.id),
+          onClose: (text) => {
+            setOpenComment(null);
+            if (!text) board.remove(c.id);
+            else if (text !== c.text) board.setComment(c.id, { text });
+          },
+          onChange: (v) => board.setComment(c.id, { text: v }),
+          onSend: (text) => {
+            if (!c.route || !text) return;
+            p.onAsk(text, c.route);
+            board.setComment(c.id, { text, sent: true });
+            setOpenComment(null);
+          },
+          onRemove: () => {
+            setOpenComment(null);
+            board.remove(c.id);
+          },
+        },
+      }),
+    ),
+    ...(frame
+      ? [
+          {
+            id: "frame:new",
+            type: "frame",
+            position: frame,
+            zIndex: 20,
+            data: {
+              pages: p.screens.map((s) => ({ route: s.route, title: s.title })),
+              running: p.status === "running",
+              onCancel: () => setFrame(null),
+              onSubmit: (a) => {
+                placed.current.set(a.name.trim().toLowerCase(), frame);
+                p.onAddPage(a);
+                setFrame(null);
+              },
+            },
+          } satisfies Node<FrameData>,
+        ]
+      : []),
+  ];
 
   const onNodesChange = (changes: NodeChange[]) => {
     let next: Record<string, Pos> | null = null;
     for (const c of changes) {
       if (c.type === "dimensions" && c.dimensions) sizes.current.set(c.id, c.dimensions);
       if (c.type !== "position") continue;
+      // Text and comments: kept with the project; the new page's frame: where it was dropped.
+      if (c.id.startsWith("text:") || c.id.startsWith("comment:")) {
+        if (c.position) board.move(c.id.slice(c.id.indexOf(":") + 1), c.position.x, c.position.y);
+        continue;
+      }
+      if (c.id === "frame:new") {
+        if (c.position) setFrame(c.position);
+        continue;
+      }
       lastDrag.current = Date.now();
       next ??= { ...moved };
       if (c.position) next[c.id] = c.position;
@@ -235,10 +350,39 @@ function Flow(p: Props) {
     );
   }
 
+  // A click elsewhere closes the open comment; one left empty goes (its typed text was saved on blur).
+  const closeComment = () => {
+    const c = board.board.comments.find((x) => x.id === openComment);
+    const typed = document.querySelector<HTMLTextAreaElement>(`[data-id="comment:${openComment}"] textarea`)?.value.trim();
+    if (c && !c.text.trim() && !typed) board.remove(c.id);
+    setOpenComment(null);
+  };
+
+  // A click with a tool that places something: at that point of the canvas, then back to Move (as in Figma).
+  const place = (e: React.MouseEvent, route?: string) => {
+    const at = flow.screenToFlowPosition({ x: e.clientX, y: e.clientY });
+    if (tool === "text") setEditing(board.addText(at.x, at.y - 12));
+    else if (tool === "comment") setOpenComment(board.addComment(at.x, at.y - 32, route));
+    else if (tool === "frame" && !route) {
+      setFrame({ x: at.x - PHONE_W / 2, y: at.y - 24 });
+      // The frame and its form beside it, in view (one placed near an edge would have its form cut off).
+      void flow.setCenter(at.x + 140, at.y - 24 + PHONE_H / 2, { zoom: flow.getZoom(), duration: 300 });
+    }
+    else return;
+    setTool("move");
+  };
+
   return (
     <ReactFlow
-      className={clsx(p.dimmed && "canvas-focused")}
-      nodes={nodes}
+      className={clsx(p.dimmed && "canvas-focused", `canvas-tool-${tool}`)}
+      onPaneClick={(e) => {
+        if (tool === "move" || tool === "hand") return closeComment();
+        place(e);
+      }}
+      onNodeClick={(e, n) => n.type === "phone" && tool === "comment" && place(e, n.id)}
+      nodesDraggable={tool !== "hand"}
+      elementsSelectable={tool !== "hand"}
+      nodes={[...nodes, ...extras]}
       edges={edges}
       nodeTypes={nodeTypes}
       fitView
@@ -257,6 +401,7 @@ function Flow(p: Props) {
       proOptions={{ hideAttribution: true }}>
       <Background variant={BackgroundVariant.Dots} gap={22} size={1.8} color="var(--canvas-dot)" />
       {!p.dimmed && <Controls position="bottom-left" showInteractive={false} />}
+      {!p.dimmed && <ToolBar tool={tool} onTool={setTool} />}
     </ReactFlow>
   );
 }
