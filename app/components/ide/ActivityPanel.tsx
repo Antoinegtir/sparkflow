@@ -3,7 +3,7 @@
 import clsx from "clsx";
 import { FolderOpen, Plus } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { NavEdge, ProjectState } from "@/lib/shared";
+import type { NavEdge, ProjectState, MediaInput } from "@/lib/shared";
 import type { Person } from "@/lib/shared/share";
 import { can, useAccess } from "@/lib/web/access";
 import { Avatar } from "./Avatar";
@@ -37,7 +37,7 @@ type Props = {
 };
 
 export type FlowAction =
-  | { type: "add"; name: string; description: string; from?: string }
+  | { type: "add"; name: string; description: string; from?: string; image?: MediaInput }
   | { type: "link"; from: string; to: string; label?: string }
   | { type: "unlink"; from: string; to: string }
   | { type: "delete"; route: string };

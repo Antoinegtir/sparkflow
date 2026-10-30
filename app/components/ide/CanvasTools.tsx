@@ -1,5 +1,7 @@
 "use client";
 
+import type { MediaInput } from "@/lib/shared";
+import { AttachedImage, useImageAttach } from "./ImageAttach";
 import { NodeResizer, useStore, type Node, type NodeProps } from "@xyflow/react";
 import clsx from "clsx";
 import { Check, ChevronDown, Frame, Hand, MessageCircle, MousePointer2, PanelTop, Pencil, Send, Smartphone, Trash2, Type, X } from "lucide-react";
@@ -551,13 +553,20 @@ export const CommentNode = memo(function CommentNode({ data }: NodeProps<Node<Co
   );
 });
 
-export type NewPageData = { pages: { route: string; title: string }[]; from?: string; running: boolean; onSubmit: (a: { name: string; description: string; from?: string }) => void; onCancel: () => void };
+export type NewPageData = {
+  pages: { route: string; title: string }[];
+  from?: string;
+  running: boolean;
+  onSubmit: (a: { name: string; description: string; from?: string; image?: MediaInput }) => void;
+  onCancel: () => void;
+};
 
 /** A new page where it was placed (the Page tool): name it, say what it shows, and the agent makes it there. */
 export const NewPageNode = memo(function NewPageNode({ data }: NodeProps<Node<NewPageData>>) {
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
   const [from, setFrom] = useState(data.from ?? "");
+  const sketch = useImageAttach();
   const input = "w-full rounded-md border border-[var(--line)] bg-[var(--panel-2)] px-2 py-1.5 text-[12px] text-ink-100 outline-none focus:border-spark-500";
   const ref = useFocusWhen(true);
   const unzoom = useUnzoom();
@@ -572,13 +581,15 @@ export const NewPageNode = memo(function NewPageNode({ data }: NodeProps<Node<Ne
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            if (name.trim()) data.onSubmit({ name: name.trim(), description: desc.trim(), from: from || undefined });
+            if (name.trim()) data.onSubmit({ name: name.trim(), description: desc.trim(), from: from || undefined, ...(sketch.image ? { image: sketch.image.input } : {}) });
           }}
+          {...sketch.zone}
           onKeyDown={(e) => e.key === "Escape" && data.onCancel()}
-          className="nodrag nowheel nopan flex w-64 flex-col gap-2 rounded-xl border border-[var(--line)] bg-[var(--panel)] p-3 shadow-2xl">
+          className={clsx("nodrag nowheel nopan flex w-64 flex-col gap-2 rounded-xl border bg-[var(--panel)] p-3 shadow-2xl", sketch.dragging ? "border-spark-500" : "border-[var(--line)]")}>
           <p className="text-[12px] font-medium text-ink-200">New page</p>
           <input ref={ref} value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" className={input} />
-          <textarea value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="What it shows" rows={3} className={clsx(input, "resize-none")} />
+          <textarea value={desc} onChange={(e) => setDesc(e.target.value)} onPaste={sketch.paste} placeholder="What it shows" rows={3} className={clsx(input, "resize-none")} />
+          <AttachedImage a={sketch} />
           <select value={from} onChange={(e) => setFrom(e.target.value)} className={clsx(input, "cursor-pointer")} aria-label="Opened from">
             <option value="">Opened from nowhere</option>
             {data.pages.map((p) => (

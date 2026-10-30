@@ -10,6 +10,20 @@ const toBase64 = (buf: ArrayBuffer) => {
 };
 
 /** Image file → base64 input. Large or exotic images are re-encoded as JPEG (max 1600 px). */
+/** Pictures a prompt takes (a sketch, a screenshot, a mockup): formats every browser decodes, 10 MB at most. */
+export const IMAGE_ACCEPT = "image/png,image/jpeg,image/webp,image/gif";
+export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+
+/** Why this file can't be attached to a prompt, or null when it can. */
+export function imageProblem(f: { type: string; size: number }): string | null {
+  if (!IMAGE_ACCEPT.split(",").includes(f.type)) return "Only PNG, JPEG, WebP or GIF images can be attached.";
+  if (f.size > MAX_IMAGE_BYTES) return `This image is ${(f.size / 1024 / 1024).toFixed(1)} MB: 10 MB at most.`;
+  return null;
+}
+
+/** The first file of a drop or paste that looks like a picture (checked with imageProblem). */
+export const droppedImage = (files: FileList | File[] | undefined | null) => [...(files ?? [])].find((f) => f.type.startsWith("image/")) ?? [...(files ?? [])][0];
+
 export async function imageToInput(file: Blob & { name?: string }): Promise<MediaInput> {
   const bitmap = await createImageBitmap(file);
   const small = Math.max(bitmap.width, bitmap.height) <= MAX_SIDE;

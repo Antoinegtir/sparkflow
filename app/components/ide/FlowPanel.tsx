@@ -4,6 +4,7 @@ import { ArrowUpRight, Plus, Trash2, X } from "lucide-react";
 import { useState } from "react";
 import type { ProjectState } from "@/lib/shared";
 import type { FlowAction } from "./ActivityPanel";
+import { AttachedImage, useImageAttach } from "./ImageAttach";
 
 /** Overview of pages and links: add a page, link/unlink pages, delete a page. Each action becomes a prompt. */
 export function FlowPanel({ state, onOpenPage, onAction }: { state: ProjectState; onOpenPage: (route: string) => void; onAction: (a: FlowAction) => void }) {
@@ -12,6 +13,7 @@ export function FlowPanel({ state, onOpenPage, onAction }: { state: ProjectState
   const [from, setFrom] = useState(state.order[0] ?? "");
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const running = state.status === "running";
+  const sketch = useImageAttach(running);
   const title = (r: string) => state.screens[r]?.title ?? r;
 
   return (
@@ -21,14 +23,17 @@ export function FlowPanel({ state, onOpenPage, onAction }: { state: ProjectState
         onSubmit={(e) => {
           e.preventDefault();
           if (!name.trim()) return;
-          onAction({ type: "add", name: name.trim(), description: desc.trim(), from: from || undefined });
+          onAction({ type: "add", name: name.trim(), description: desc.trim(), from: from || undefined, ...(sketch.image ? { image: sketch.image.input } : {}) });
           setName("");
           setDesc("");
+          sketch.clear();
         }}
-        className="mb-4 space-y-2 rounded-xl border border-[var(--line)] p-3">
+        {...sketch.zone}
+        className={`mb-4 space-y-2 rounded-xl border p-3 ${sketch.dragging ? "border-spark-500" : "border-[var(--line)]"}`}>
         <p className="text-[12px] font-medium text-ink-200">New page</p>
         <input disabled={running} value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" className="w-full rounded-md border border-[var(--line)] bg-[var(--panel-2)] px-2 py-1.5 text-[12px] text-ink-100 outline-none" />
-        <textarea disabled={running} value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="What it shows" rows={2} className="w-full resize-none rounded-md border border-[var(--line)] bg-[var(--panel-2)] px-2 py-1.5 text-[12px] text-ink-100 outline-none" />
+        <textarea disabled={running} value={desc} onChange={(e) => setDesc(e.target.value)} onPaste={sketch.paste} placeholder="What it shows" rows={2} className="w-full resize-none rounded-md border border-[var(--line)] bg-[var(--panel-2)] px-2 py-1.5 text-[12px] text-ink-100 outline-none" />
+        <AttachedImage a={sketch} />
         <label className="flex items-center gap-2 text-[11.5px] text-ink-400">
           Opened from
           <select disabled={running} value={from} onChange={(e) => setFrom(e.target.value)} className="flex-1 cursor-pointer rounded-md border border-[var(--line)] bg-[var(--panel-2)] px-1.5 py-1 text-[11.5px] text-ink-200 outline-none">

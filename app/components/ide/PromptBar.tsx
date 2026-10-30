@@ -7,7 +7,7 @@ import { MaterialIcon } from "./FileTree";
 import { useEffect, useRef, useState } from "react";
 import type { MediaInput, Phase, ProjectState } from "@/lib/shared";
 import { can, useAccess } from "@/lib/web/access";
-import { blobToWav, imageToInput, startRecording } from "@/lib/web/media";
+import { blobToWav, droppedImage, IMAGE_ACCEPT, imageProblem, imageToInput, startRecording } from "@/lib/web/media";
 
 export type Selection = {
   key: string;
@@ -90,6 +90,9 @@ export function PromptBar(p: Props) {
   const [rec, setRec] = useState<{ stop: () => Promise<Blob>; started: number } | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const [sending, setSending] = useState(false);
+  // A picture dragged over the bar, and why one was refused (format, size).
+  const [dragging, setDragging] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
   const area = useRef<HTMLTextAreaElement>(null);
   const file = useRef<HTMLInputElement>(null);
   const running = p.state.status === "running";
@@ -109,7 +112,15 @@ export function PromptBar(p: Props) {
   }, [rec]);
 
   const attach = async (f?: File | null) => {
-    if (f?.type.startsWith("image/")) setImage({ input: await imageToInput(f), url: URL.createObjectURL(f) });
+    if (!f) return;
+    const problem = imageProblem(f);
+    setImageError(problem);
+    if (problem) return;
+    try {
+      setImage({ input: await imageToInput(f), url: URL.createObjectURL(f) });
+    } catch {
+      setImageError("That image could not be read.");
+    }
   };
 
   const send = async () => {
@@ -152,8 +163,23 @@ export function PromptBar(p: Props) {
           : "Ask for a change across the app, or click a page to focus it…";
 
   return (
-    <div data-prompt-bar className="pointer-events-auto absolute bottom-4 left-1/2 z-40 w-[min(760px,calc(100%-32px))] -translate-x-1/2">
-      <div className={clsx("rounded-2xl border bg-[var(--panel)]/95 p-2.5 shadow-[0_20px_60px_-20px_rgba(0,0,0,.6)] backdrop-blur-xl transition-colors", running ? "agent-glow border-transparent" : "border-[var(--line)]")}>
+    <div
+      data-prompt-bar
+      className="pointer-events-auto absolute bottom-4 left-1/2 z-40 w-[min(760px,calc(100%-32px))] -translate-x-1/2"
+      // A sketch or screenshot dropped anywhere on the bar is attached to the prompt.
+      onDragOver={(e) => {
+        if (running || !e.dataTransfer.types.includes("Files")) return;
+        e.preventDefault();
+        setDragging(true);
+      }}
+      onDragLeave={(e) => !e.currentTarget.contains(e.relatedTarget as Node) && setDragging(false)}
+      onDrop={(e) => {
+        if (!e.dataTransfer.files.length) return;
+        e.preventDefault();
+        setDragging(false);
+        if (!running) void attach(droppedImage(e.dataTransfer.files));
+      }}>
+      <div className={clsx("rounded-2xl border bg-[var(--panel)]/95 p-2.5 shadow-[0_20px_60px_-20px_rgba(0,0,0,.6)] backdrop-blur-xl transition-colors", running ? "agent-glow border-transparent" : dragging ? "border-spark-500" : "border-[var(--line)]")}>
         <div className="mb-2 flex items-center justify-between gap-3 px-1">
           <PhasePipeline state={p.state} onRetry={() => void p.onSend("Retry")} />
           {p.focusedTitle && (
@@ -162,6 +188,8 @@ export function PromptBar(p: Props) {
             </button>
           )}
         </div>
+        {dragging && <p className="mb-2 px-1 text-[11.5px] text-spark-300">Drop the image to attach it (PNG, JPEG, WebP or GIF, 10 MB at most)</p>}
+        {imageError && !dragging && <p className="mb-2 px-1 text-[11.5px] text-red-400">{imageError}</p>}
         <div className="mb-2 flex flex-wrap items-center gap-1.5 px-1">
           <span className="rounded-md bg-ink-800 px-2 py-0.5 text-[11px] text-ink-300">{p.focusedTitle ? `Page · ${p.focusedTitle}` : "Whole app"}</span>
           {p.selections.map((s) => (
@@ -220,7 +248,7 @@ export function PromptBar(p: Props) {
             }}
             className="max-h-[140px] min-h-[36px] flex-1 resize-none bg-transparent px-2 py-2 text-[14px] text-ink-100 outline-none placeholder:text-ink-500 disabled:opacity-60"
           />
-          <input ref={file} type="file" accept="image/*" hidden onChange={(e) => void attach(e.target.files?.[0])} />
+          <input ref={file} type="file" accept={IMAGE_ACCEPT} hidden onChange={(e) => void attach(e.target.files?.[0])} />
           <IconBtn label="Attach an image" onClick={() => file.current?.click()} disabled={running}>
             <ImagePlus size={16} />
           </IconBtn>

@@ -241,6 +241,17 @@ export function IDE({ id, slug: initialSlug, initialPage, access: given, basePat
     if (f) setFile({ path: f, line: null });
   }, [focused, state?.native]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // A file dropped outside a drop zone (prompt fields, Assets) would make the browser open it instead of the IDE.
+  useEffect(() => {
+    const stop = (e: DragEvent) => e.dataTransfer?.types.includes("Files") && e.preventDefault();
+    addEventListener("dragover", stop);
+    addEventListener("drop", stop);
+    return () => {
+      removeEventListener("dragover", stop);
+      removeEventListener("drop", stop);
+    };
+  }, []);
+
   // ---- selections ----
   const addSelection = useCallback(
     async (sel: Selection) => {
@@ -332,7 +343,7 @@ export function IDE({ id, slug: initialSlug, initialPage, access: given, basePat
   );
   // Requests made while the agent works (assets to integrate, new pages, comments): run in order, one at
   // a time, as it frees up. Each resolves once sent (true) or refused (false).
-  type Queued = { text: string; route: string | null; done: (ok: boolean) => void; tries: number };
+  type Queued = { text: string; route: string | null; image?: MediaInput; done: (ok: boolean) => void; tries: number };
   const [queue, setQueue] = useState<Queued[]>([]);
   const busy = state?.status === "running";
   // A queued request just sent: the next one waits until the agent is seen working, then free again.
@@ -341,10 +352,10 @@ export function IDE({ id, slug: initialSlug, initialPage, access: given, basePat
   const [kick, setKick] = useState(0);
   // Bumped by Stop: a request in flight when it was pressed isn't retried.
   const stopGen = useRef(0);
-  const enqueue = (text: string, route: string | null = null) =>
+  const enqueue = (text: string, route: string | null = null, image?: MediaInput) =>
     new Promise<boolean>((done) => {
       // Always through the queue (sent right away when the agent is free), so two quick requests never race.
-      setQueue((q) => [...q, { text, route, done, tries: 0 }]);
+      setQueue((q) => [...q, { text, route, ...(image ? { image } : {}), done, tries: 0 }]);
       if (busy || queue.length || inFlight.current) api.setToast(`Queued for Muse · ${queue.length + 1} waiting`);
     });
   useEffect(() => {
@@ -361,7 +372,7 @@ export function IDE({ id, slug: initialSlug, initialPage, access: given, basePat
     const mine = Date.now();
     const gen = stopGen.current;
     inFlight.current = mine;
-    void send(next.text, undefined, undefined, next.route, true).then((ok) => {
+    void send(next.text, next.image, undefined, next.route, true).then((ok) => {
       if (ok === "busy" && gen === stopGen.current) {
         if (next.tries < 20) {
           // Another run (just started, or the last one still saving its work): back to the front, tried
@@ -403,7 +414,8 @@ export function IDE({ id, slug: initialSlug, initialPage, access: given, basePat
   const runFlow = (a: FlowAction) => {
     if (!state || !can(access, "agent")) return Promise.resolve(false);
     const { text, route } = flowPrompt(a, (r) => state.screens[r]?.title ?? r);
-    return enqueue(text, route ?? null);
+    // A sketch attached to a new page goes with the request.
+    return enqueue(text, route ?? null, a.type === "add" ? a.image : undefined);
   };
 
   // ---- app scheme ----

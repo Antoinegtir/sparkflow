@@ -5,7 +5,7 @@ import { ArrowUp, ArrowUpRight, ImagePlus, Loader2, Mic, Square, X } from "lucid
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import type { MediaInput } from "@/lib/shared";
-import { blobToWav, imageToInput, startRecording } from "@/lib/web/media";
+import { blobToWav, droppedImage, IMAGE_ACCEPT, imageProblem, imageToInput, startRecording } from "@/lib/web/media";
 import { requireSignIn } from "@/lib/web/auth";
 import { apiFetch, getBackend, openOnBackend, STATIC_SITE } from "@/lib/web/backend";
 import { useIsPhone } from "@/lib/web/phone";
@@ -65,8 +65,10 @@ export function Composer() {
   }, [recording]);
 
   async function attach(f: File | Blob | null | undefined) {
-    if (!f || !f.type.startsWith("image/")) return;
-    setError(null);
+    if (!f) return;
+    const problem = imageProblem(f);
+    setError(problem);
+    if (problem) return;
     try {
       setImage({ input: await imageToInput(f), url: URL.createObjectURL(f) });
     } catch {
@@ -140,7 +142,7 @@ export function Composer() {
         onDrop={(e) => {
           e.preventDefault();
           setDragging(false);
-          void attach(e.dataTransfer.files[0]);
+          void attach(droppedImage(e.dataTransfer.files));
         }}
         className={clsx(
           "rounded-3xl border bg-ink-900/80 p-4 pl-5 shadow-[0_30px_80px_-24px_var(--landing-glow)] backdrop-blur focus-within:border-[#3a4352]",
@@ -192,7 +194,7 @@ export function Composer() {
         )}
         <div className="mt-2 flex items-center justify-between">
           <div className="flex gap-4 text-sm text-ink-300">
-            <input ref={file} type="file" accept="image/*" hidden onChange={(e) => void attach(e.target.files?.[0])} />
+            <input ref={file} type="file" accept={IMAGE_ACCEPT} hidden onChange={(e) => void attach(e.target.files?.[0])} />
             <button onClick={() => file.current?.click()} className="flex cursor-pointer items-center gap-1.5 hover:text-ink-100">
               <ImagePlus size={17} /> Sketch
             </button>
