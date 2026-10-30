@@ -24,7 +24,8 @@ class MuseProvider implements LLMProvider {
   constructor(private apiKey: string) {}
   modelFor(role: AgentRole, opts?: { hasAudio?: boolean }) {
     if (opts?.hasAudio) return env("MUSE_AUDIO_MODEL") ?? "muse-spark-1.2";
-    return env(`MUSE_MODEL_${roleKey(role)}`) ?? env("MUSE_MODEL") ?? "muse-spark-1.3";
+    // Writing code goes to Muse Wonder, the most capable; planning and checking stay on Spark.
+    return env(`MUSE_MODEL_${roleKey(role)}`) ?? env("MUSE_MODEL") ?? (role === "builder" ? "muse-wonder-1.0" : "muse-spark-1.3");
   }
   pricing = musePricing;
   chat(req: ChatRequest) {
