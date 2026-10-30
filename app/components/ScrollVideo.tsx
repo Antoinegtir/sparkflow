@@ -170,7 +170,8 @@ export function ScrollVideo({ src, className, children }: { src: string; classNa
     const tick = () => {
       raf = requestAnimationFrame(tick);
       // Ease toward the scroll position so fast flicks stay smooth.
-      shown += (target - shown) * 0.1;
+      // Not loaded yet: nothing to show, and nothing to ease toward (it lands on the spot when it loads).
+      if (v.readyState >= 2) shown += (target - shown) * 0.1;
       // No easing on the squash: it follows the scroll exactly, so the divider never lags into a thick bar.
       grown = grow;
       slid += (slide - slid) * 0.1;
@@ -216,6 +217,12 @@ export function ScrollVideo({ src, className, children }: { src: string; classNa
       }
     };
     measure();
+    // Loaded late (slow connection), once the page is already scrolled into the turn: no turning from
+    // edge-on to catch up, the phone shows up straight at where the scroll is (facing, when past it).
+    const late = () => {
+      if (target > 0) shown = target;
+    };
+    if (v.readyState < 2) v.addEventListener("loadeddata", late, { once: true });
     raf = requestAnimationFrame(tick);
     addEventListener("scroll", onScroll, { passive: true });
     addEventListener("wheel", interrupt, { passive: true });
@@ -224,6 +231,7 @@ export function ScrollVideo({ src, className, children }: { src: string; classNa
     addEventListener("resize", measure);
     return () => {
       cancelAnimationFrame(raf);
+      v.removeEventListener("loadeddata", late);
       removeEventListener("scroll", onScroll);
       clearTimeout(idle);
       stop();
