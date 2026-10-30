@@ -350,16 +350,13 @@ function PlanningSteps() {
  */
 function Capture({ url, title, blurred }: { url: string; title: string; blurred: boolean }) {
   const [tall, setTall] = useState(false);
-  const ref = useRef<HTMLImageElement>(null);
-  const measure = useCallback(() => {
-    const img = ref.current;
-    if (!img?.naturalWidth || !img.clientWidth) return;
-    setTall(img.naturalHeight / img.naturalWidth > (img.clientHeight / img.clientWidth) * 1.03);
-  }, []);
-  // A cached image can finish loading before React listens for it: check once mounted too.
+  // From the file itself, not the layout: 844/390 ≈ 2.16 for an old full-screen iPhone capture, while
+  // captures of the room between the bars stay under 2.1 (iPhone 759/393 ≈ 1.93, Pixel 855/412 ≈ 2.08).
   useEffect(() => {
-    if (ref.current?.complete) measure();
-  }, [url, measure]);
+    const img = new Image();
+    img.onload = () => setTall(img.naturalHeight / img.naturalWidth > 2.1);
+    img.src = url;
+  }, [url]);
   const cls = clsx("animate-fade-in absolute inset-0 transition", blurred && "scale-105 blur-md");
   return (
     <>
@@ -368,8 +365,6 @@ function Capture({ url, title, blurred }: { url: string; title: string; blurred:
         key={url}
         src={url}
         alt={title}
-        ref={ref}
-        onLoad={measure}
         className={clsx(cls, "h-full w-full object-cover object-top", tall && "opacity-0")}
         draggable={false}
       />
