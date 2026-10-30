@@ -60,15 +60,17 @@ export default function Home() {
       </header>
       <div className="h-16" />
 
-      {/* Android and Apple glass logos on each side of the headline (wide screens only). */}
-      <div aria-hidden className="pointer-events-none absolute inset-x-0 top-24 mx-auto hidden max-w-6xl justify-between px-2 lg:flex">
-        <LoopVideo className="hero-logo h-56 w-56 -rotate-6" src="/videos/android.mp4" />
-        {/* Starts half a turn later (#t=): both loops last 15 s, so they never spin in sync. */}
-        <LoopVideo className="hero-logo h-56 w-56 rotate-6" src="/videos/apple.mp4#t=7.5" />
-      </div>
 
       {/* Fills the first screen at any window height (or zoom), so the phone's edge always starts just below the fold. */}
       <section className="relative mx-auto flex min-h-svh max-w-3xl flex-col items-center justify-center px-6 pb-16 pt-24 text-center">
+        <div className="relative">
+        {/* Android and Apple glass logos on each side of the headline (wide screens only), anchored to it so they
+            stay level with it however tall the window is. */}
+        <div aria-hidden className="pointer-events-none absolute left-1/2 top-0 hidden w-[72rem] max-w-[100vw] -translate-x-1/2 -translate-y-1/3 justify-between px-2 lg:flex">
+          <LoopVideo className="hero-logo h-56 w-56 -rotate-6" src="/videos/android.mp4" />
+          {/* Starts half a turn later (#t=): both loops last 15 s, so they never spin in sync. */}
+          <LoopVideo className="hero-logo h-56 w-56 rotate-6" src="/videos/apple.mp4#t=7.5" />
+        </div>
         <p className="mb-6 text-[13px] tracking-wide text-ink-400">
           Built on <span className="text-ink-200">Muse Spark</span>, <span className="text-ink-200">Muse Image</span> and{" "}
           <span className="text-ink-200">SAM 3.1</span> by{" "}
@@ -80,6 +82,7 @@ export default function Home() {
         <h1 className="landing-head text-balance text-4xl font-semibold tracking-tight text-ink-100 sm:text-6xl">
           Mobile apps that <span className="text-spark-500">look at themselves.</span>
         </h1>
+        </div>
         <p className="mt-5 max-w-xl text-balance text-base text-ink-300 sm:text-lg">
           Describe an app, drop a sketch or just talk. Sparkflow plans it, builds it in{" "}
           <span className="inline-flex items-baseline gap-1.5 whitespace-nowrap font-medium text-[#61dafb]">
