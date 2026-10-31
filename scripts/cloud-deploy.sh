@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Deploys Sparkflow in the cloud to Cloud Run (project sparkflow-ai, region europe-west1).
+# The US region: GCP_REGION=us-central1 CLOUD_BUCKET=sparkflow-ai-cloud-data-us ./scripts/cloud-deploy.sh
 # Secrets come from Secret Manager: sparkflow-muse-key (MODEL_API_KEY), sparkflow-modal-id and
 # sparkflow-modal-secret (MODAL_TOKEN_ID/SECRET). Data (projects, events, screenshots) lives in the
 # bucket mounted at /data. One instance at a time: the projects are files and the runs live in memory.

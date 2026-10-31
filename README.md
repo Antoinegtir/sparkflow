@@ -2,39 +2,32 @@
 
 <div align="center">
 
-<a href="https://sparkflow-ai.web.app"><img src="public/logo.png" alt="Sparkflow" width="96" /></a>
-
-# Sparkflow
-
-**Mobile apps that look at themselves.**
-
-[![Hero](.github/assets/hero.jpg)](https://sparkflow-ai.web.app)
+[![Sparkflow](./.github/assets/hero.png)](https://sparkflow-ai.web.app)
 
 </div>
 
-> Describe a mobile app, drop a sketch or just talk. Sparkflow plans it, builds it in React Native, opens it in the iOS Simulator and the Android emulator, screenshots every screen and fixes what doesn't match until it does.
+> Describe a mobile app, drop a sketch or just talk. Sparkflow plans it, builds it in React Native, screenshots every screen, checks it against the plan and fixes what doesn't match. Then it opens the app in the iOS Simulator and the Android emulator.
 
 > [!TIP]
 >
-> | [<img alt="Open Sparkflow" src="https://img.shields.io/badge/open-sparkflow--ai.web.app-0073FF?style=flat-square&labelColor=black" width="196px" />](https://sparkflow-ai.web.app) | Nothing to install: sign in and build in the cloud, the app in a web preview and on your phone. |
-> | :----- | :----- |
-> | [<img alt="Install" src="https://img.shields.io/badge/install-one%20command-white?style=flat-square&labelColor=black&logo=gnubash&logoColor=white" width="196px" />](#quick-start) | For the real iOS Simulator and Android emulator: `curl -fsSL https://sparkflow-ai.web.app/install.sh \| bash`, then `sparkflow`. |
+> Nothing to install to try it: sign in and build in the cloud.
+>
+> [<img alt="Open Sparkflow" src="https://img.shields.io/badge/open-sparkflow--ai.web.app-0073FF?style=flat-square&labelColor=black" width="196px" />](https://sparkflow-ai.web.app) | Build in the cloud: the app in a web preview and on your phone with Expo Go. |
+> | :-----| :----- |
+> [<img alt="Install" src="https://img.shields.io/badge/install-one%20command-white?style=flat-square&labelColor=black&logo=gnubash&logoColor=white" width="196px" />](#quick-start) | For the real iOS Simulator and Android emulator: `curl -fsSL https://sparkflow-ai.web.app/install.sh \| bash`, then `sparkflow`. |
+> [<img alt="Meta Global AI Developer Hackathon" src="https://img.shields.io/badge/built%20for-Meta%20AI%20Hackathon-0064E0?style=flat-square&logo=meta&logoColor=white&labelColor=black" width="196px" />](#built-during-the-hackathon) | Built during the Meta Global AI Developer Hackathon, on Muse Spark, Muse Wonder, Muse Image and SAM 3.1. |
+> [<img alt="GitHub Follow" src="https://img.shields.io/github/followers/Antoinegtir?style=flat-square&logo=github&labelColor=black&color=24292f" width="196px" />](https://github.com/Antoinegtir) | Follow [@Antoinegtir](https://github.com/Antoinegtir) on GitHub for more projects. |
 
 <div align="center">
 
 [![GitHub Release](https://img.shields.io/github/v/release/Antoinegtir/sparkflow?color=0073FF&labelColor=black&logo=github&style=flat-square)](https://github.com/Antoinegtir/sparkflow/releases)
 [![Release workflow](https://img.shields.io/github/actions/workflow/status/Antoinegtir/sparkflow/release.yml?color=0073FF&labelColor=black&style=flat-square&label=release)](https://github.com/Antoinegtir/sparkflow/actions)
+[![Last commit](https://img.shields.io/github/last-commit/Antoinegtir/sparkflow?color=0073FF&labelColor=black&style=flat-square)](https://github.com/Antoinegtir/sparkflow/commits/main)
 [![GitHub Stars](https://img.shields.io/github/stars/Antoinegtir/sparkflow?color=0073FF&labelColor=black&style=flat-square)](https://github.com/Antoinegtir/sparkflow/stargazers)
+[![GitHub Issues](https://img.shields.io/github/issues/Antoinegtir/sparkflow?color=0073FF&labelColor=black&style=flat-square)](https://github.com/Antoinegtir/sparkflow/issues)
 [![License](https://img.shields.io/badge/license-MIT-white?labelColor=black&style=flat-square)](LICENSE)
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Muse%20Spark-0064E0?style=for-the-badge&logo=meta&logoColor=white" alt="Muse Spark" />
-  <img src="https://img.shields.io/badge/React%20Native-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React Native" />
-  <img src="https://img.shields.io/badge/Expo-000020?style=for-the-badge&logo=expo&logoColor=white" alt="Expo" />
-  <img src="https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" />
-  <img src="https://img.shields.io/badge/Next.js-000000?style=for-the-badge&logo=nextdotjs&logoColor=white" alt="Next.js" />
-  <img src="https://img.shields.io/badge/fastlane-00F200?style=for-the-badge&logo=fastlane&logoColor=black" alt="fastlane" />
-</p>
+[![Stack](https://skillicons.dev/icons?i=ts,react,nextjs,tailwind,nodejs,firebase,gcp,docker,githubactions,apple,androidstudio,bash,git)](#architecture)
 
 </div>
 
@@ -48,22 +41,7 @@
 |:---:|
 | ![Point and talk](.github/assets/step-point.jpg) |
 
-## Contents
-
-- [Overview](#overview)
-  - [How it works](#how-it-works)
-- [Meta models](#meta-models)
-- [Built during the hackathon](#built-during-the-hackathon)
-- [Features](#features)
-- [Quick start](#quick-start)
-  - [Prerequisites](#prerequisites)
-  - [The `sparkflow` command](#the-sparkflow-command)
-  - [Where your apps live](#where-your-apps-live)
-- [Development](#development)
-  - [Scripts](#scripts)
-  - [Releases and deploys](#releases-and-deploys)
-- [Architecture](#architecture)
-- [License](#license)
+> **Try it in a minute: open [sparkflow-ai.web.app](https://sparkflow-ai.web.app), sign in with GitHub or Google, and open the Wander demo or describe your own app.**
 
 ## Overview
 
@@ -71,11 +49,21 @@
 
 | Logo | Built on | Role |
 |:---:|---|---|
-| <img width="32" src="https://cdn.simpleicons.org/meta/0064E0" alt="Meta" /> | **Muse Spark** · **Muse Wonder** · **Muse Image** · **SAM 3.1** by Meta | Every step of the agent loop: planning, writing the code, judging each screenshot, drawing the assets, reading sketches. See [Meta models](#meta-models). |
-| <img width="32" src="https://cdn.simpleicons.org/react/61DAFB" alt="React Native" /> | **React Native** | The code it writes: real components, no web view. |
-| <img width="32" src="https://cdn.simpleicons.org/expo/white" alt="Expo" /> | **Expo** · Expo Router | The project template, navigation, Expo Go and the dev client. |
-| <img width="32" src="https://cdn.simpleicons.org/apple/white" alt="Apple" /> | **iOS Simulator** | Where the app runs and gets looked at, with its accessibility tree. |
-| <img width="32" src="https://cdn.simpleicons.org/android/3DDC84" alt="Android" /> | **Android emulator** | Same, on Android, through adb and uiautomator. |
+| <img width="40px" src="https://cdn.simpleicons.org/meta/0064E0" alt="Meta" /> | **Muse Spark** · **Muse Wonder** · **Muse Image** · **SAM 3.1** by Meta | Every step of the agent loop: planning, writing the code, judging each screenshot, drawing the assets, reading sketches. See [Meta models](#meta-models). |
+| <img width="40px" src="https://cdn.simpleicons.org/react/61DAFB" alt="React Native" /> | **React Native** | The code it writes: real components, no web view. |
+| <img width="40px" src="https://cdn.simpleicons.org/expo/white" alt="Expo" /> | **Expo** · Expo Router | The project template, navigation, Expo Go and the dev client. |
+| <img width="40px" src="https://cdn.simpleicons.org/googlecloud/4285F4" alt="Google Cloud" /> | **Google Cloud Run** | The cloud server, in Europe and the US, for everyone without a Mac. |
+| <img width="40px" src="https://cdn.simpleicons.org/modal/7FEE64" alt="Modal" /> | **Modal** | One sandbox per app in the cloud: Expo, Metro and the captures. |
+| <img width="40px" src="https://cdn.simpleicons.org/apple/white" alt="Apple" /> | **iOS Simulator** | Where the app runs and gets looked at, with its accessibility tree. |
+| <img width="40px" src="https://cdn.simpleicons.org/android/3DDC84" alt="Android" /> | **Android emulator** | Same, on Android, through adb and uiautomator. |
+
+### Why "Sparkflow"?
+
+[![Sparkflow](./.github/assets/hero.png)](https://sparkflow-ai.web.app)
+
+A **spark** is the idea: a sentence, a sketch on paper, a voice memo. The **flow** is everything that has to happen before that idea is an app you can hold: screens, navigation, code, assets, and someone checking that each screen really looks like what was asked.
+
+Most code generators stop at the code. Sparkflow keeps going until the app **looks at itself**: it opens what it built in a live preview, screenshots every page, checks each one against what it promised, and sends what doesn't match back to be fixed. The tagline on the landing is the whole idea: mobile apps that look at themselves.
 
 ### How it works
 
@@ -83,11 +71,52 @@
 |:---:|---|---|
 | 01 | **Describe** | Say what you want, however you like: text, sketch, screenshot or voice. |
 | 02 | **Plan** | The Planner turns it into screens, navigation, a data model, a theme, and visual acceptance criteria for every screen. |
-| 03 | **Build** | The Builder writes Expo and React Native code with real tools: it edits files, runs the type checker and fixes its own errors. Every iteration is a git commit. |
-| 04 | **Look** | Sparkflow runs what it built on the web, in the iOS Simulator and in the Android emulator, screenshots it, reads the accessibility tree and the console. |
-| 05 | **Fix** | A screen that fails goes back to the Builder with the rejected screenshot and the exact list of what is off, until it passes. |
+| 03 | **Build** | The Builder writes Expo and React Native code with real tools: it edits files, runs the type checker and fixes its own errors. Every screen version and every change is a git commit. |
+| 04 | **Look** | Sparkflow opens each screen in a web preview (Playwright), screenshots it and reads its accessibility tree and console. On a Mac it also captures every page in the iOS Simulator and the Android emulator. |
+| 05 | **Fix** | A screen that fails goes back to the Builder with the rejected screenshot and the exact list of what is off, up to three attempts by default (`SPARKFLOW_MAX_ATTEMPTS`); a screen that still fails is marked unverified. |
 | 06 | **Point and talk** | Click anything on the live phone and say “bigger, in blue”: Sparkflow finds the component, the file and the line, and edits it. |
 | 07 | **Ship** | Scan the QR code with Expo Go, export the source, or import your own React Native project and let Sparkflow work on it in place. |
+
+## Contents
+
+- [Overview](#overview)
+  - [Why "Sparkflow"?](#why-sparkflow)
+  - [How it works](#how-it-works)
+- [Features](#features)
+- [Meta models](#meta-models)
+- [Built during the hackathon](#built-during-the-hackathon)
+- [Installation](#installation)
+  - [Quick Start](#quick-start)
+  - [Prerequisites](#prerequisites)
+  - [Development Setup](#development-setup)
+- [Usage](#usage)
+  - [Cloud or Mac](#cloud-or-mac)
+  - [The `sparkflow` command](#the-sparkflow-command)
+  - [Where your apps live](#where-your-apps-live)
+  - [Sharing an app](#sharing-an-app)
+  - [Cloud quotas](#cloud-quotas)
+- [Architecture](#architecture)
+- [Development](#development)
+  - [Scripts](#scripts)
+  - [Releases and deploys](#releases-and-deploys)
+- [Supported Platforms](#supported-platforms)
+- [Contributing](#contributing)
+- [Acknowledgments](#acknowledgments)
+- [License](#license)
+
+## Features
+
+- **Three ways in** - a prompt, a sketch or a screenshot (PNG, JPEG, WebP, GIF; HEIC and PDF with Sparkflow on a Mac), a voice memo
+- **Visual verification** - every screen is checked on its screenshot against its own criteria, plus contrast, touch targets and overflow
+- **Nothing to install** - build in the cloud: each app gets its own sandbox, a live web preview and an Expo Go link
+- **Real devices when you want them** - with `sparkflow` on a Mac, the iOS Simulator and Android emulators stream into the browser, booted from the device menu; a cloud app opens there too, loading its code from the cloud
+- **Point and edit** - select an element on the live phone and ask for a change; the IDE jumps to its file and line
+- **An IDE for the whole app** - every page on a canvas with its links, the code, assets, layout tree, history with diffs and restore, accessibility scores, and the agent at work in Activity
+- **One source, cloud and Mac** - an app moves between the cloud and your Mac with its git history, pages and screenshots
+- **Share with friends** - invite links with a role (view, comment, edit), in the cloud or from your Mac
+- **GitHub, Finder, VS Code** - create the repository with the GitHub CLI and push, or open the project folder in one click
+- **Ship** - a native Release build with the app's own name and bundle ID, or a fastlane upload to TestFlight and Google Play's internal track, with credentials kept on your computer
+- **Bring your project** - import an existing Expo app; Sparkflow drives it in place
 
 ## Meta models
 
@@ -99,7 +128,7 @@ Sparkflow is an agent loop where each step is a Meta model, called through the [
             ▼
    ┌─────────────────┐   pages, navigation, data model, theme,
    │  PLAN           │   acceptance criteria for every page
-   │  Muse Spark 1.3 │◀── SAM 3.1 segments the sketch into components
+   │  Muse Spark 1.3 │◀── SAM 3.1 segments an attached sketch first
    └────────┬────────┘
             ▼
    ┌─────────────────┐   edits files, runs the type checker, fixes its errors,
@@ -107,9 +136,9 @@ Sparkflow is an agent loop where each step is a Meta model, called through the [
    │  Muse Wonder 1.0│──▶ Muse Image 1.0 draws icons, photos, splash screens
    └────────┬────────┘
             ▼
-   ┌─────────────────┐   screenshots every page (web, iOS, Android), reads the
-   │  VERIFY         │   accessibility tree and the console, judges each page
-   │  Muse Spark 1.3 │   against its criteria
+   ┌─────────────────┐   screenshots every page in the web preview (Playwright),
+   │  VERIFY         │   reads the accessibility tree and the console, judges
+   │  Muse Spark 1.3 │   each page against its criteria
    └────────┬────────┘
      passes │ fails ─────▶ back to BUILD with the rejected screenshot
             ▼               and the exact list of what is off
@@ -118,10 +147,11 @@ Sparkflow is an agent loop where each step is a Meta model, called through the [
 
 | Model | Where | What it does in Sparkflow |
 |---|---|---|
-| **Muse Spark 1.3** | Planner, Verifier | Reads the request in any form (text, sketch, screenshot, PDF, voice), writes the plan and the per-page acceptance criteria; then looks at each screenshot and returns a verdict with what to fix. Multimodal in both directions of the loop. |
+| **Muse Spark 1.3** | Planner, Verifier | Reads the request (text, sketch, screenshot, PDF), writes the plan and the per-page acceptance criteria; then looks at each screenshot and returns a verdict with what to fix. Multimodal in both directions of the loop. |
+| **Muse Spark 1.2** | Planner with voice | Listens to a voice memo: requests with audio go to the audio-capable model (`MUSE_AUDIO_MODEL`). |
 | **Muse Wonder 1.0** | Builder | Writes the Expo and React Native code with tools (read, edit, type-check, generate assets), and fixes what the Verifier rejects. |
 | **Muse Image 1.0** | Builder tool `generate_image` | App icons, splash screens, photos and illustrations, written straight into the project's assets. |
-| **SAM 3.1** | Tool `segment` | Cuts a paper sketch or a screenshot into its parts (buttons, cards, lists), so the plan follows the drawing. |
+| **SAM 3.1** | Before planning, on an attached image | Cuts an attached sketch or screenshot into its parts (buttons, cards, lists) before the Planner runs, so the plan follows the drawing. |
 
 Code: [`lib/agent/roles.ts`](lib/agent/roles.ts) (the loop's roles), [`lib/agent/meta.ts`](lib/agent/meta.ts) (Muse Image, SAM), [`lib/agent/llm/`](lib/agent/llm) (the Model API client), [`lib/shared/models.ts`](lib/shared/models.ts) (which model each step uses).
 
@@ -133,24 +163,19 @@ Sparkflow was started at the kickoff of the Meta Global AI Developer Hackathon (
 |---|---|
 | Agent loop | Planner, Builder and Verifier on Meta models, the fix loop, per-page acceptance criteria, visual and accessibility checks |
 | Multimodal input | Prompts with sketches, screenshots, PDFs, HEIC photos and voice; SAM segmentation; Muse Image assets |
-| IDE | The canvas of pages and links, live devices, point-and-edit, code editor, asset manager, history with diffs and restore, the Activity view of the loop |
+| IDE | The canvas of pages and links, live devices, point-and-edit, code editor, layout tree, asset manager, history with diffs and restore, the Activity view of the loop |
 | Cloud | Sparkflow without installing anything: Cloud Run in Europe and the US, each app in its own Modal sandbox with a live web preview and Expo Go |
 | Mac and cloud together | The `sparkflow` CLI; the cloud's apps opened in the Mac's iOS Simulator and Android emulator, loading their code from the cloud |
-| Ship | Release builds, TestFlight and Google Play uploads with fastlane, GitHub push, sharing and comments |
+| Sharing | Invite links with roles, in the cloud and from a Mac, comments on the canvas |
+| Ship | Release builds, TestFlight and Google Play uploads with fastlane, GitHub push |
 
-## Features
+## Installation
 
-- **Three ways in**: a prompt, a sketch or a screenshot, a voice memo.
-- **Visual verification**: every screen is checked on its screenshot, plus contrast, touch targets and overflow.
-- **Live devices**: the iOS Simulator and Android emulators stream into the browser, booted from the device menu; tap, type, rotate, switch light and dark.
-- **Point and edit**: select an element on the live phone and ask for a change; the IDE jumps to its file and line.
-- **An IDE for the whole app**: every page on a canvas, the code, assets, history with diffs and restore, accessibility scores.
-- **Your apps everywhere**: signed in with GitHub or Google, your apps are saved to your account and listed even when your computer is off.
-- **GitHub, Finder, VS Code**: create the repository with the GitHub CLI and push, or open the project folder in one click.
-- **Ship**: a native Release build with the app's own name and bundle ID, installed on the iOS Simulator or Android emulator; or a fastlane upload to TestFlight and Google Play's internal track, with credentials kept on your computer.
-- **Bring your project**: import an existing Expo app; Sparkflow drives it in place.
+### Quick Start
 
-## Quick start
+Nothing to install: open [sparkflow-ai.web.app](https://sparkflow-ai.web.app), sign in with GitHub or Google, and build in the cloud.
+
+For the real iOS Simulator and Android emulator, run Sparkflow on your computer:
 
 ```bash
 curl -fsSL https://sparkflow-ai.web.app/install.sh | bash
@@ -159,25 +184,61 @@ sparkflow
 
 The installer checks your machine, installs what's missing without sudo, downloads the latest release (checksum verified) into `~/.sparkflow` and adds the `sparkflow` command. The first start asks for your Muse Spark API key and where your apps should live; without a key, a demo mode builds a sample app.
 
-`sparkflow` starts the server, opens a Cloudflare tunnel and opens [sparkflow-ai.web.app](https://sparkflow-ai.web.app) connected to your computer.
+`sparkflow` starts the server and a Cloudflare tunnel, and connects [sparkflow-ai.web.app](https://sparkflow-ai.web.app) to your computer: on a Mac the site opens by itself the first time; after that an open Sparkflow tab finds it.
 
 ### Prerequisites
 
 | | Needed for |
 |---|---|
-| macOS, Linux or Windows (WSL) | Running the server (the iOS Simulator needs a Mac) |
-| Node 20+, git | Everything (Node is installed for you if missing) |
-| Xcode or Android Studio | Either one: the iOS Simulator (Mac only) or the Android emulator (`ANDROID_HOME` or `~/Library/Android/sdk`) |
-| cloudflared, watchman | The tunnel and Metro (installed for you if missing) |
+| A browser | The cloud: nothing else |
+| macOS, Linux or Windows (WSL) | Running `sparkflow` (the iOS Simulator needs a Mac) |
+| Node 20+, git | Everything local (Node is installed for you if missing) |
+| Xcode Command Line Tools | Required on macOS (the installer opens their installation if missing) |
+| Xcode or Android Studio | Optional, either one: the iOS Simulator (Mac only) or the Android emulator (`ANDROID_HOME` or `~/Library/Android/sdk`) |
+| cloudflared, watchman | The tunnel (installed for you if missing) and faster Metro reloads (optional; installed with Homebrew when it's there) |
 | GitHub CLI (`gh`) | Optional: creating repositories from the IDE |
+
+### Development Setup
+
+```bash
+# Clone the repository
+git clone https://github.com/Antoinegtir/sparkflow.git
+cd sparkflow
+
+# Install dependencies, the Expo template's and Playwright's Chromium
+npm install
+npm run setup
+
+# MODEL_API_KEY=… (a scripted mock agent runs without it)
+cp .env.example .env
+
+# The app and its API on localhost
+npm run dev
+```
+
+## Usage
+
+### Cloud or Mac
+
+| | Cloud (default) | Your Mac (`sparkflow`) |
+|---|---|---|
+| Install | Nothing | One command |
+| Where the app runs | Its Modal sandbox: web preview, Expo Go | Local sandbox: web preview, Expo Go, iOS Simulator, Android emulator |
+| Real simulators | Yes, once `sparkflow` runs: the device menu lists them and loads the app from the cloud | Yes |
+| Release builds and store uploads | No | Yes |
+| Your Muse Spark key | Sparkflow's | Yours, kept on your computer |
+
+An app is one source on both sides: opening it on the Mac brings the cloud's newer version first, and a run on the Mac sends the new code back to the cloud.
 
 ### The `sparkflow` command
 
 | Command | Does |
 |---|---|
 | `sparkflow` | Start the server, the tunnel and the site |
+| `sparkflow key` | Set or change your Muse Spark API key (leaves demo mode) |
+| `sparkflow folder` | Choose another folder for your apps (can move the existing ones) |
 | `sparkflow doctor` | Check the machine and the installation |
-| `sparkflow update [vX.Y.Z]` | Install the latest release (or a given one); nothing happens when you're up to date |
+| `sparkflow update [vX.Y.Z]` | Install the latest release (or a given one); no download when you're already up to date |
 | `sparkflow version` | Print the installed version |
 | `sparkflow uninstall [--all]` | Remove Sparkflow, keeping your apps; `--all` also deletes `~/.sparkflow` (settings, and apps kept there) |
 
@@ -192,30 +253,17 @@ You pick the folder at the first start (for example `~/Documents/apps`; it's `SP
 └── .sparkflow/      ← Sparkflow's own files: history, screenshots
 ```
 
-## Development
+### Sharing an app
+
+**Share** in the IDE makes an invite link with a role (view, comment or edit), an expiry and an optional single use. A friend opens it, signs in with GitHub or Google, and gets that app only. In the cloud they need nothing else; from a Mac, the app is reached through its tunnel while `sparkflow` runs, and a read-only copy of its pages stays available when the Mac is off.
+
+### Cloud quotas
+
+Each person has a number of agent runs a day in the cloud (`SPARKFLOW_CLOUD_DAILY_RUNS`), unlimited until a date (`SPARKFLOW_CLOUD_UNLIMITED_UNTIL`). A friend's runs on a shared app count on its owner's quota. Both are Cloud Run environment variables, changed without a rebuild:
 
 ```bash
-npm install
-npm run setup      # the Expo template's dependencies and Playwright's Chromium
-cp .env.example .env   # MODEL_API_KEY=… (a scripted mock agent runs without it)
-npm run dev
+gcloud run services update sparkflow --region europe-west1 --update-env-vars SPARKFLOW_CLOUD_DAILY_RUNS=5
 ```
-
-### Scripts
-
-| Script | |
-|---|---|
-| `npm run dev` | The app and its API on localhost |
-| `npm run remote` | Same as `sparkflow`, from this checkout |
-| `npm test` | Unit tests (Vitest) |
-| `npm run typecheck` | TypeScript |
-| `npm run smoke` | One full build with the mock agent and the local sandbox |
-| `npm run eval` | The prompts in `eval/prompts.json`, results in `eval/results/` |
-
-### Releases and deploys
-
-- `npm run release -- patch` (or `minor`, `major`, `1.2.3`) bumps the version, tags `vX.Y.Z` and pushes. The `Release` workflow builds the server and publishes `sparkflow-vX.Y.Z.tar.gz` and its `.sha256` on GitHub Releases, which `install.sh` and `sparkflow update` download.
-- `npm run deploy` publishes the site: a static export, then Firebase Hosting.
 
 ## Architecture
 
@@ -244,13 +292,73 @@ The same server runs in two places: in the cloud for everyone (the default), and
 | `lib/agent/` | The orchestrator, the Planner, Builder and Verifier, the project store |
 | `lib/sandbox/` | Where apps run: local sandboxes and Modal sandboxes (cloud), Metro, the inspector |
 | `lib/cloud/` | Cloud mode: sessions, per-user apps, daily quotas |
-| `lib/web/` | Browser-side: the backend shim, devices, Firebase |
+| `lib/share/` | Sharing: invites, members, guest keys, the read-only copy |
+| `lib/web/` | The browser side (backend shim, sync between the cloud and the Mac, Firebase) and the server's device drivers (iOS Simulator, adb, idb, Sparkflow Dev, store builds) |
 | `templates/expo-base/` | The Expo template every app starts from |
 | `templates/demo/` | Wander, the demo app every user finds in My apps |
-| `scripts/` | Install, onboarding, release, static build, cloud deploy |
+| `scripts/` | The `sparkflow` launcher (`remote.mjs`), onboarding, release, static build, cloud deploy, smoke test and eval |
+| `public/install.sh` | The installer served at sparkflow-ai.web.app/install.sh |
+
+## Development
+
+### Scripts
+
+| Script | |
+|---|---|
+| `npm run dev` | The app and its API on localhost |
+| `npm run remote` | Same as `sparkflow`, from this checkout |
+| `npm test` | Unit tests (Vitest) |
+| `npm run typecheck` | TypeScript |
+| `npm run smoke` | One full build with the mock agent and the local sandbox |
+| `npm run eval` | The prompts in `eval/prompts.json`, results in `eval/results/` |
+
+### Releases and deploys
+
+- `npm run release -- patch` (or `minor`, `major`, `1.2.3`) bumps the version, tags `vX.Y.Z` and pushes. The `Release` workflow builds the server and publishes `sparkflow-vX.Y.Z.tar.gz` and its `.sha256` on GitHub Releases, which `install.sh` and `sparkflow update` download.
+- `npm run deploy` publishes the site: a static export, then Firebase Hosting, plus the Firestore and Storage security rules.
+- `./scripts/cloud-deploy.sh` builds the server image and deploys it to Cloud Run in Europe; `GCP_REGION=us-central1 CLOUD_BUCKET=sparkflow-ai-cloud-data-us ./scripts/cloud-deploy.sh` deploys the US region. Secrets (the Model API key, the Modal token) come from Secret Manager.
+
+## Supported Platforms
+
+| Platform | Cloud | `sparkflow` | iOS Simulator | Android emulator |
+|---|:---:|:---:|:---:|:---:|
+| macOS (Apple Silicon, Intel) | ✅ | ✅ | ✅ | ✅ |
+| Linux | ✅ | ✅ | — | ✅ |
+| Windows (WSL) | ✅ | ✅ | — | ✅ |
+| iPhone, Android phone | ✅ (Expo Go) | — | — | — |
+
+## Contributing
+
+Contributions are welcome:
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Make your changes
+4. Run the checks (`npm run typecheck && npm test`)
+5. Commit your changes (`git commit -m 'Add amazing feature'`)
+6. Push to the branch (`git push origin feature/amazing-feature`)
+7. Open a Pull Request
+
+## Acknowledgments
+
+- [Meta](https://llama.developer.meta.com) for Muse Spark, Muse Wonder, Muse Image and SAM 3.1
+- [Expo](https://expo.dev) and [React Native](https://reactnative.dev) for the apps Sparkflow writes
+- [Modal](https://modal.com) and [Google Cloud Run](https://cloud.google.com/run) for the cloud
+- [Playwright](https://playwright.dev) for the screenshots, [idb](https://fbidb.io) and adb for the live devices
+- [Material Icon Theme](https://github.com/material-extensions/vscode-material-icon-theme) for the file icons (MIT)
 
 ## License
 
-[MIT](LICENSE) © 2026 Antoine Gonthier.
+<p align="center">
+  <a href="https://sparkflow-ai.web.app">
+    <img src="public/logo.png" width="96">
+  </a>
+</p>
 
-File icons from [Material Icon Theme](https://github.com/material-extensions/vscode-material-icon-theme) (MIT). Apple and the Apple logo are trademarks of Apple Inc. Android robot © Google, CC BY 3.0. Sparkflow is not affiliated with Apple, Google or Meta.
+<p align="center">
+  <strong>MIT © <a href="https://github.com/Antoinegtir">Antoine Gonthier</a></strong>
+</p>
+
+Apple and the Apple logo are trademarks of Apple Inc. Android robot © Google, CC BY 3.0. Sparkflow is not affiliated with Apple, Google or Meta.
+
+If you find this project useful, **please consider starring it ⭐** or [follow me on GitHub](https://github.com/Antoinegtir).
