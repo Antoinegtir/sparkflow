@@ -1,5 +1,6 @@
 "use client";
 
+import { cloudHostUrl } from "./regions";
 import { doc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
 import type { JoinResult, PreviewResult, SharedEntry } from "@/lib/shared/share";
 import { auth, db } from "./auth";
@@ -10,7 +11,9 @@ import { auth, db } from "./auth";
  * shared page never talks to your server and yours never sends a guest key.
  */
 const KEY = "sparkflow.shared";
-const SHARE_PATH = /^\/s\/([A-Za-z0-9]{20,40})\/([a-z0-9-]+)/;
+// A Mac's server uid, or a cloud region (cloud-eu, cloud-us).
+const HOST = "[A-Za-z0-9]{20,40}|cloud-eu|cloud-us";
+const SHARE_PATH = new RegExp(`^/s/(${HOST})/([a-z0-9-]+)`);
 
 export const entryId = (serverUid: string, projectId: string) => `${serverUid}/${projectId}`;
 
@@ -60,7 +63,7 @@ export function activeShareBackend(): { url: string; token: string } | null {
 /** "#<serverUid>.<inviteId>.<secret>[&b=<origin>]": the secret stays in the fragment, never sent to a server by the browser. */
 export function parseInvite(hash: string): { serverUid: string; invite: string; b: string | null } | null {
   const [body, ...rest] = hash.replace(/^#/, "").split("&");
-  const m = /^([A-Za-z0-9]{20,40})\.(i_[0-9a-f]{16}\.[A-Za-z0-9_-]{16,64})$/.exec(body ?? "");
+  const m = new RegExp(`^(${HOST})\\.(i_[0-9a-f]{16}\\.[A-Za-z0-9_-]{16,64})$`).exec(body ?? "");
   if (!m) return null;
   const b = new URLSearchParams(rest.join("&")).get("b");
   return { serverUid: m[1], invite: m[2], b };
@@ -80,6 +83,12 @@ export function devHint(b: string | null): string | null {
 
 /** Follows the owner's server document: its current tunnel link, or null while it is offline. */
 export function watchServer(serverUid: string, cb: (url: string | null) => void) {
+  // An app shared from the cloud: always there, at its region's address.
+  const cloud = cloudHostUrl(serverUid);
+  if (cloud) {
+    cb(cloud);
+    return () => {};
+  }
   return onSnapshot(
     doc(db(), "servers", serverUid),
     (snap) => {
@@ -102,6 +111,8 @@ function randomId() {
 export async function writeProof(serverUid: string): Promise<string> {
   const user = auth().currentUser;
   if (!user) throw new Error("Sign in first.");
+  // The cloud has no Firebase account to read proofs with: it checks the ID token itself, with Firebase.
+  if (cloudHostUrl(serverUid)) return user.getIdToken();
   const write = async (refresh: boolean) => {
     const { claims } = await user.getIdTokenResult(refresh);
     const fb = claims.firebase as { identities?: Record<string, string[]> } | undefined;
@@ -150,8 +161,10 @@ async function call<T>(url: string, path: string, body: unknown): Promise<T> {
 }
 
 export const previewInvite = (url: string, invite: string) => call<PreviewResult>(url, "/api/share/preview", { invite });
-export const joinInvite = (url: string, invite: string, proof: string) => call<JoinResult>(url, "/api/share/join", { invite, proof });
-export const openSession = (url: string, projectId: string, proof: string) => call<JoinResult>(url, "/api/share/session", { projectId, proof });
+/** A Mac's Firestore proof id, or (for the cloud) an ID token, a JWT: dotted. */
+const proved = (proof: string) => (proof.includes(".") ? { idToken: proof } : { proof });
+export const joinInvite = (url: string, invite: string, proof: string) => call<JoinResult>(url, "/api/share/join", { invite, ...proved(proof) });
+export const openSession = (url: string, projectId: string, proof: string) => call<JoinResult>(url, "/api/share/session", { projectId, ...proved(proof) });
 
 /**
  * Images and raw files load by URL, which can't carry the key header: they get a short-lived

@@ -9,6 +9,8 @@ PROJECT="${GCP_PROJECT:-sparkflow-ai}"
 REGION="${GCP_REGION:-europe-west1}"
 SERVICE="${CLOUD_SERVICE:-sparkflow}"
 BUCKET="${CLOUD_BUCKET:-sparkflow-ai-cloud-data}"
+# The region as a sharing host: invite links name it (cloud-us, cloud-eu).
+case "$REGION" in us-*) HOST_REGION=us ;; *) HOST_REGION=eu ;; esac
 # One image repository (europe-west1) serves every region.
 IMAGE="${REPO_REGION:-europe-west1}-docker.pkg.dev/$PROJECT/sparkflow/server:$(git rev-parse --short HEAD)"
 
@@ -18,6 +20,7 @@ gcloud run deploy "$SERVICE" --project "$PROJECT" --region "$REGION" --image "$I
   --execution-environment gen2 --cpu 2 --memory 4Gi --no-cpu-throttling \
   --min-instances "${CLOUD_MIN_INSTANCES:-0}" --max-instances 1 --concurrency 80 --timeout 3600 --session-affinity \
   --allow-unauthenticated \
+  --update-env-vars SPARKFLOW_CLOUD_REGION="$HOST_REGION" \
   --add-volume name=data,type=cloud-storage,bucket="$BUCKET" --add-volume-mount volume=data,mount-path=/data \
   --set-secrets MODEL_API_KEY=sparkflow-muse-key:latest,MODAL_TOKEN_ID=sparkflow-modal-id:latest,MODAL_TOKEN_SECRET=sparkflow-modal-secret:latest
 gcloud run services describe "$SERVICE" --project "$PROJECT" --region "$REGION" --format "value(status.url)"

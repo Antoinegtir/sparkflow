@@ -7,6 +7,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { CreateInviteBody, Person, Role, ShareListing } from "@/lib/shared/share";
 import { requireSignIn } from "@/lib/web/auth";
 import { writeProof } from "@/lib/web/share";
+import { isCloud } from "@/lib/web/backend";
+import { refreshCloudProfile } from "@/lib/web/cloud";
 import { Avatar } from "./Avatar";
 
 const ROLE_LABEL: Record<Role, string> = { edit: "Can edit", comment: "Can comment", view: "Can view" };
@@ -66,6 +68,11 @@ export function ShareDialog({ projectId, appName, onClose, onChanged }: { projec
       const s = await load();
       if (!s || s.owner || claimed.current || !s.serverUid) return;
       claimed.current = true;
+      // In the cloud the owner's face comes from their cloud sign-in: a fresh session records it.
+      if (isCloud()) {
+        if (await refreshCloudProfile()) await load();
+        return;
+      }
       if (!(await requireSignIn("Sign in so the people you invite see who shares this app."))) return;
       try {
         const proof = await writeProof(s.serverUid);
@@ -234,7 +241,9 @@ export function ShareDialog({ projectId, appName, onClose, onChanged }: { projec
           </section>
         </div>
         <p className={clsx("border-t border-[var(--line)] px-4 py-2.5 text-[11.5px] text-ink-500")}>
-          Friends reach this app through your computer while sparkflow runs.{share && !share.online ? " It is offline right now." : ""}
+          {isCloud()
+            ? "Friends open this app in the cloud, nothing to install. Their runs count on your daily quota."
+            : `Friends reach this app through your computer while sparkflow runs.${share && !share.online ? " It is offline right now." : ""}`}
         </p>
       </div>
     </div>

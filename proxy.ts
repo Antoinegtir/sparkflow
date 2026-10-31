@@ -84,18 +84,37 @@ const fail = (req: NextRequest, status: number, code?: string, guest = false) =>
   return cors(req, res);
 };
 
-/** Project routes that need the owner's Mac (Simulator, stores, GitHub CLI, Finder) or sharing: off in the cloud. */
-const MAC_ONLY = /^(reveal|release|sim-capture|capture|github|share|ticket|access)(\/|$)/;
+/** Project routes that need the owner's Mac (Simulator, stores, GitHub CLI, Finder): off in the cloud. */
+const MAC_ONLY = /^(reveal|release|sim-capture|capture|github)(\/|$)/;
 
 /**
  * Sparkflow in the cloud (lib/cloud/mode.ts): a session key (from a Firebase sign-in) opens only the
  * projects its person made, a daily number of runs, and nothing that needs a Mac.
  */
 function cloudGate(req: NextRequest, headers: Headers, given: string | undefined) {
-  const { pathname } = req.nextUrl;
+  const { pathname, search } = req.nextUrl;
   if (pathname === "/api/cloud/session" && req.method === "POST") return cors(req, pass(req, headers, { "x-sparkflow-actor": "public" }));
   if (pathname === "/api/health") return cors(req, pass(req, headers, { "x-sparkflow-actor": "public" }));
   if (!pathname.startsWith("/api/")) return fail(req, 404);
+  // Joining a shared app and signing back in: the routes check the invite and the sign-in themselves.
+  if (!given && req.method === "POST" && PUBLIC.test(pathname)) return cors(req, pass(req, headers, { "x-sparkflow-actor": "public" }));
+  // A friend on a shared app: their key (header only) or an image ticket opens that one project, by role,
+  // exactly as on a Mac. Their runs count on the owner's daily quota.
+  const ticket = req.nextUrl.searchParams.get("t");
+  const header = req.headers.get("x-sparkflow-token");
+  if (given?.startsWith("sfg_") || (!given && ticket?.startsWith("t1."))) {
+    if (given && given !== header) return fail(req, 401, "key", true);
+    const g = guestAccess({ key: given ?? undefined, ticket: given ? undefined : (ticket ?? undefined), method: req.method, pathname, search });
+    if (!g.ok) return fail(req, g.status, g.code, true);
+    if (MAC_ONLY.test(/^\/api\/projects\/[^/]+\/(.*)$/.exec(pathname)?.[1] ?? "")) return fail(req, 404, "mac-only", true);
+    if (/\/prompt$/.test(pathname) && req.method === "POST") {
+      const owner = ownerOf(g.projectId);
+      if (!owner || !takeRun(owner)) return cors(req, NextResponse.json({ error: "This app's owner has used today's agent runs in the cloud. Try again tomorrow.", code: "quota" }, { status: 429 }));
+    }
+    const res = pass(req, headers, { "x-sparkflow-actor": "guest", "x-sparkflow-uid": g.uid, "x-sparkflow-project": g.projectId, "x-sparkflow-role": g.role, "x-sparkflow-cloud": "1" });
+    res.headers.set("referrer-policy", "no-referrer");
+    return cors(req, res);
+  }
   const s = sessionOf(given);
   if (!s) return fail(req, 401, given?.startsWith("sfc_") ? "expired" : "signin");
   const as = { "x-sparkflow-actor": "owner", "x-sparkflow-uid": s.uid, "x-sparkflow-cloud": "1" };

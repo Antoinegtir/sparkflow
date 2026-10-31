@@ -1,5 +1,6 @@
 "use client";
 
+import { REGIONS } from "./regions";
 import { auth, requireSignIn } from "./auth";
 import { getBackend, getMode, setBackend, setMode, type Backend } from "./backend";
 
@@ -8,10 +9,7 @@ import { getBackend, getMode, setBackend, setMode, type Backend } from "./backen
  * (closer to Modal and the Muse API too), everyone else Europe. Each region keeps its own projects, and a
  * browser sticks to the one it signed in to.
  */
-const REGIONS = {
-  us: process.env.NEXT_PUBLIC_SPARKFLOW_CLOUD_URL_US ?? "https://sparkflow-705836289781.us-central1.run.app",
-  eu: process.env.NEXT_PUBLIC_SPARKFLOW_CLOUD_URL ?? "https://sparkflow-705836289781.europe-west1.run.app",
-};
+
 const nearest = () => {
   try {
     return /^America\//.test(Intl.DateTimeFormat().resolvedOptions().timeZone) ? "us" : "eu";
@@ -69,6 +67,17 @@ export async function cloudSession(fresh = false): Promise<Backend | null> {
   return openSession()
     .then((s) => s.backend)
     .catch(() => null);
+}
+
+/**
+ * A new cloud session for the signed-in person, which records their name and picture on the server
+ * (sessions made before profiles existed lack them). Becomes the backend if the cloud is the current one.
+ */
+export async function refreshCloudProfile(): Promise<boolean> {
+  const s = await cloudSession(true);
+  if (!s) return false;
+  if (getBackend()?.cloud) setBackend(s);
+  return true;
 }
 
 /**

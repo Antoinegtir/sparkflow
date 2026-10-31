@@ -46,7 +46,7 @@ export function TopBar(p: Props) {
   const native = !!s.native;
   const access = useAccess();
   const owner = access.role === "owner";
-  // Sparkflow in the cloud: the web preview only (no Simulator, stores or sharing there).
+  // Sparkflow in the cloud: the web preview, no Simulator or stores there.
   const cloud = isCloud();
   const [syncing, setSyncing] = useState(isSyncing);
   useEffect(() => {
@@ -123,7 +123,7 @@ export function TopBar(p: Props) {
           <Command size={13} /> Commands <kbd className="rounded border border-[var(--line)] px-1 font-mono text-[10px]">⌘K</kbd>
         </button>
         {/* At the right, before the account menu (which holds App settings). */}
-        {owner && p.onShare && !cloud && (
+        {owner && p.onShare && (
           <button onClick={p.onShare} title="Share this app" className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg px-1.5 py-1 text-[12px] text-ink-300 hover:bg-ink-800 hover:text-ink-100">
             {others.length > 0 ? (
               <span className="flex -space-x-1.5">

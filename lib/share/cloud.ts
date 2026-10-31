@@ -1,4 +1,5 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { CLOUD } from "@/lib/cloud/mode";
 import { join } from "node:path";
 import type { ProjectState } from "../shared";
 import { FIREBASE_CONFIG, FIREBASE_PROJECT } from "../shared/firebase-config";
@@ -53,6 +54,8 @@ const shotName = (url?: string | null) => (url ? (url.split("/").pop()?.split("?
 
 /** Sends the project's current pages to its cloud copy (readable by its owner and members). */
 export async function publishSnapshot(pid: string, state: ProjectState, readShot: (name: string) => Promise<Buffer>) {
+  // The cloud is the copy: always reachable, and it has no Firebase account of its own.
+  if (CLOUD) return;
   const uid = serverUid();
   if (!uid) return;
   const members = [...new Set([...(await activeMemberUids(pid)), ...(readOwner()?.uid ? [readOwner()!.uid] : [])])];

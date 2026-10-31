@@ -1,4 +1,5 @@
 import { chmodSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { CLOUD, CLOUD_HOST, ownerProfile } from "@/lib/cloud/mode";
 import { join } from "node:path";
 import { FIREBASE_CONFIG, FIREBASE_PROJECT } from "../shared/firebase-config";
 import { trustedAvatar, type Person } from "../shared/share";
@@ -74,7 +75,8 @@ export function ensureServerIdentity(): Promise<string> {
   return creating;
 }
 
-export const serverUid = () => readServer()?.uid ?? null;
+/** The server's uid; in the cloud, the region's host name (cloud-eu, cloud-us), no Firebase account. */
+export const serverUid = () => (CLOUD ? CLOUD_HOST : (readServer()?.uid ?? null));
 
 /** A fresh ID token, cached until a minute before it expires. */
 export async function serverIdToken(): Promise<string> {
@@ -172,7 +174,12 @@ export const avatarFor = (id: ProofIdentity) => id.avatar ?? githubAvatar(id.gh)
 /** Their profile name, else the email's local part, else "GitHub user <id>". */
 export const nameFor = (id: ProofIdentity) => (id.name || (id.email ? id.email.split("@")[0] : id.gh ? `GitHub user ${id.gh}` : "Guest")).slice(0, 80);
 
-export function readOwner(): (Person & { uid: string; email: string }) | null {
+/** The owner: of this Mac's server, or in the cloud (many owners) of the project `pid`. */
+export function readOwner(pid?: string): (Person & { uid: string; email: string }) | null {
+  if (CLOUD) {
+    const c = pid ? ownerProfile(pid) : null;
+    return c ? { uid: c.uid, email: c.email, name: c.name, avatar: c.avatar, ...(c.gh ? { gh: c.gh } : {}), role: "owner" } : null;
+  }
   const o = readServer()?.owner;
   return o ? { uid: o.uid, email: o.email, name: o.name, avatar: o.avatar, ...(o.gh ? { gh: o.gh } : {}), role: "owner" } : null;
 }

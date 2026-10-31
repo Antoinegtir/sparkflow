@@ -22,7 +22,9 @@ const unlimited = () => Date.now() < UNLIMITED_UNTIL;
 const SESSION_DAYS = 7;
 
 type Session = { uid: string; email: string; name: string; exp: number };
-type Store = { sessions: Record<string, Session>; owners: Record<string, string>; runs: Record<string, { day: string; n: number }> };
+/** A signed-in person's public face (for the people they share their apps with), from their sign-in. */
+export type Profile = { name: string; email: string; avatar: string | null; gh: string };
+type Store = { sessions: Record<string, Session>; owners: Record<string, string>; runs: Record<string, { day: string; n: number }>; profiles: Record<string, Profile> };
 
 const file = () => path.join(dataDir(), "cloud", "state.json");
 const hash = (token: string) => createHash("sha256").update(token).digest("hex");
@@ -32,9 +34,9 @@ const today = () => new Date().toISOString().slice(0, 10);
 function load(): Store {
   try {
     const d = JSON.parse(readFileSync(file(), "utf8"));
-    return { sessions: d.sessions ?? {}, owners: d.owners ?? {}, runs: d.runs ?? {} };
+    return { sessions: d.sessions ?? {}, owners: d.owners ?? {}, runs: d.runs ?? {}, profiles: d.profiles ?? {} };
   } catch {
-    return { sessions: {}, owners: {}, runs: {} };
+    return { sessions: {}, owners: {}, runs: {}, profiles: {} };
   }
 }
 function save(d: Store) {
@@ -45,8 +47,9 @@ function save(d: Store) {
 }
 
 /** A new session key for a person who just proved their sign-in. Only its hash is kept. */
-export function createSession(user: { uid: string; email: string; name: string }): string {
+export function createSession(user: { uid: string; email: string; name: string }, profile?: Profile): string {
   const d = load();
+  if (profile) d.profiles[user.uid] = profile;
   const now = Date.now();
   for (const [h, s] of Object.entries(d.sessions)) if (s.exp < now) delete d.sessions[h];
   const token = `sfc_${randomBytes(24).toString("base64url")}`;
@@ -62,6 +65,16 @@ export function sessionOf(token: string | null | undefined): Session | null {
 }
 
 export const ownerOf = (projectId: string) => load().owners[projectId] ?? null;
+
+/** Who owns a project, as their friends see them: uid and profile. */
+export function ownerProfile(projectId: string): (Profile & { uid: string }) | null {
+  const d = load();
+  const uid = d.owners[projectId];
+  return uid ? { uid, ...(d.profiles[uid] ?? { name: "Owner", email: "", avatar: null, gh: "" }) } : null;
+}
+
+/** This cloud server as a sharing host: links and guests name it, like a Mac's server uid. */
+export const CLOUD_HOST = `cloud-${process.env.SPARKFLOW_CLOUD_REGION ?? "eu"}`;
 
 export function setProjectOwner(projectId: string, uid: string) {
   const d = load();

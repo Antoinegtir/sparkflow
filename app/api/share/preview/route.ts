@@ -17,7 +17,7 @@ export const POST = handle(async (req: Request) => {
   const found = await previewInvite(invite);
   if (!found) return Response.json({ error: "Invite not found" }, { status: 404 });
   const state = await orchestrator().getState(found.projectId);
-  const o = readOwner();
+  const o = readOwner(found.projectId);
   const out: PreviewResult = { projectName: state.name, owner: o ? { name: o.name, avatar: o.avatar, ...(o.gh ? { gh: o.gh } : {}), role: "owner" } : null, role: found.role };
   return Response.json(out);
 });

@@ -1,4 +1,5 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { CLOUD } from "@/lib/cloud/mode";
 import { chmod, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import type { CreateInviteBody, Person, Role, ShareListing } from "../shared/share";
@@ -94,10 +95,11 @@ export const createInvite = (pid: string, body: CreateInviteBody) =>
 export const listShare = (pid: string) =>
   locked((d): ShareListing => {
     const p = d.projects[pid] ?? { invites: [], members: [] };
-    const owner = readOwner();
+    const owner = readOwner(pid);
     return {
       serverUid: serverUid(),
-      online: !!currentTunnelUrl(),
+      // The cloud is always reachable; a Mac only while its tunnel is up.
+      online: CLOUD || !!currentTunnelUrl(),
       owner: owner ? { name: owner.name, avatar: owner.avatar, ...(owner.gh ? { gh: owner.gh } : {}), role: "owner" } : null,
       invites: p.invites.map(({ hash: _hash, ...i }) => i),
       members: p.members.map((m) => ({ ...person(m), uid: m.uid, email: m.email, joinedAt: m.joinedAt, via: m.via, revokedAt: m.revokedAt })),
@@ -126,7 +128,7 @@ export const redeemInvite = (invite: string, ident: ProofIdentity) =>
     if (!f) return { error: "invalid" };
     const bad = inviteState(f.inv);
     if (bad) return { error: bad };
-    if (readOwner()?.uid === ident.uid) return { owner: true, projectId: f.projectId };
+    if (readOwner(f.projectId)?.uid === ident.uid) return { owner: true, projectId: f.projectId };
     const p = project(d, f.projectId);
     const m = p.members.find((x) => x.uid === ident.uid);
     if (m && !m.revokedAt) return { projectId: f.projectId, role: m.role };
@@ -193,7 +195,7 @@ export const leave = removeMember;
 export const people = (pid: string) =>
   locked((d) => {
     const out: Record<string, Person> = {};
-    const owner = readOwner();
+    const owner = readOwner(pid);
     out.owner = owner ? { name: owner.name, avatar: owner.avatar, ...(owner.gh ? { gh: owner.gh } : {}), role: "owner" } : { name: "Owner", avatar: null, role: "owner" };
     for (const m of d.projects[pid]?.members ?? []) out[m.uid] = person(m);
     return out;

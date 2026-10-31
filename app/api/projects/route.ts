@@ -8,6 +8,8 @@ export const dynamic = "force-dynamic";
 export const GET = handle(async (req: Request) => {
   const actor = actorOf(req);
   const all = await orchestrator().listProjects();
+  // A guest sees only the project their key opens (in the cloud too).
+  if (actor.kind === "guest") return Response.json(all.filter((p) => p.id === actor.projectId));
   // In the cloud, each person sees the apps they made (the proxy set who they are).
   if (CLOUD) {
     const mine = projectsOf(req.headers.get("x-sparkflow-uid") ?? "");
@@ -16,8 +18,7 @@ export const GET = handle(async (req: Request) => {
     const slugs = appSlugs(own);
     return Response.json(own.map((p) => ({ ...p, slug: slugs.get(p.id)! })));
   }
-  // A guest sees only the project their key opens.
-  return Response.json(actor.kind === "guest" ? all.filter((p) => p.id === actor.projectId) : all);
+  return Response.json(all);
 });
 
 export const POST = handle(async (req: Request) => {

@@ -1,4 +1,5 @@
-import { mkdtempSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { NextRequest } from "next/server";
@@ -42,7 +43,9 @@ describe("cloud gate", () => {
 
   it("keeps Mac-only routes and other APIs closed", async () => {
     expect((await call("/api/projects/p-alice/reveal", { method: "POST", token: alice })).status).toBe(404);
-    expect((await call("/api/projects/p-alice/share", { token: alice })).status).toBe(404);
+    // Sharing now works in the cloud: the owner manages it.
+    expect(actor(await call("/api/projects/p-alice/share", { token: alice }))).toBe("owner");
+    expect((await call("/api/projects/p-alice/share", { token: bob })).status).toBe(404);
     expect((await call("/api/sim/devices", { token: alice })).status).toBe(404);
   });
 
@@ -52,6 +55,23 @@ describe("cloud gate", () => {
     expect((await call("/api/projects/p-alice/prompt", { method: "POST", token: alice })).status).toBe(429);
     // Reading isn't a run.
     expect(actor(await call("/api/projects/p-alice/state", { token: alice }))).toBe("owner");
+  });
+
+  it("lets a friend into the shared project only, by role, on the owner's quota", async () => {
+    const key = "sfg_" + "k".repeat(43);
+    const sha = createHash("sha256").update(key).digest("hex");
+    mkdirSync(join(dir, ".sparkflow"), { recursive: true });
+    writeFileSync(
+      join(dir, ".sparkflow", "sharing.json"),
+      JSON.stringify({ v: 1, projects: { "p-alice": { invites: [], members: [{ uid: "carol", role: "view", revokedAt: null }] } }, keys: { [sha]: { projectId: "p-alice", uid: "carol", createdAt: Date.now(), lastUsedAt: Date.now() } } }),
+    );
+    expect(actor(await call("/api/projects/p-alice/board", { token: key }))).toBe("guest");
+    expect((await call("/api/projects/p-bob/board", { token: key })).status).toBe(404);
+    // A viewer can't run the agent, nor reach a Mac-only route.
+    expect((await call("/api/projects/p-alice/prompt", { method: "POST", token: key })).status).toBe(403);
+    expect((await call("/api/projects/p-alice/reveal", { method: "POST", token: key })).status).toBe(404);
+    // The public join and sign-back-in routes need no session.
+    expect(actor(await call("/api/share/join", { method: "POST" }))).toBe("public");
   });
 
   it("lets the sign-in exchange and the health check through", async () => {
