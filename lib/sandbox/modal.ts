@@ -220,6 +220,16 @@ export class ModalDriver {
       const sb = await this.client.sandboxes.fromName(APP(), `sf-${NS()}${projectId}`);
       await sh(sb, `rm -f /data/${NS()}${projectId}.bundle`).catch(() => {});
       await sb.terminate();
+      // Gone for good before returning: a project made again under the same id (the demo) would
+      // otherwise pick up this sandbox while it shuts down.
+      for (let i = 0; i < 30; i++) {
+        const still = await this.client.sandboxes.fromName(APP(), `sf-${NS()}${projectId}`).then(
+          () => true,
+          () => false,
+        );
+        if (!still) break;
+        await new Promise((r) => setTimeout(r, 1000));
+      }
     } catch {}
   }
 }
