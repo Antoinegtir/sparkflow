@@ -138,6 +138,19 @@ export function RunOnMenu({
   const onLive = native || state.previewDevice === "simulator";
   const preview = PREVIEW_DEVICES.find((d) => d.id === state.previewDevice);
 
+  // This Mac's sparkflow, from the cloud or not.
+  const call = (p: string, init?: RequestInit) => (cloud ? macFetch(p, init) : fetch(p, init));
+  // Which tools are installed: one without a device yet gets "create your first one" instead of a download.
+  const [tools, setTools] = useState<{ xcode: boolean; androidStudio: boolean } | null>(null);
+  useEffect(() => {
+    if (!devices || (cloud && !mac)) return;
+    void call("/api/sim/tools")
+      .then((r) => (r.ok ? r.json() : null))
+      .then(setTools)
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [!!devices, cloud, mac]);
+
   /** From the cloud: boots the device on this Mac, then Sparkflow Dev there loads the cloud's Metro. */
   async function openFromCloud(d: Device) {
     onDone();
@@ -233,8 +246,8 @@ export function RunOnMenu({
                 </p>
               )}
               {/* Either one is enough: the missing one is offered, to complete the setup. */}
-              {devices && !devices.some((d) => d.kind !== "android") && <InstallTool tool={TOOLS[0]} what="iOS Simulator" />}
-              {devices && !devices.some((d) => d.kind === "android") && <InstallTool tool={TOOLS[1]} what="Android emulator" />}
+              {devices && !devices.some((d) => d.kind !== "android") && <InstallTool tool={TOOLS[0]} what="iOS Simulator" app="xcode" installed={tools?.xcode} call={call} />}
+              {devices && !devices.some((d) => d.kind === "android") && <InstallTool tool={TOOLS[1]} what="Android emulator" app="androidStudio" installed={tools?.androidStudio} call={call} />}
             </>
           ) : (
             <MacSetupMini projectId={state.id} onFound={cloud ? () => void findMac().then(setMac) : undefined} />
@@ -289,12 +302,35 @@ export function RunOnMenu({
   );
 }
 
-/** A missing simulator, with its tool to download (Xcode, Android Studio). */
-function InstallTool({ tool, what }: { tool: (typeof TOOLS)[number]; what: string }) {
+/**
+ * A missing simulator: its tool to download (Xcode, Android Studio), or, installed without a device yet,
+ * how to create the first one, with a button that opens the tool on this Mac.
+ */
+function InstallTool({ tool, what, app, installed, call }: { tool: (typeof TOOLS)[number]; what: string; app: "xcode" | "androidStudio"; installed?: boolean; call: (p: string, init?: RequestInit) => Promise<Response> }) {
+  const icon = (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={tool.icon} alt="" className="size-6 shrink-0 object-contain" />
+  );
+  if (installed)
+    return (
+      <div className="mx-1 my-1 flex items-center gap-2.5 rounded-lg border border-dashed border-[var(--line)] px-2.5 py-2 text-[12px] text-ink-300">
+        {icon}
+        <span className="flex-1">
+          Create your first {what}
+          <span className="block text-[11px] leading-snug text-ink-500">
+            {app === "androidStudio" ? "Device Manager → + → a Pixel → Finish" : "Window → Devices and Simulators → +"}
+          </span>
+        </span>
+        <button
+          onClick={() => void call("/api/sim/tools", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ app }) })}
+          className="cursor-pointer text-[11px] whitespace-nowrap text-spark-400 hover:underline">
+          Open {tool.name}
+        </button>
+      </div>
+    );
   return (
     <a href={tool.href} target="_blank" rel="noreferrer" className="mx-1 my-1 flex items-center gap-2.5 rounded-lg border border-dashed border-[var(--line)] px-2.5 py-2 text-[12px] text-ink-300 hover:border-spark-500/50 hover:text-ink-100">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={tool.icon} alt="" className="size-6 object-contain" />
+      {icon}
       <span className="flex-1">
         Add the {what}
         <span className="block text-[11px] text-ink-500">Install {tool.name}</span>
