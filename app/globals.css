@@ -294,3 +294,9 @@ html:has([data-landing]) { scroll-behavior: smooth; }
   background-repeat: no-repeat;
   background-position: right 0.7rem center;
 }
+
+/* The dashed ring of the landing's Fix scene, fading in once the button has shrunk. */
+@keyframes ring-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}

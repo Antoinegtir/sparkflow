@@ -392,17 +392,22 @@ function Fix() {
       <div className="relative ml-auto mr-1 mt-3 grid size-11 place-items-center">
         <span className={clsx("grid place-items-center rounded-full bg-spark-500 text-white shadow-md transition-all duration-700", fixed ? "size-11 text-[16px]" : "size-7 text-[12px]")}>+</span>
         <span
+          // A new ring for each size (no shrinking or growing ring): small and red around the 28 px button,
+          // larger and green once fixed. Its colour never animates (no brown blend between the two).
+          key={fixed ? "fixed" : "small"}
           className={clsx(
-            // A ring just outside the button, whatever its size; back at the start it waits for the button
-            // to shrink before showing.
-            // Only its size and fade animate: its colour switches at once (while hidden), never a brown blend.
-            "absolute rounded-full border-[1.5px] border-dashed transition-[opacity,inset] duration-700",
+            "absolute rounded-full border-[1.5px] border-dashed",
             fixed ? "-inset-[3px] border-emerald-500" : "inset-[5px] border-red-500",
             phase === 1 || phase === 2 ? "opacity-0" : "opacity-100",
-            phase === 0 && "delay-700",
           )}
+          // Back at the start it waits for the button to shrink, then fades in; otherwise it fades in and out.
+          style={phase === 0 ? { animation: "ring-in 500ms ease 700ms both" } : { transition: "opacity 600ms ease" }}
         />
-        <span className={clsx("absolute -left-9 top-1/2 -translate-y-1/2 rounded px-1 font-mono text-[7.5px] text-white transition-colors", fixed ? "bg-emerald-500" : "bg-red-500", phase === 1 || phase === 2 ? "opacity-0" : "opacity-100")}>
+        {/* Its size label, shown and hidden with the ring (a new one for each size, like it). */}
+        <span
+          key={fixed ? "fixed-label" : "small-label"}
+          className={clsx("absolute -left-9 top-1/2 -translate-y-1/2 rounded px-1 font-mono text-[7.5px] text-white", fixed ? "bg-emerald-500" : "bg-red-500", phase === 1 || phase === 2 ? "opacity-0" : "opacity-100")}
+          style={phase === 0 ? { animation: "ring-in 500ms ease 700ms both" } : { transition: "opacity 600ms ease" }}>
           {fixed ? "44×44" : "28×28"}
         </span>
       </div>

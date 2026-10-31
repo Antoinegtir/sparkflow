@@ -19,6 +19,12 @@ const PHONE_RATIO = 0.294;
 /** The phone's screen inside it: share of the phone's width, and of the clip's height. */
 const SCREEN_W = 0.93;
 const SCREEN_H = 0.6;
+/**
+ * The scenes' own screen, in CSS px: always laid out at this size (the one they were designed for, a 900 px
+ * tall window), then scaled as one to the phone's real screen. Text then wraps the same at any window size.
+ */
+const SCENE_W = 172;
+const SCENE_H = Math.round((SCENE_W * SCREEN_H) / (PHONE_RATIO * SCREEN_W));
 /** Width of the content beside the phone, and the gap between them. */
 const SIDE_W = 520;
 const GAP = 20;
@@ -59,6 +65,18 @@ export function ScrollVideo({ src, className, children }: { src: string; classNa
   const screen = useRef<HTMLDivElement>(null);
   const glass = useRef<HTMLDivElement>(null);
   const island = useRef<HTMLDivElement>(null);
+  const scene = useRef<HTMLDivElement>(null);
+  // The scenes' fixed screen, scaled to the phone's: follows the window's size.
+  useEffect(() => {
+    const el = screen.current;
+    const s = scene.current;
+    if (!el || !s) return;
+    const fit = () => (s.style.transform = `scale(${el.clientWidth / SCENE_W}, ${el.clientHeight / SCENE_H})`);
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   useEffect(() => {
     const v = video.current;
     const el = section.current;
@@ -344,9 +362,9 @@ export function ScrollVideo({ src, className, children }: { src: string; classNa
               style={{ width: `calc(${SIZE} * ${PHONE_RATIO} * ${SCREEN_W})`, height: `calc(${SIZE} * ${SCREEN_H})`, borderRadius: `calc(${SIZE} * 0.042)` }}>
               {/* White screen lighting up slowly once the phone has slid aside. */}
               <div ref={glass} className="absolute inset-0 bg-white opacity-0 transition-opacity ease-out" />
-              {/* Laid out at the first size, then scaled with the phone: the scenes keep their proportions. A
-                  transform, not CSS zoom, which Chrome (standardized zoom) and Safari size differently. */}
-              <div className="relative" style={{ width: `${100 / PHONE_SCALE}%`, height: `${100 / PHONE_SCALE}%`, transform: `scale(${PHONE_SCALE})`, transformOrigin: "0 0" }}>
+              {/* Laid out on a fixed screen, then scaled to the phone's (see SCENE_W): the same lines at any window
+                  size. A transform, not CSS zoom, which Chrome (standardized zoom) and Safari size differently. */}
+              <div ref={scene} className="relative" style={{ width: SCENE_W, height: SCENE_H, transform: `scale(${PHONE_SCALE})`, transformOrigin: "0 0" }}>
                 <PhoneSteps />
               </div>
               {/* Dynamic Island: pops in with a bounce once the white screen has faded in. */}
