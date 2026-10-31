@@ -1,4 +1,4 @@
-import { CreateProjectRequest } from "@/lib/shared";
+import { appSlugs, CreateProjectRequest } from "@/lib/shared";
 import { CLOUD, projectsOf, setProjectOwner } from "@/lib/cloud/mode";
 import { actorOf, requireOwner } from "@/lib/share/actor";
 import { handle, orchestrator } from "@/lib/web/server";
@@ -11,7 +11,10 @@ export const GET = handle(async (req: Request) => {
   // In the cloud, each person sees the apps they made (the proxy set who they are).
   if (CLOUD) {
     const mine = projectsOf(req.headers.get("x-sparkflow-uid") ?? "");
-    return Response.json(all.filter((p) => mine.has(p.id)));
+    // Addresses among one's own apps only: someone else's "Wander" doesn't make yours /wander-2.
+    const own = all.filter((p) => mine.has(p.id));
+    const slugs = appSlugs(own);
+    return Response.json(own.map((p) => ({ ...p, slug: slugs.get(p.id)! })));
   }
   // A guest sees only the project their key opens.
   return Response.json(actor.kind === "guest" ? all.filter((p) => p.id === actor.projectId) : all);
