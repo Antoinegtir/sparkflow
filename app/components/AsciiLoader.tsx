@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /**
  * A loading screen in the landing's ASCII style: the Sparkflow spark turning in the middle, rings
@@ -67,5 +67,22 @@ export function AsciiLoader({ label }: { label: string }) {
       </pre>
       <p className="text-sm text-ink-400">{label}</p>
     </div>
+  );
+}
+
+const SPARK = ["  .  ", " .+. ", ".+*+.", "+*#*+", "*#@#*", "+*#*+", ".+*+.", " .+. "];
+
+/** A one-line sparkle for small waits (the top bar), cycling through the ramp. */
+export function AsciiSpark({ className }: { className?: string }) {
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const t = setInterval(() => setI((n) => (n + 1) % SPARK.length), 110);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <span aria-hidden className={`whitespace-pre font-mono text-spark-300 [text-shadow:0_0_6px_rgba(96,165,250,0.5)] ${className ?? ""}`}>
+      {SPARK[i]}
+    </span>
   );
 }

@@ -242,6 +242,8 @@ export class Orchestrator {
         this.phase(rt, { phase: "idle" });
         await rt.sandbox?.persist?.().catch(() => {});
         await rt.flush();
+        // In the cloud, the code ready for a Mac to take, while the sandbox is awake.
+        if (rt.sandbox?.persist && !rt.meta.native) await this.cacheBundle(rt).catch(() => {});
         this.guestRuns.delete(rt);
         rt.running = false;
       }
@@ -957,13 +959,22 @@ export class Orchestrator {
     const rt = await this.runtime(id);
     if (rt.meta.native) throw new Error("Native projects stay on their Mac");
     if (rt.running) throw new BusyError();
+    // The copy kept after the last run, when nothing came since: no sandbox to wake (minutes on Modal).
+    const cached = await this.store.readBundle(id, true);
+    const bundle = (cached ?? (await this.cacheBundle(rt))).toString("base64");
+    const events = (await this.store.readEvents(id)).map((e) => JSON.stringify(e) + "\n").join("");
+    return { meta: rt.meta, events, bundle, shots: await this.store.listShots(id) };
+  }
+
+  /** The project's git repository as a bundle, kept beside its history for the next export. */
+  private async cacheBundle(rt: ProjectRuntime): Promise<Buffer> {
     const sb = await this.sandbox(rt);
     const r = await sb.exec("mkdir -p .expo && git bundle create .expo/sparkflow-sync.bundle --all", { timeoutSec: 120 });
     if (r.code) throw new Error(r.stderr || "Could not bundle the project");
-    const bundle = (await sb.readFileBytes(".expo/sparkflow-sync.bundle")).toString("base64");
+    const bytes = await sb.readFileBytes(".expo/sparkflow-sync.bundle");
     await sb.exec("rm -f .expo/sparkflow-sync.bundle");
-    const events = (await this.store.readEvents(id)).map((e) => JSON.stringify(e) + "\n").join("");
-    return { meta: rt.meta, events, bundle, shots: await this.store.listShots(id) };
+    await this.store.saveBundle(rt.meta.id, bytes);
+    return bytes;
   }
 
   /**
@@ -992,6 +1003,7 @@ export class Orchestrator {
     if (r.code) throw new Error(r.stderr || "Could not check out the project");
     await sb.persist?.().catch(() => {});
     await this.store.replace({ ...meta, native: undefined }, pkg.events);
+    await this.store.saveBundle(meta.id, Buffer.from(pkg.bundle, "base64"));
     // Read again from disk on next use, with the history just written.
     this.runtimes.delete(meta.id);
     const have = new Set(await this.store.listShots(meta.id));

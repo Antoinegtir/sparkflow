@@ -22,8 +22,24 @@ async function eventsOn(b: Backend, id: string): Promise<number | null> {
   return ((await r.json()) as { events: number }).events;
 }
 
+/** Fired with `detail` true while an app's code is being copied between the cloud and the Mac, false after. */
+export const SYNC_EVENT = "sparkflow-sync";
+let syncing = 0;
+export const isSyncing = () => syncing > 0;
+
 /** Copies the project from one side to the other; its address (slug) there. */
 export async function moveProject(from: Backend, to: Backend, id: string): Promise<string> {
+  syncing++;
+  dispatchEvent(new CustomEvent(SYNC_EVENT, { detail: true }));
+  try {
+    return await copyProject(from, to, id);
+  } finally {
+    syncing--;
+    dispatchEvent(new CustomEvent(SYNC_EVENT, { detail: syncing > 0 }));
+  }
+}
+
+async function copyProject(from: Backend, to: Backend, id: string): Promise<string> {
   const r = await call(from, `/api/projects/${encodeURIComponent(id)}/sync`, { cache: "no-store" });
   if (!r.ok) throw new Error(`Could not read the app (${r.status})`);
   const pkg = (await r.json()) as { shots: string[] };

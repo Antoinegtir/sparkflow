@@ -1,9 +1,11 @@
 "use client";
 
 import { isCloud } from "@/lib/web/backend";
+import { isSyncing, SYNC_EVENT } from "@/lib/web/sync";
+import { AsciiSpark } from "../AsciiLoader";
 import clsx from "clsx";
 import { Command, Play, Settings, UserPlus, UserRound } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ProjectState } from "@/lib/shared";
 import type { Person } from "@/lib/shared/share";
 import { useAccess } from "@/lib/web/access";
@@ -46,6 +48,12 @@ export function TopBar(p: Props) {
   const owner = access.role === "owner";
   // Sparkflow in the cloud: the web preview only (no Simulator, stores or sharing there).
   const cloud = isCloud();
+  const [syncing, setSyncing] = useState(isSyncing);
+  useEffect(() => {
+    const on = (e: Event) => setSyncing((e as CustomEvent<boolean>).detail);
+    addEventListener(SYNC_EVENT, on);
+    return () => removeEventListener(SYNC_EVENT, on);
+  }, []);
   // The people the app is shared with (owner first), for the avatar stack.
   const others = Object.entries(access.people).filter(([k, x]) => k !== "owner" && !x.former) as [string, Person][];
   return (
@@ -84,7 +92,13 @@ export function TopBar(p: Props) {
             Shared by <Avatar person={access.people.owner} seed="owner" size={16} /> <span className="text-ink-200">{access.people.owner.name}</span> · {ROLE_TEXT[access.role as keyof typeof ROLE_TEXT]}
           </span>
         )}
-        {!p.connected && <span className="animate-pulse-soft text-[11px] text-amber-400">reconnecting…</span>}
+        {/* Copying the code between the cloud and the Mac, or connecting to one of them: which, with a sparkle. */}
+        {(syncing || !p.connected) && (
+          <span className="flex items-center gap-1.5 text-[11px] text-ink-300">
+            <AsciiSpark />
+            {syncing ? "Syncing the code between the cloud and your Mac…" : cloud ? "Connecting to the cloud…" : "Switching to your Mac…"}
+          </span>
+        )}
       </div>
       {/* Over the canvas, ending at the right panel's edge rather than across its border. */}
       <div className="absolute top-1/2 flex -translate-y-1/2 items-center gap-1.5" style={{ right: p.panelWidth ? p.panelWidth + 12 : 180 }}>

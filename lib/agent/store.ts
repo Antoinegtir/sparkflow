@@ -1,4 +1,4 @@
-import { appendFile, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { MediaInput, ProjectMeta, StoredEvent } from "../shared";
 import { stateDir } from "../sandbox/util";
@@ -73,6 +73,22 @@ export class ProjectStore {
     await mkdir(path.join(this.dir(meta.id), "shots"), { recursive: true });
     await this.updateMeta(meta);
     await writeFile(path.join(this.dir(meta.id), "events.jsonl"), events);
+  }
+
+  saveBundle(id: string, bytes: Buffer) {
+    return writeFile(path.join(this.dir(id), "code.bundle"), bytes);
+  }
+
+  /** The kept bundle; with `fresh`, only when no event came after it (else the code may have changed). */
+  async readBundle(id: string, fresh = false): Promise<Buffer | null> {
+    const file = path.join(this.dir(id), "code.bundle");
+    const at = await stat(file).catch(() => null);
+    if (!at) return null;
+    if (fresh) {
+      const ev = await stat(path.join(this.dir(id), "events.jsonl")).catch(() => null);
+      if (ev && ev.mtimeMs > at.mtimeMs) return null;
+    }
+    return readFile(file).catch(() => null);
   }
 
   readShot(id: string, name: string) {
