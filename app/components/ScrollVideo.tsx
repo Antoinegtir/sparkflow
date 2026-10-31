@@ -344,8 +344,9 @@ export function ScrollVideo({ src, className, children }: { src: string; classNa
               style={{ width: `calc(${SIZE} * ${PHONE_RATIO} * ${SCREEN_W})`, height: `calc(${SIZE} * ${SCREEN_H})`, borderRadius: `calc(${SIZE} * 0.042)` }}>
               {/* White screen lighting up slowly once the phone has slid aside. */}
               <div ref={glass} className="absolute inset-0 bg-white opacity-0 transition-opacity ease-out" />
-              {/* Laid out at the first size, then zoomed with the phone: the scenes keep their proportions. */}
-              <div className="relative h-full" style={{ zoom: PHONE_SCALE }}>
+              {/* Laid out at the first size, then scaled with the phone: the scenes keep their proportions. A
+                  transform, not CSS zoom, which Chrome (standardized zoom) and Safari size differently. */}
+              <div className="relative" style={{ width: `${100 / PHONE_SCALE}%`, height: `${100 / PHONE_SCALE}%`, transform: `scale(${PHONE_SCALE})`, transformOrigin: "0 0" }}>
                 <PhoneSteps />
               </div>
               {/* Dynamic Island: pops in with a bounce once the white screen has faded in. */}
