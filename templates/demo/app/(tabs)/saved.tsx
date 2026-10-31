@@ -9,7 +9,7 @@ export default function Saved() {
   const places = saved.map(placeById).filter((p) => !!p);
   return (
     <Screen testID="saved-screen">
-      <Header title="Favoris" subtitle={`${places.length} destinations enregistrées`} testID="saved-header" />
+      <Header title="Saved" subtitle={`${places.length} saved destinations`} testID="saved-header" />
       {places.length ? (
         <View className="flex-row flex-wrap justify-between gap-y-3">
           {places.map((p, i) => (
@@ -21,8 +21,8 @@ export default function Saved() {
         </View>
       ) : (
         <View className="gap-4">
-          <EmptyState title="Pas encore de favoris" message="Touchez le cœur sur une destination pour la retrouver ici." />
-          <Button title="Explorer" icon="compass-outline" testID="saved-explore" onPress={() => router.navigate("/")} />
+          <EmptyState title="Nothing saved yet" message="Tap the heart on a destination to find it here." />
+          <Button title="Explore" icon="compass-outline" testID="saved-explore" onPress={() => router.navigate("/")} />
         </View>
       )}
     </Screen>

@@ -12,46 +12,46 @@ export default function Profile() {
   const countries = new Set(trips.flatMap((t) => t.placeIds.map((id) => placeById(id)?.country))).size;
   return (
     <Screen testID="profile-screen">
-      <Header title="Profil" testID="profile-header" />
+      <Header title="Profile" testID="profile-header" />
       <Card testID="profile-card">
         <View className="flex-row items-center gap-4">
           <Avatar name="Camille Martin" size="lg" />
           <View className="flex-1">
             <Text variant="heading">Camille Martin</Text>
-            <Text variant="caption">Exploratrice niveau 4 · Paris</Text>
+            <Text variant="caption">Level 4 Explorer · Paris</Text>
           </View>
         </View>
         <View className="gap-1.5">
           <View className="flex-row justify-between">
-            <Text variant="caption">Objectif 2026 : 8 pays</Text>
+            <Text variant="caption">2026 goal: 8 countries</Text>
             <Text variant="caption">{countries}/8</Text>
           </View>
           <ProgressBar value={countries / 8} />
         </View>
       </Card>
       <View className="flex-row gap-3">
-        <Stat label="Voyages" value={String(trips.length)} />
-        <Stat label="Favoris" value={String(saved)} />
-        <Stat label="Pays" value={String(countries)} />
+        <Stat label="Trips" value={String(trips.length)} />
+        <Stat label="Saved" value={String(saved)} />
+        <Stat label="Countries" value={String(countries)} />
       </View>
-      <Section title="Apparence">
+      <Section title="Appearance">
         <Segmented
           testID="profile-scheme"
           value={scheme}
           onChange={setScheme}
           options={[
             { value: "system", label: "Auto" },
-            { value: "light", label: "Clair" },
-            { value: "dark", label: "Sombre" },
+            { value: "light", label: "Light" },
+            { value: "dark", label: "Dark" },
           ]}
         />
       </Section>
-      <Section title="Préférences">
-        <Toggle label="Alertes prix" value={alerts} onValueChange={setAlerts} testID="profile-alerts" />
+      <Section title="Preferences">
+        <Toggle label="Price alerts" value={alerts} onValueChange={setAlerts} testID="profile-alerts" />
         <List>
-          <ListItem title="Devise" icon="cash-outline" right={<Text variant="caption">EUR €</Text>} />
-          <ListItem title="Aéroport de départ" icon="airplane-outline" right={<Text variant="caption">CDG</Text>} />
-          <ListItem title="Aide et contact" icon="help-circle-outline" chevron onPress={() => {}} />
+          <ListItem title="Currency" icon="cash-outline" right={<Text variant="caption">EUR €</Text>} />
+          <ListItem title="Home airport" icon="airplane-outline" right={<Text variant="caption">CDG</Text>} />
+          <ListItem title="Help & contact" icon="help-circle-outline" chevron onPress={() => {}} />
         </List>
       </Section>
     </Screen>

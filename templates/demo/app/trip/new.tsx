@@ -8,10 +8,10 @@ import { success, tap } from "@/lib/haptics";
 import { PLACES, euros, useWander } from "@/lib/store";
 
 const MONTHS = [
-  { value: "2026-12-12", label: "Déc." },
-  { value: "2027-02-06", label: "Févr." },
-  { value: "2027-04-10", label: "Avr." },
-  { value: "2027-06-19", label: "Juin" },
+  { value: "2026-12-12", label: "Dec" },
+  { value: "2027-02-06", label: "Feb" },
+  { value: "2027-04-10", label: "Apr" },
+  { value: "2027-06-19", label: "Jun" },
 ];
 
 export default function NewTrip() {
@@ -26,17 +26,17 @@ export default function NewTrip() {
   const close = () => (router.canGoBack() ? router.back() : router.replace("/trips"));
   const create = () => {
     success();
-    addTrip({ title: title.trim() || "Nouvelle escapade", placeIds: picked, start, nights, budget });
+    addTrip({ title: title.trim() || "New getaway", placeIds: picked, start, nights, budget });
     router.replace("/trips");
   };
 
   return (
     <ScrollView testID="newtrip-screen" className="flex-1 bg-background" contentContainerStyle={{ padding: 20, gap: 20, paddingBottom: insets.bottom + 24 }} keyboardShouldPersistTaps="handled">
       <View className="flex-row items-center justify-between">
-        <Text variant="title">Nouveau voyage</Text>
-        <IconButton icon="close" accessibilityLabel="Fermer" testID="newtrip-close" onPress={close} />
+        <Text variant="title">New trip</Text>
+        <IconButton icon="close" accessibilityLabel="Close" testID="newtrip-close" onPress={close} />
       </View>
-      <Input label="Nom du voyage" placeholder="Escapade de printemps" value={title} onChangeText={setTitle} icon="create-outline" testID="newtrip-title" />
+      <Input label="Trip name" placeholder="Spring getaway" value={title} onChangeText={setTitle} icon="create-outline" testID="newtrip-title" />
 
       <View className="gap-2">
         <Text variant="label">Destinations</Text>
@@ -65,31 +65,31 @@ export default function NewTrip() {
       </View>
 
       <View className="gap-2">
-        <Text variant="label">Départ</Text>
+        <Text variant="label">Departure</Text>
         <Segmented testID="newtrip-month" value={start} onChange={setStart} options={MONTHS} />
       </View>
 
       <View className="flex-row items-center justify-between rounded-theme bg-surface p-4">
         <View>
-          <Text variant="subheading">Durée</Text>
-          <Text variant="caption">{nights} nuits</Text>
+          <Text variant="subheading">Duration</Text>
+          <Text variant="caption">{nights} nights</Text>
         </View>
         <View className="flex-row items-center gap-2">
-          <IconButton icon="remove" variant="tinted" accessibilityLabel="Moins de nuits" testID="newtrip-minus" onPress={() => setNights((n) => Math.max(1, n - 1))} />
+          <IconButton icon="remove" variant="tinted" accessibilityLabel="Fewer nights" testID="newtrip-minus" onPress={() => setNights((n) => Math.max(1, n - 1))} />
           <Text testID="newtrip-nights" className="w-8 text-center text-xl font-bold text-text">
             {nights}
           </Text>
-          <IconButton icon="add" variant="tinted" accessibilityLabel="Plus de nuits" testID="newtrip-plus" onPress={() => setNights((n) => Math.min(30, n + 1))} />
+          <IconButton icon="add" variant="tinted" accessibilityLabel="More nights" testID="newtrip-plus" onPress={() => setNights((n) => Math.min(30, n + 1))} />
         </View>
       </View>
 
       <View className="flex-row items-center justify-between">
-        <Text variant="caption">Budget estimé</Text>
+        <Text variant="caption">Estimated budget</Text>
         <Text testID="newtrip-budget" className="text-2xl font-extrabold text-primary">
           {euros(budget)}
         </Text>
       </View>
-      <Button title="Créer le voyage" icon="airplane" testID="newtrip-create" disabled={!picked.length} onPress={create} />
+      <Button title="Create trip" icon="airplane" testID="newtrip-create" disabled={!picked.length} onPress={create} />
     </ScrollView>
   );
 }

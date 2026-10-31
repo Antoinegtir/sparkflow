@@ -23,7 +23,7 @@ const EXAMPLES = [
   "A personal budget app: monthly balance, spending by category with a chart, a transaction list and add form.",
 ];
 
-/** Zone de saisie de la landing : texte, croquis ou mémo vocal, plus des exemples cliquables. */
+/** The landing's prompt box: text, a sketch or a voice memo, plus clickable examples. */
 export function Composer() {
   const router = useRouter();
   const [value, setValue] = useState("");

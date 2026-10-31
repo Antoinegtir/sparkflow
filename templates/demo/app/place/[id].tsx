@@ -35,7 +35,7 @@ export default function PlaceDetail() {
   if (!place) {
     return (
       <Screen testID="place-missing">
-        <EmptyState title="Destination introuvable" message="Elle a peut-être été retirée du catalogue." actionTitle="Retour" onAction={() => router.back()} />
+        <EmptyState title="Destination not found" message="It may have been removed from the catalog." actionTitle="Back" onAction={() => router.back()} />
       </Screen>
     );
   }
@@ -66,9 +66,9 @@ export default function PlaceDetail() {
             </View>
             <View className="flex-row justify-between">
               {[
-                { icon: "airplane-outline" as const, label: "Vol", value: place.flight },
-                { icon: "sunny-outline" as const, label: "Saison", value: place.bestSeason },
-                { icon: "chatbubble-outline" as const, label: "Avis", value: place.reviews.toLocaleString("fr-FR") },
+                { icon: "airplane-outline" as const, label: "Flight", value: place.flight },
+                { icon: "sunny-outline" as const, label: "Season", value: place.bestSeason },
+                { icon: "chatbubble-outline" as const, label: "Reviews", value: place.reviews.toLocaleString("en-US") },
               ].map((f) => (
                 <View key={f.label} className="flex-1 items-center gap-1">
                   <Icon name={f.icon} size={20} />
@@ -87,7 +87,7 @@ export default function PlaceDetail() {
             </Text>
           </Animated.View>
           <Animated.View entering={FadeInDown.delay(200)} style={{ gap: 12 }}>
-            <Text variant="heading">À ne pas manquer</Text>
+            <Text variant="heading">Don't miss</Text>
             {place.highlights.map((h, i) => (
               <Card key={h} testID={`place-highlight-${i}`} className="flex-row items-center gap-3 p-3">
                 <View className="h-9 w-9 items-center justify-center rounded-full bg-primary">
@@ -104,12 +104,12 @@ export default function PlaceDetail() {
 
       {/* Floating controls */}
       <GlassGroup className="absolute left-0 right-0 flex-row justify-between px-4" style={{ top: insets.top + 8 }}>
-        <GlassButton testID="place-back" icon="chevron-back" label="Retour" onPress={back} />
+        <GlassButton testID="place-back" icon="chevron-back" label="Back" onPress={back} />
         <GlassButton
           testID="place-save"
           icon={saved ? "heart" : "heart-outline"}
           color={saved ? "#FF5A6E" : "#FFFFFF"}
-          label={saved ? "Retirer des favoris" : "Ajouter aux favoris"}
+          label={saved ? "Remove from saved" : "Save destination"}
           onPress={() => {
             success();
             toggleSaved(place.id);
@@ -121,11 +121,11 @@ export default function PlaceDetail() {
         <LinearGradient pointerEvents="none" colors={[withAlpha("background", 0), withAlpha("background", 0.9), withAlpha("background", 1)]} locations={[0, 0.45, 1]} style={StyleSheet.absoluteFill} />
         <Glass tint={bar} className="flex-row items-center gap-3 rounded-full p-2 pl-5">
           <View className="flex-1">
-            <Text variant="caption">Vol + hôtel, 7 nuits</Text>
+            <Text variant="caption">Flight + hotel, 7 nights</Text>
             <Text className="text-xl font-extrabold text-text">{euros(place.price)}</Text>
           </View>
           <Button
-            title="Planifier"
+            title="Plan trip"
             icon="add"
             testID="place-plan"
             className="rounded-full px-6"

@@ -33,13 +33,13 @@ function TripCard({ trip, index }: { trip: Trip; index: number }) {
               <Text className="text-[13px] font-semibold text-white">{tripDates(trip)}</Text>
             </Glass>
             <Glass tint={DIM} className="rounded-full px-3 py-1.5">
-              <Text className="text-[13px] font-semibold text-white">{left > 0 ? `J-${left}` : left + trip.nights >= 0 ? "En cours" : "Terminé"}</Text>
+              <Text className="text-[13px] font-semibold text-white">{left > 0 ? `In ${left} days` : left + trip.nights >= 0 ? "In progress" : "Completed"}</Text>
             </Glass>
           </View>
           <View className="gap-1">
             <Text className="text-2xl font-bold text-white">{trip.title}</Text>
             <Text className="text-sm text-white/85">
-              {places.map((p) => p.name).join(" · ")} · {trip.nights} nuits · {euros(trip.budget)}
+              {places.map((p) => p.name).join(" · ")} · {trip.nights} nights · {euros(trip.budget)}
             </Text>
           </View>
         </View>
@@ -58,25 +58,25 @@ export default function Trips() {
   };
   return (
     <Screen testID="trips-screen">
-      <Header title="Mes voyages" subtitle="Vos prochaines escapades" testID="trips-header" right={<IconButton icon="add" variant="filled" accessibilityLabel="Nouveau voyage" testID="trips-add" onPress={add} />} />
+      <Header title="My trips" subtitle="Your upcoming getaways" testID="trips-header" right={<IconButton icon="add" variant="filled" accessibilityLabel="New trip" testID="trips-add" onPress={add} />} />
       <View className="flex-row gap-3">
-        <Stat label="Voyages" value={String(trips.length)} />
-        <Stat label="Nuits" value={String(nights)} />
-        <Stat label="Pays" value={String(countries)} />
+        <Stat label="Trips" value={String(trips.length)} />
+        <Stat label="Nights" value={String(nights)} />
+        <Stat label="Countries" value={String(countries)} />
       </View>
       {trips.length ? (
         trips.map((t, i) => <TripCard key={t.id} trip={t} index={i} />)
       ) : (
-        <EmptyState title="Aucun voyage" message="Planifiez votre première escapade." />
+        <EmptyState title="No trips yet" message="Plan your first getaway." />
       )}
-      <Card testID="trips-new-card" onPress={add} accessibilityLabel="Planifier un voyage">
+      <Card testID="trips-new-card" onPress={add} accessibilityLabel="Plan a trip">
         <View className="flex-row items-center gap-3">
           <View className="h-11 w-11 items-center justify-center rounded-full bg-primary/15">
             <Icon name="sparkles-outline" size={20} />
           </View>
           <View className="flex-1">
-            <Text variant="subheading">Planifier un voyage</Text>
-            <Text variant="caption">Choisissez vos destinations et vos dates</Text>
+            <Text variant="subheading">Plan a trip</Text>
+            <Text variant="caption">Choose your destinations and dates</Text>
           </View>
           <Icon name="chevron-forward" size={18} />
         </View>

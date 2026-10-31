@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* Thème de la landing : bleu Apple sur gris bleutés neutres. */
+/* The landing's theme: Apple blue on neutral blue-greys. */
 @theme {
   --color-ink-950: #07090d;
   --color-ink-900: #0c1016;
