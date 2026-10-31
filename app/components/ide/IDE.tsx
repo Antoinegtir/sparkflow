@@ -701,10 +701,11 @@ export function IDE({ id, slug: initialSlug, initialPage, access: given, basePat
             hiddenRoute={focused && !closing ? focused : null}
             scanning={new Set(capturingDark ? state.order.filter((r) => state.screens[r] && darkStale(state.screens[r])) : [])}
             ipad={ipad}
-            // Simulator captures already hold the status bar: drawn bare, like a native app's.
-            native={!!state.native || state.previewDevice === "simulator"}
+            // Simulator captures already hold the status bar: drawn bare, like a native app's. From the
+            // cloud the pages are its web captures (no Simulator capture there): the usual iPhone frame.
+            native={!!state.native || (state.previewDevice === "simulator" && !isCloud())}
             nativeApp={!!state.native}
-            skin={skin}
+            skin={state.native || !isCloud() ? skin : null}
             dark={scheme === "dark"}
             device={shotDevice(state.previewDevice)}
             status={state.status}
