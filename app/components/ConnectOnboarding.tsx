@@ -4,6 +4,7 @@ import clsx from "clsx";
 import { ArrowUpRight, Check, Copy, Lock, Terminal } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { getBackend, setBackend, setMode } from "@/lib/web/backend";
+import { carryToMac, takeCarry } from "@/lib/web/sync";
 import { DotLens } from "./DotLens";
 import { LoopVideo } from "./LoopVideo";
 
@@ -71,7 +72,36 @@ export function CopyLine({ text, small }: { text: string; small?: boolean }) {
  * The Mac setup in a few lines, for a menu (the device picker): the tools it needs, as their logos
  * linking to their downloads, the install command, then `sparkflow`.
  */
-export function MacSetupMini() {
+export function MacSetupMini({ projectId }: { projectId?: string }) {
+  const [found, setFound] = useState(false);
+  // Listens for sparkflow starting on this Mac: then confetti, and the app opens there (the same code,
+  // brought over from the cloud) with its simulators and emulators.
+  useEffect(() => {
+    let stop = false;
+    const tick = async () => {
+      const link = await fetch(`${LOCAL}/api/connect`, { cache: "no-store" })
+        .then((r) => (r.ok ? (r.json() as Promise<{ url: string; token: string }>) : null))
+        .catch(() => null);
+      if (stop) return;
+      if (!link?.url || !link.token) return void setTimeout(tick, POLL_MS);
+      stop = true;
+      setFound(true);
+      confetti();
+      const from = getBackend();
+      const mac = { url: link.url.replace(/\/+$/, ""), token: link.token };
+      setMode("mac");
+      setBackend(mac);
+      if (from?.cloud && projectId) {
+        carryToMac(from, projectId);
+        const slug = await takeCarry(mac).catch(() => null);
+        location.href = slug ? `/${slug}` : location.pathname;
+      } else setTimeout(() => location.reload(), 1200);
+    };
+    void tick();
+    return () => {
+      stop = true;
+    };
+  }, [projectId]);
   return (
     <div className="space-y-2 px-2.5 py-2">
       <div className="flex items-center gap-1.5">
@@ -95,6 +125,19 @@ export function MacSetupMini() {
       <CopyLine text={INSTALL} small />
       <p className="text-[11px] text-ink-500">2. Start it, then open this app again</p>
       <CopyLine text="sparkflow" small />
+      <div className="flex items-center gap-2 rounded-lg border border-[var(--line)] bg-black/20 px-3 py-2 text-[11.5px]">
+        {found ? (
+          <span className="text-emerald-300">Connected · opening this app on your Mac…</span>
+        ) : (
+          <>
+            <span className="relative flex size-2">
+              <span className="absolute inline-flex size-full animate-ping rounded-full bg-spark-400 opacity-60" />
+              <span className="relative inline-flex size-2 rounded-full bg-spark-400" />
+            </span>
+            <span className="text-ink-300">Waiting for sparkflow…</span>
+          </>
+        )}
+      </div>
     </div>
   );
 }
