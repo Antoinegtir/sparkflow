@@ -4,6 +4,7 @@
 // every app URL (/<app>/<page>, /p/<id>): it finds the project on your computer and opens the IDE,
 // or walks you through starting `sparkflow` first.
 import { useCallback, useEffect, useState } from "react";
+import { AsciiLoader } from "@/app/components/AsciiLoader";
 import { ConnectOnboarding } from "@/app/components/ConnectOnboarding";
 import { IDE } from "@/app/components/ide/IDE";
 import { SharedShell } from "@/app/components/SharedShell";
@@ -82,12 +83,8 @@ export default function IdeShell() {
             Back to Sparkflow
           </a>
         </div>
-      ) : state.kind === "pulling" ? (
-        "Bringing the latest version of this app…"
-      ) : state.kind === "demo" ? (
-        "Setting up the Wander demo…"
       ) : (
-        "Connecting…"
+        <AsciiLoader label={state.kind === "pulling" ? "Bringing the latest version of this app…" : state.kind === "demo" ? "Setting up the Wander demo…" : "Connecting…"} />
       )}
     </div>
   );
