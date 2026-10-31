@@ -77,6 +77,30 @@ export async function openInSimulator(udid: string, preview: NonNullable<Project
  * The app in the cloud, its pages captured on this Mac's Simulator (its calls go to sparkflow here, see
  * BackendShim): each page opened by its link from the cloud's Metro, screenshotted, sent to the cloud.
  */
+const LOADING = ["downloading", "bundling", "loading from", "connecting to"];
+
+/**
+ * Waits for the app itself on screen, two reads in a row: no loading text (Sparkflow Dev's "Downloading
+ * 8%…", Metro's "Bundling…") and the app's own views there. False after `ms` (nothing captured then).
+ */
+async function appShown(udid: string, ms: number) {
+  const q = new URLSearchParams([...LOADING.map((t) => ["text", t]), ["fresh", "1"]]);
+  const end = Date.now() + ms;
+  let clear = 0;
+  while (Date.now() < end) {
+    const read = (query: URLSearchParams) =>
+      fetch(`/api/sim/${udid}/find?${query}`, { cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null);
+    // Loading text gone, and the app's own views up: any element with a testID (React Native's testID).
+    const [loading, app] = await Promise.all([read(q), read(new URLSearchParams([["id", "*"], ["fresh", "1"]]))]);
+    clear = !loading && app ? clear + 1 : 0;
+    if (clear >= 2) return true;
+    await new Promise((r) => setTimeout(r, 800));
+  }
+  return false;
+}
+
 export async function captureFromCloud(projectId: string, udid: string, state: ProjectState, scheme: "light" | "dark", routes: string[]) {
   const metro = state.preview?.webUrl;
   if (!metro) return 0;
@@ -86,7 +110,9 @@ export async function captureFromCloud(projectId: string, udid: string, state: P
     const s = state.screens[route];
     if (!s) continue;
     await post(`/api/sim/${udid}/open`, { url: metro, path: expoGoPath(s.previewPath ?? previewPathFor(route), route) });
-    await new Promise((r) => setTimeout(r, i === 0 ? 2500 : 1200));
+    // Not while Sparkflow Dev still downloads or bundles the app from the cloud's Metro (a blank screen).
+    if (!(await appShown(udid, i === 0 ? 120_000 : 20_000))) continue;
+    await new Promise((r) => setTimeout(r, i === 0 ? 1500 : 1000));
     const shot = await fetch(`/api/sim/${udid}/frame`, { cache: "no-store" }).then((r) => (r.ok ? r.blob() : null));
     if (!shot) continue;
     const q = new URLSearchParams({ route, scheme });
