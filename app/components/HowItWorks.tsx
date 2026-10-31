@@ -27,8 +27,8 @@ const STEPS = [
     icon: Hammer,
     kicker: "03 · Build",
     title: "Real React Native, screen by screen",
-    body: "The Builder writes an Expo app in TypeScript with real tools: it reads and edits files, runs the type checker and fixes its own errors. Every change is a git commit you can compare or restore.",
-    tags: ["React Native", "Expo", "TypeScript", "git"],
+    body: "The Builder writes an Expo app in TypeScript with real tools: it reads and edits files, runs the type checker and fixes its own errors. Nothing to install: each app gets its own sandbox on Modal, run from Google Cloud in Europe and the US. Every change is a git commit you can compare or restore.",
+    tags: ["React Native", "Expo", "TypeScript", "Modal", "Google Cloud"],
   },
   {
     icon: Eye,

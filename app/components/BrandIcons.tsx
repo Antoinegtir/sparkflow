@@ -68,6 +68,26 @@ export const GitLogo = ({ className }: { className?: string }) =>
   );
 
 /** The mark for a "How it works" tag, when it names one of these tools. */
+/** Modal (Simple Icons' mark, in Modal's green): each app's sandbox in the cloud. */
+export const ModalLogo = ({ className }: { className?: string }) =>
+  svg(
+    <path
+      fill="#7fee64"
+      d="M4.89 5.57 0 14.002l2.521 4.4h5.05l4.396-7.718 4.512 7.709 4.996.037L24 14.057l-4.857-8.452-5.073-.015-2.076 3.598L9.94 5.57Zm.837.729h3.787l1.845 3.252H7.572Zm9.189.021 3.803.012 4.228 7.355-3.736-.027zm-9.82.346L6.94 9.914l-4.209 7.389-1.892-3.3Zm9.187.014 4.297 7.343-1.892 3.282-4.3-7.344zm-6.713 3.6h3.79l-4.212 7.394H3.361Zm11.64 4.109 3.74.027-1.893 3.281-3.74-.027z"
+    />,
+    className,
+  );
+
+/** Google Cloud (Simple Icons' mark, in Google blue): where Sparkflow runs in the cloud. */
+export const GoogleCloudLogo = ({ className }: { className?: string }) =>
+  svg(
+    <path
+      fill="#4285f4"
+      d="M12.19 2.38a9.344 9.344 0 0 0-9.234 6.893c.053-.02-.055.013 0 0-3.875 2.551-3.922 8.11-.247 10.941l.006-.007-.007.03a6.717 6.717 0 0 0 4.077 1.356h5.173l.03.03h5.192c6.687.053 9.376-8.605 3.835-12.35a9.365 9.365 0 0 0-2.821-4.552l-.043.043.006-.05A9.344 9.344 0 0 0 12.19 2.38zm-.358 4.146c1.244-.04 2.518.368 3.486 1.15a5.186 5.186 0 0 1 1.862 4.078v.518c3.53-.07 3.53 5.262 0 5.193h-5.193l-.008.009v-.04H6.785a2.59 2.59 0 0 1-1.067-.23h.001a2.597 2.597 0 1 1 3.437-3.437l3.013-3.012A6.747 6.747 0 0 0 8.11 8.24c.018-.01.04-.026.054-.023a5.186 5.186 0 0 1 3.67-1.69z"
+    />,
+    className,
+  );
+
 export function brandIcon(tag: string): ReactNode {
   const c = "size-3.5 shrink-0";
   if (/^(Muse Spark|SAM)/.test(tag)) return <MetaLogo className={c} />;
@@ -76,6 +96,8 @@ export function brandIcon(tag: string): ReactNode {
   if (/^(iOS|iPhone)/.test(tag)) return <AppleLogo className={`${c} text-ink-200`} />;
   if (tag === "TypeScript") return <TypeScriptLogo className={c} />;
   if (tag === "git") return <GitLogo className={c} />;
+  if (tag === "Modal") return <ModalLogo className={c} />;
+  if (tag === "Google Cloud") return <GoogleCloudLogo className={c} />;
   if (/^Android/.test(tag)) return <AndroidLogo className={c} />;
   if (tag === "TestFlight") return <AppStoreLogo className={c} />;
   if (tag === "Google Play") return <PlayStoreLogo className={c} />;
