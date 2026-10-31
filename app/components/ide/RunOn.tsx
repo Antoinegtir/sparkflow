@@ -9,6 +9,8 @@ import { createPortal } from "react-dom";
 import type { ProjectState } from "@/lib/shared";
 import { PREVIEW_DEVICES } from "@/lib/web/devices";
 import { SIM_CHANGED, useSimDevice } from "@/lib/web/sim-device";
+import { getBackend, isCloud, setBackend, setMode } from "@/lib/web/backend";
+import { carryToMac } from "@/lib/web/sync";
 
 type Device = { udid: string; name: string; runtime: string; booted: boolean; kind: "iphone" | "ipad" | "android" };
 
@@ -172,7 +174,25 @@ export function RunOnMenu({
               {devices?.length === 0 && <p className="px-2.5 py-2 text-[12px] text-ink-500">No simulator or emulator installed: add one in Xcode or Android Studio.</p>}
             </>
           ) : (
-            <MacSetupMini />
+            <>
+              <MacSetupMini />
+              {/* From the cloud: this app goes to the Mac (same code), and opens there once sparkflow runs. */}
+              {isCloud() && (
+                <div className="px-2.5 pb-2">
+                  <button
+                    onClick={() => {
+                      const from = getBackend();
+                      if (from?.cloud) carryToMac(from, state.id);
+                      setMode("mac");
+                      setBackend(null);
+                      location.href = "/connect";
+                    }}
+                    className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-lg bg-spark-500 px-2.5 py-1.5 text-[12px] font-medium text-white hover:bg-spark-400">
+                    <Smartphone size={12} /> Open this app on my Mac
+                  </button>
+                </div>
+              )}
+            </>
           )}
 
           {!native && (
