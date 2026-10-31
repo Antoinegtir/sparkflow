@@ -9,6 +9,7 @@ process.env.SPARKFLOW_DATA_DIR = dir;
 process.env.SPARKFLOW_HOME = dir;
 process.env.SPARKFLOW_CLOUD = "1";
 process.env.SPARKFLOW_CLOUD_DAILY_RUNS = "2";
+process.env.SPARKFLOW_CLOUD_UNLIMITED_UNTIL = "2000-01-01T00:00:00Z";
 delete process.env.SPARKFLOW_TOKEN;
 
 const { createSession, setProjectOwner } = await import("../lib/cloud/mode");
