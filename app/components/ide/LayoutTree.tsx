@@ -144,17 +144,20 @@ export function LayoutTree({
   onJump: (file: string, line: number) => void;
 }) {
   const [layout, setLayout] = useState<Layout | null>(null);
+  const [failed, setFailed] = useState(false);
   const version = route ? state.screens[route]?.version : 0;
 
   useEffect(() => {
     const q = route ? `route=${encodeURIComponent(route)}` : state.native ? "file=App.tsx" : `route=${encodeURIComponent(state.order[0] ?? "")}`;
+    setFailed(false);
     fetch(`/api/projects/${projectId}/layout?${q}`)
       .then((r) => r.json())
-      .then((j) => setLayout(j.components ? j : null))
-      .catch(() => setLayout(null));
+      .then((j) => (j.components ? setLayout(j) : setFailed(true)))
+      .catch(() => setFailed(true));
   }, [projectId, route, version, state.commits.length, state.native, state.order]);
 
-  if (!layout) return <p className="p-4 text-[12px] text-ink-500">Loading the layout…</p>;
+  if (!layout && failed) return <p className="p-4 text-[12px] text-ink-500">The layout couldn&apos;t be read for this page.</p>;
+  if (!layout) return <LayoutSkeleton />;
   if (!layout.file) return <p className="p-4 text-[12px] text-ink-500">No source file for this page.</p>;
   const page = layout.components.find((c) => c.name === layout.component);
   const title = route ? state.screens[route]?.title : undefined;
@@ -308,6 +311,22 @@ function Row({
       {open &&
         !textOnly &&
         kids.map((k, i) => <Row key={i} node={k} depth={depth + 1} inherited={findable} file={file} hintsBy={nextHints} inList={nextInList} onHover={onHover} onPick={onPick} onJump={onJump} />)}
+    </div>
+  );
+}
+
+/** While the layout loads: the shape of a component tree, shimmering. */
+function LayoutSkeleton() {
+  const rows = [0, 1, 2, 2, 3, 3, 2, 1, 2, 3, 3, 1];
+  const widths = [55, 70, 48, 62, 40, 52, 66, 58, 44, 50, 36, 60];
+  return (
+    <div className="space-y-2.5 p-4" aria-label="Loading the layout">
+      {rows.map((depth, i) => (
+        <div key={i} className="flex items-center gap-2" style={{ paddingLeft: depth * 14 }}>
+          <span className="size-3 shrink-0 animate-pulse rounded bg-ink-800" style={{ animationDelay: `${i * 70}ms` }} />
+          <span className="h-3 animate-pulse rounded bg-ink-800" style={{ width: `${widths[i]}%`, animationDelay: `${i * 70}ms` }} />
+        </div>
+      ))}
     </div>
   );
 }
