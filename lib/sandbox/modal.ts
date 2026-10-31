@@ -15,6 +15,11 @@ const VOLUME = () => process.env.MODAL_VOLUME_NAME ?? "sparkflow-projects";
 const TIMEOUT = () => Number(process.env.MODAL_SANDBOX_TIMEOUT_MS ?? 4 * 3600_000);
 const IDLE = () => Number(process.env.MODAL_SANDBOX_IDLE_TIMEOUT_MS ?? 30 * 60_000);
 const q = (s: string) => `'${s.replace(/'/g, "'\\''")}'`;
+/**
+ * Each cloud region's projects in their own sandboxes and bundles (one Modal app and volume for all):
+ * "us-" in the US, none in Europe (its names from before regions existed).
+ */
+const NS = () => (process.env.SPARKFLOW_CLOUD_REGION && process.env.SPARKFLOW_CLOUD_REGION !== "eu" ? `${process.env.SPARKFLOW_CLOUD_REGION}-` : "");
 
 async function sh(sb: ModalSandbox, command: string, timeoutSec = 120): Promise<ExecResult> {
   const p = await sb.exec(["bash", "-lc", command], { workdir: "/app", timeoutMs: timeoutSec * 1000 } as never);
@@ -124,7 +129,7 @@ class ModalProjectSandbox implements Sandbox {
     return out;
   }
   async persist() {
-    await this.exec(`git bundle create /data/${this.id}.bundle --all && sync`, { timeoutSec: 120 });
+    await this.exec(`git bundle create /data/${NS()}${this.id}.bundle --all && sync`, { timeoutSec: 120 });
   }
   async terminate() {
     await this.sb.terminate();
@@ -186,7 +191,7 @@ export class ModalDriver {
   }
 
   async open(projectId: string): Promise<Sandbox> {
-    const name = `sf-${projectId}`;
+    const name = `sf-${NS()}${projectId}`;
     let sb: ModalSandbox | undefined;
     try {
       sb = await this.client.sandboxes.fromName(APP(), name);
@@ -204,15 +209,16 @@ export class ModalDriver {
         workdir: "/app",
       } as never);
       // Restore the project's git history from the volume, if any.
-      await sh(sb, `if [ -f /data/${projectId}.bundle ]; then git fetch -q /data/${projectId}.bundle 'refs/heads/*:refs/remotes/backup/*' && git reset -q --hard backup/main; fi`);
+      const bundle = `/data/${NS()}${projectId}.bundle`;
+      await sh(sb, `if [ -f ${bundle} ]; then git fetch -q ${bundle} 'refs/heads/*:refs/remotes/backup/*' && git reset -q --hard backup/main; fi`);
     }
     return new ModalProjectSandbox(projectId, sb);
   }
 
   async remove(projectId: string) {
     try {
-      const sb = await this.client.sandboxes.fromName(APP(), `sf-${projectId}`);
-      await sh(sb, `rm -f /data/${projectId}.bundle`).catch(() => {});
+      const sb = await this.client.sandboxes.fromName(APP(), `sf-${NS()}${projectId}`);
+      await sh(sb, `rm -f /data/${NS()}${projectId}.bundle`).catch(() => {});
       await sb.terminate();
     } catch {}
   }
