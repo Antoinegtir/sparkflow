@@ -41,3 +41,11 @@ export function macFetch(path: string, init: RequestInit = {}) {
 
 /** sparkflow on this Mac as a backend (url, token), for the shim to send the simulator's calls there. */
 export const macBackend = () => (link ? { url: LOCAL_URL, token: link.token } : null);
+
+// A page opened in the cloud on a Mac where sparkflow ran before: look for it once at load, so a running
+// simulator shows in the canvas straight away (not on other computers: no local-network prompt there).
+if (typeof window !== "undefined") {
+  try {
+    if (localStorage.getItem("sparkflow.macSeen")) void findMac();
+  } catch {}
+}
