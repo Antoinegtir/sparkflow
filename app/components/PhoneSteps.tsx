@@ -393,9 +393,12 @@ function Fix() {
         <span className={clsx("grid place-items-center rounded-full bg-spark-500 text-white shadow-md transition-all duration-700", fixed ? "size-11 text-[16px]" : "size-7 text-[12px]")}>+</span>
         <span
           className={clsx(
+            // A ring just outside the button, whatever its size; back at the start it waits for the button
+            // to shrink before showing.
             "absolute rounded-full border-[1.5px] border-dashed transition-all duration-700",
-            fixed ? "inset-0 border-emerald-500" : "inset-2 border-red-500",
+            fixed ? "-inset-[3px] border-emerald-500" : "inset-[5px] border-red-500",
             phase === 1 || phase === 2 ? "opacity-0" : "opacity-100",
+            phase === 0 && "delay-700",
           )}
         />
         <span className={clsx("absolute -left-9 top-1/2 -translate-y-1/2 rounded px-1 font-mono text-[7.5px] text-white transition-colors", fixed ? "bg-emerald-500" : "bg-red-500", phase === 1 || phase === 2 ? "opacity-0" : "opacity-100")}>
