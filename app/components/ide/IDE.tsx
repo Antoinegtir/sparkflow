@@ -29,6 +29,7 @@ import { TopBar } from "./TopBar";
 import { askToNotify, markTitle, notify } from "@/lib/web/notify";
 import { getBackend, isCloud } from "@/lib/web/backend";
 import { pushToCloud } from "@/lib/web/sync";
+import { captureFromCloud } from "@/lib/web/sim-open";
 
 const PANEL_KEY = "sparkflow-panel-width";
 const EXPLORER_KEY = "sparkflow-explorer-width";
@@ -148,7 +149,8 @@ export function IDE({ id, slug: initialSlug, initialPage, access: given, basePat
           const shot = s.devices?.simulator?.[scheme];
           if (shot && shot.version >= s.version) return { ...x, screenshotUrl: shot.url };
           // From the cloud the pages aren't captured in the Mac's Simulator: its own screenshots stay.
-          return s.screenshotUrl && !isCloud() ? { ...x, deviceLoading: true } : x;
+          // From the cloud without the Mac's Simulator at hand: its own screenshots stay.
+          return s.screenshotUrl && (!isCloud() || sim.device) ? { ...x, deviceLoading: true } : x;
         }
         // Web: other preview devices get their own capture, so pages keep that device's proportions.
         const device = shotDevice(state.previewDevice);
@@ -494,13 +496,15 @@ export function IDE({ id, slug: initialSlug, initialPage, access: given, basePat
   // or are older than the page. The Simulator is driven meanwhile, so it shows a spinner.
   const triedSim = useRef(new Set<string>());
   useEffect(() => {
-    if (!state || state.native || state.previewDevice !== "simulator" || !sim.device || state.status === "running" || simFrozen || isCloud()) return;
+    if (!state || state.native || state.previewDevice !== "simulator" || !sim.device || state.status === "running" || simFrozen) return;
     const stale = state.order.filter((r) => state.screens[r] && state.screens[r].devices?.simulator?.[scheme]?.version !== state.screens[r].version);
     const key = `${scheme}:` + stale.map((r) => `${r}@${state.screens[r].version}`).join(",");
     if (!stale.length || triedSim.current.has(key)) return;
     triedSim.current.add(key);
     setSimFrozen("Capturing pages…");
-    void api.captureSimulator(scheme, false, sim.device?.udid).finally(() => setSimFrozen(null));
+    // From the cloud the browser drives this Mac's Simulator and sends the captures up.
+    const job = isCloud() ? captureFromCloud(id, sim.device.udid, state, scheme, stale) : api.captureSimulator(scheme, false, sim.device?.udid);
+    void Promise.resolve(job).catch(() => {}).finally(() => setSimFrozen(null));
   }, [state, scheme, sim.device, simFrozen, api]);
 
   // Native: after an agent run, re-capture both appearances.
@@ -703,9 +707,9 @@ export function IDE({ id, slug: initialSlug, initialPage, access: given, basePat
             ipad={ipad}
             // Simulator captures already hold the status bar: drawn bare, like a native app's. From the
             // cloud the pages are its web captures (no Simulator capture there): the usual iPhone frame.
-            native={!!state.native || (state.previewDevice === "simulator" && !isCloud())}
+            native={!!state.native || (state.previewDevice === "simulator" && (!isCloud() || !!sim.device))}
             nativeApp={!!state.native}
-            skin={state.native || !isCloud() ? skin : null}
+            skin={state.native || !isCloud() || sim.device ? skin : null}
             dark={scheme === "dark"}
             device={shotDevice(state.previewDevice)}
             status={state.status}

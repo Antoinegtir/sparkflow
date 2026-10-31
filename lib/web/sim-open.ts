@@ -2,7 +2,7 @@
 
 import { isCloud } from "./backend";
 import { useSyncExternalStore } from "react";
-import { expoGoPath, type ProjectState } from "@/lib/shared";
+import { expoGoPath, previewPathFor, type ProjectState } from "@/lib/shared";
 
 export type SimPlatform = "ios" | "android";
 
@@ -71,4 +71,27 @@ export async function openInSimulator(udid: string, preview: NonNullable<Project
   };
   retry = attempt;
   return attempt();
+}
+
+/**
+ * The app in the cloud, its pages captured on this Mac's Simulator (its calls go to sparkflow here, see
+ * BackendShim): each page opened by its link from the cloud's Metro, screenshotted, sent to the cloud.
+ */
+export async function captureFromCloud(projectId: string, udid: string, state: ProjectState, scheme: "light" | "dark", routes: string[]) {
+  const metro = state.preview?.webUrl;
+  if (!metro) return 0;
+  await post("/api/sim/appearance", { appearance: scheme, udid }).catch(() => {});
+  let n = 0;
+  for (const [i, route] of routes.entries()) {
+    const s = state.screens[route];
+    if (!s) continue;
+    await post(`/api/sim/${udid}/open`, { url: metro, path: expoGoPath(s.previewPath ?? previewPathFor(route), route) });
+    await new Promise((r) => setTimeout(r, i === 0 ? 2500 : 1200));
+    const shot = await fetch(`/api/sim/${udid}/frame`, { cache: "no-store" }).then((r) => (r.ok ? r.blob() : null));
+    if (!shot) continue;
+    const q = new URLSearchParams({ route, scheme });
+    await fetch(`/api/projects/${projectId}/sim-shots?${q}`, { method: "POST", body: shot });
+    n++;
+  }
+  return n;
 }
