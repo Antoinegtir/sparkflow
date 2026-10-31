@@ -133,6 +133,13 @@ export function ProjectGrid() {
       }
       return;
     }
+    // The Mac isn't answering (sparkflow stopped): back to the cloud, the default, when signed in.
+    const b = getBackend();
+    if (STATIC_SITE && uid && b && !b.cloud && (!res || res.status >= 500)) {
+      setMode("cloud");
+      setBackend(null);
+      if (await ensureCloud()) return void load();
+    }
     // The computer isn't reachable: the apps saved to the account, if signed in.
     setProjects(null);
     if (uid) setSaved(await loadSavedApps(uid).catch(() => null));

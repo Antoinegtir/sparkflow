@@ -9,7 +9,7 @@ import { ConnectOnboarding } from "@/app/components/ConnectOnboarding";
 import { IDE } from "@/app/components/ide/IDE";
 import { SharedShell } from "@/app/components/SharedShell";
 import type { ProjectSummary } from "@/lib/shared";
-import { backendReady, getBackend, isCloud, setMode } from "@/lib/web/backend";
+import { backendReady, getBackend, isCloud, setBackend, setMode } from "@/lib/web/backend";
 import { ensureCloud } from "@/lib/web/cloud";
 import { pullBySlug, reconcile, takeCarry } from "@/lib/web/sync";
 
@@ -18,6 +18,7 @@ type State = { kind: "shared"; serverUid: string; projectId: string; page: strin
 
 let demoAsked = false;
 let pulled = false;
+let fellBack = false;
 
 export default function IdeShell() {
   const [state, setState] = useState<State>({ kind: "loading" });
@@ -65,7 +66,17 @@ export default function IdeShell() {
         }
         setState({ kind: "missing" });
       })
-      .catch(() => setState({ kind: "offline" }));
+      .catch(async () => {
+        // The Mac doesn't answer (sparkflow stopped): the app opens in the cloud instead. The
+        // simulators need sparkflow; the device menu waits for it.
+        if (!isCloud() && !fellBack) {
+          fellBack = true;
+          setMode("cloud");
+          setBackend(null);
+          return void open();
+        }
+        setState({ kind: "offline" });
+      });
   }, []);
 
   // Once we know whether `sparkflow` runs on this computer (then reached directly).
