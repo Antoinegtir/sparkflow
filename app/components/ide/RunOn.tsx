@@ -9,6 +9,8 @@ import { createPortal } from "react-dom";
 import type { ProjectState } from "@/lib/shared";
 import { PREVIEW_DEVICES } from "@/lib/web/devices";
 import { SIM_CHANGED, useSimDevice } from "@/lib/web/sim-device";
+import { isCloud } from "@/lib/web/backend";
+import { findMac, macFetch, macFound } from "@/lib/web/mac";
 
 type Device = { udid: string; name: string; runtime: string; booted: boolean; kind: "iphone" | "ipad" | "android" };
 
@@ -92,17 +94,61 @@ export function RunOnMenu({
   const [qr, setQr] = useState(false);
   const [devices, setDevices] = useState<Device[] | null>(null);
   const [all, setAll] = useState(false);
+  // In the cloud: the code stays there, sparkflow on this Mac (once found) only shows it in a simulator.
+  const cloud = isCloud();
+  const [mac, setMac] = useState(macFound);
   useEffect(() => {
-    fetch("/api/sim/devices")
-      .then((r) => r.json())
-      .then((d) => Array.isArray(d) && setDevices(d))
-      .catch(() => {});
-  }, []);
+    if (!cloud) {
+      fetch("/api/sim/devices")
+        .then((r) => r.json())
+        .then((d) => Array.isArray(d) && setDevices(d))
+        .catch(() => {});
+      return;
+    }
+    // Once at opening; while not found, the setup below listens for sparkflow (and throws the confetti).
+    let stop = false;
+    void (async () => {
+      if (!(mac || (await findMac())) || stop) return;
+      setMac(true);
+      const d = await macFetch("/api/sim/devices").then((r) => r.json()).catch(() => null);
+      if (!stop && Array.isArray(d)) setDevices(d);
+    })();
+    return () => {
+      stop = true;
+    };
+  }, [cloud, mac]);
 
   const onLive = native || state.previewDevice === "simulator";
   const preview = PREVIEW_DEVICES.find((d) => d.id === state.previewDevice);
 
+  /** From the cloud: boots the device on this Mac, then Sparkflow Dev there loads the cloud's Metro. */
+  async function openFromCloud(d: Device) {
+    onDone();
+    const url = state.preview?.expoGoUrl;
+    if (!url) return alert("The app's preview is still starting in the cloud: try again in a few seconds.");
+    onSwitching?.(d.name);
+    try {
+      const boot = await macFetch("/api/sim/devices", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ udid: d.udid }) });
+      const booted = await boot.json().catch(() => ({}));
+      if (!boot.ok && !/did not boot/i.test(booted.error ?? "")) throw new Error(booted.error ?? "Could not start this device");
+      // An emulator started from its AVD gets its serial once running: look it up again.
+      let udid = d.udid;
+      if (udid.startsWith("avd:")) {
+        const list = (await macFetch("/api/sim/devices").then((r) => r.json()).catch(() => [])) as Device[];
+        udid = list.find((x) => x.name === d.name && x.booted)?.udid ?? udid;
+      }
+      const res = await macFetch(`/api/sim/${encodeURIComponent(udid)}/open`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ url }) });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error ?? "Could not open the app");
+    } catch (err) {
+      alert((err as Error).message);
+    } finally {
+      onSwitching?.(null);
+    }
+  }
+
   async function runOnDevice(d: Device) {
+    if (cloud) return openFromCloud(d);
     onDone();
     // Already the one shown: just show the app there.
     if (d.booted && sim.device?.udid === d.udid) return native || onDevice("simulator");
@@ -154,7 +200,7 @@ export function RunOnMenu({
   return (
         <div className="max-h-[70vh] w-80 overflow-auto rounded-xl border border-[var(--line)] bg-[var(--panel)] p-1 text-left shadow-2xl">
           {heading(<Smartphone size={12} />, "On this Mac", "the native app, live")}
-          {sim.supported ? (
+          {sim.supported || (cloud && mac) ? (
             <>
               {group("iPhone Simulator", sorted("iphone"))}
               {group("iPad Simulator", sorted("ipad"))}
@@ -172,7 +218,7 @@ export function RunOnMenu({
               {devices?.length === 0 && <p className="px-2.5 py-2 text-[12px] text-ink-500">No simulator or emulator installed: add one in Xcode or Android Studio.</p>}
             </>
           ) : (
-            <MacSetupMini projectId={state.id} />
+            <MacSetupMini projectId={state.id} onFound={cloud ? () => void findMac().then(setMac) : undefined} />
           )}
 
           {!native && (

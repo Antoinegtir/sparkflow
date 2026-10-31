@@ -72,8 +72,10 @@ export function CopyLine({ text, small }: { text: string; small?: boolean }) {
  * The Mac setup in a few lines, for a menu (the device picker): the tools it needs, as their logos
  * linking to their downloads, the install command, then `sparkflow`.
  */
-export function MacSetupMini({ projectId }: { projectId?: string }) {
+export function MacSetupMini({ projectId, onFound }: { projectId?: string; onFound?: () => void }) {
   const [found, setFound] = useState(false);
+  const found$ = useRef(onFound);
+  found$.current = onFound;
   // Listens for sparkflow starting on this Mac: then confetti, and the app opens there (the same code,
   // brought over from the cloud) with its simulators and emulators.
   useEffect(() => {
@@ -87,6 +89,8 @@ export function MacSetupMini({ projectId }: { projectId?: string }) {
       stop = true;
       setFound(true);
       confetti();
+      // From the cloud: the app stays there, the simulators of this Mac show up in the menu.
+      if (found$.current) return found$.current();
       const from = getBackend();
       const mac = { url: link.url.replace(/\/+$/, ""), token: link.token };
       setMode("mac");
