@@ -115,7 +115,10 @@ function ModelChip({ id, small }: { id?: string | null; small?: boolean }) {
   );
 }
 
-/** The loop as a diagram: plan, build, verify, and back to build when a page fails its review. */
+/**
+ * The loop as a diagram, top to bottom (it fits a narrow panel): plan, build, verify, each with the Meta
+ * model doing it, and a bracket from verify back to build for the pages that fail their review.
+ */
 function LoopDiagram({ state }: { state: ProjectState }) {
   const running = state.status === "running";
   const fixing = running && state.phase === "builder" && /^fix\b/i.test(state.phaseDetail ?? "");
@@ -129,46 +132,59 @@ function LoopDiagram({ state }: { state: ProjectState }) {
   const usedImage = (state.logs ?? []).some((l) => l.message.startsWith("🔧 generate_image"));
   const checks = state.checks ?? [];
   const fixes = (state.steps ?? []).filter((s) => stepKind(s) === "fix").length;
-  const node = (id: "planner" | "builder" | "verifier", sub: string) => {
+  const passed = checks.filter((c) => c.ok).length;
+  const row = (id: "planner" | "builder" | "verifier", sub: string) => {
     const look = PHASE_LOOK[id];
     const on = active === id || (id === "builder" && active === "fix");
     return (
-      <div title={PHASE_ROLE[id]} className={clsx("flex min-w-0 flex-1 flex-col items-center gap-1 rounded-xl border px-1.5 py-2 text-center transition", on ? "agent-glow border-transparent" : "border-[var(--line)] bg-[var(--panel-2)]")}>
-        <span className={clsx("grid size-7 place-items-center rounded-lg", look.tone, on && "animate-pulse-soft")}>
+      <div title={PHASE_ROLE[id]} className={clsx("relative flex items-center gap-2.5 rounded-xl border px-2.5 py-2 transition", on ? "agent-glow border-transparent bg-spark-500/5" : "border-[var(--line)] bg-[var(--panel-2)]")}>
+        <span className={clsx("grid size-7 shrink-0 place-items-center rounded-lg", look.tone, on && "animate-pulse-soft")}>
           <look.icon size={14} />
         </span>
-        <span className="text-[11.5px] font-medium text-ink-100">{look.label}</span>
-        <span className="text-[10px] leading-tight text-ink-500">{sub}</span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[12.5px] font-medium leading-tight text-ink-100">{id === "builder" && active === "fix" ? "Fix" : look.label}</p>
+          <p className="truncate text-[10.5px] leading-tight text-ink-500">{sub}</p>
+        </div>
         <ModelChip id={model(id)} small />
       </div>
     );
   };
-  const arrow = <span className="shrink-0 text-ink-600">→</span>;
+  const link = <div className="ml-[22px] h-2 w-px bg-[var(--line)]" />;
   return (
     <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-3">
-      <div className="mb-2 flex items-center justify-between">
+      <div className="mb-2.5 flex items-center justify-between gap-2">
         <p className="flex items-center gap-1.5 text-[11px] font-semibold tracking-wide text-ink-400 uppercase">
           <MetaLogo className="size-3.5" /> Agent loop
         </p>
-        <span className="text-[10.5px] text-ink-500">
-          {checks.length} review{checks.length === 1 ? "" : "s"} · {fixes} fix{fixes === 1 ? "" : "es"}
-          {state.usage?.costUsd ? ` · $${state.usage.costUsd.toFixed(2)}` : ""}
+        <span className="flex items-center gap-2 text-[10.5px] text-ink-500">
+          {checks.length > 0 && (
+            <span className="text-emerald-400/90">
+              {passed}/{checks.length} reviews passed
+            </span>
+          )}
+          {fixes > 0 && <span className="text-amber-300/90">{fixes} fix{fixes > 1 ? "es" : ""}</span>}
+          {state.usage?.costUsd ? <span>${state.usage.costUsd.toFixed(2)}</span> : null}
         </span>
       </div>
-      <div className="relative flex items-stretch gap-1">
-        {node("planner", "pages & links")}
-        {arrow}
-        {node("builder", "React Native code")}
-        {arrow}
-        {node("verifier", "screenshots & criteria")}
-      </div>
-      {/* The way back: a page that fails its review goes to the builder again, with the screenshot. */}
-      <div className="mx-[22%] mt-1.5 flex items-center gap-1.5 border-t border-dashed border-amber-500/50 pt-1 text-[10.5px] text-amber-300/90">
-        <RotateCcw size={11} className={clsx(active === "fix" && "animate-spin")} /> Fails its criteria → fixed with the rejected screenshot, then reviewed again
+      <div className="relative pr-7">
+        {row("planner", "Pages & links")}
+        {link}
+        {row("builder", "React Native code")}
+        {link}
+        {row("verifier", "Screenshots & criteria")}
+        {/* The way back: a page that fails its review goes to the builder again, with its screenshot. */}
+        <div
+          title="A page that fails its criteria goes back to the builder with the rejected screenshot, then is reviewed again"
+          className={clsx("absolute right-0 rounded-r-xl border-y border-r border-dashed", active === "fix" ? "border-amber-400" : "border-amber-500/50")}
+          style={{ top: "calc(50% - 4px)", bottom: 18, width: 20 }}>
+          <span className="absolute top-1/2 -right-[9px] grid size-[18px] -translate-y-1/2 place-items-center rounded-full bg-[var(--panel)] text-amber-300">
+            <RotateCcw size={11} className={clsx(active === "fix" && "animate-spin")} />
+          </span>
+        </div>
       </div>
       {(usedSam || usedImage) && (
-        <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10.5px] text-ink-500">
-          Also used:
+        <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-[var(--line)] pt-2 text-[10.5px] text-ink-500">
+          Also:
           {usedSam && (
             <span className="flex items-center gap-1">
               <ModelChip id="sam-3.1" small /> reads the sketch
