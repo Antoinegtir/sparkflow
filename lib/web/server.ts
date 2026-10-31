@@ -12,6 +12,8 @@ export function errorResponse(err: unknown) {
   if (err instanceof ZodError) return Response.json({ error: err.issues.map((i) => i.message).join("; ") }, { status: 400 });
   const message = String((err as Error)?.message ?? err);
   if (/not found/i.test(message)) return Response.json({ error: message }, { status: 404 });
+  // A call for a Simulator that was just shut down (the page still showed it): expected, not logged.
+  if (/as it is not booted|not booted/i.test(message)) return Response.json({ error: "The device isn't running" }, { status: 409 });
   console.error("[sparkflow]", err);
   return Response.json({ error: message }, { status: 500 });
 }
