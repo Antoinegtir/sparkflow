@@ -421,8 +421,8 @@ export function AgentActivity({ state, people }: { state: ProjectState; people: 
           You&apos;re up to date
         </div>
       )}
-      {/* Room under the last item (about a fifth of the panel), so the newest sits above the bottom edge. */}
-      <div aria-hidden className="h-[18%] shrink-0" />
+      {/* Room under the last item (a tenth of the panel), so the newest sits above the bottom edge. */}
+      <div aria-hidden className="h-[10%] shrink-0" />
     </div>
   );
 }
