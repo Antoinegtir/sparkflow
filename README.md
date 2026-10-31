@@ -16,9 +16,9 @@
 
 > [!TIP]
 >
-> | [<img alt="Open Sparkflow" src="https://img.shields.io/badge/open-sparkflow--ai.web.app-0073FF?style=flat-square&labelColor=black" width="196px" />](https://sparkflow-ai.web.app) | The site is hosted; the builds run on your Mac or Linux machine. |
+> | [<img alt="Open Sparkflow" src="https://img.shields.io/badge/open-sparkflow--ai.web.app-0073FF?style=flat-square&labelColor=black" width="196px" />](https://sparkflow-ai.web.app) | Nothing to install: sign in and build in the cloud, the app in a web preview and on your phone. |
 > | :----- | :----- |
-> | [<img alt="Install" src="https://img.shields.io/badge/install-one%20command-white?style=flat-square&labelColor=black&logo=gnubash&logoColor=white" width="196px" />](#quick-start) | `curl -fsSL https://sparkflow-ai.web.app/install.sh \| bash`, then `sparkflow`. |
+> | [<img alt="Install" src="https://img.shields.io/badge/install-one%20command-white?style=flat-square&labelColor=black&logo=gnubash&logoColor=white" width="196px" />](#quick-start) | For the real iOS Simulator and Android emulator: `curl -fsSL https://sparkflow-ai.web.app/install.sh \| bash`, then `sparkflow`. |
 
 <div align="center">
 
@@ -52,6 +52,8 @@
 
 - [Overview](#overview)
   - [How it works](#how-it-works)
+- [Meta models](#meta-models)
+- [Built during the hackathon](#built-during-the-hackathon)
 - [Features](#features)
 - [Quick start](#quick-start)
   - [Prerequisites](#prerequisites)
@@ -69,7 +71,7 @@
 
 | Logo | Built on | Role |
 |:---:|---|---|
-| <img width="32" src="https://cdn.simpleicons.org/meta/0064E0" alt="Meta" /> | **Muse Spark** · **SAM 3.1** by Meta | Reads text, sketches and voice; plans the app; judges each screenshot against its criteria. SAM cuts sketches into buttons, cards and lists. |
+| <img width="32" src="https://cdn.simpleicons.org/meta/0064E0" alt="Meta" /> | **Muse Spark** · **Muse Wonder** · **Muse Image** · **SAM 3.1** by Meta | Every step of the agent loop: planning, writing the code, judging each screenshot, drawing the assets, reading sketches. See [Meta models](#meta-models). |
 | <img width="32" src="https://cdn.simpleicons.org/react/61DAFB" alt="React Native" /> | **React Native** | The code it writes: real components, no web view. |
 | <img width="32" src="https://cdn.simpleicons.org/expo/white" alt="Expo" /> | **Expo** · Expo Router | The project template, navigation, Expo Go and the dev client. |
 | <img width="32" src="https://cdn.simpleicons.org/apple/white" alt="Apple" /> | **iOS Simulator** | Where the app runs and gets looked at, with its accessibility tree. |
@@ -86,6 +88,55 @@
 | 05 | **Fix** | A screen that fails goes back to the Builder with the rejected screenshot and the exact list of what is off, until it passes. |
 | 06 | **Point and talk** | Click anything on the live phone and say “bigger, in blue”: Sparkflow finds the component, the file and the line, and edits it. |
 | 07 | **Ship** | Scan the QR code with Expo Go, export the source, or import your own React Native project and let Sparkflow work on it in place. |
+
+## Meta models
+
+Sparkflow is an agent loop where each step is a Meta model, called through the [Meta Model API](https://llama.developer.meta.com). The IDE shows which model does what, live, in the **Activity** panel and the prompt bar.
+
+```
+ prompt · sketch · screenshot · PDF · voice
+            │
+            ▼
+   ┌─────────────────┐   pages, navigation, data model, theme,
+   │  PLAN           │   acceptance criteria for every page
+   │  Muse Spark 1.3 │◀── SAM 3.1 segments the sketch into components
+   └────────┬────────┘
+            ▼
+   ┌─────────────────┐   edits files, runs the type checker, fixes its errors,
+   │  BUILD          │   one git commit per iteration
+   │  Muse Wonder 1.0│──▶ Muse Image 1.0 draws icons, photos, splash screens
+   └────────┬────────┘
+            ▼
+   ┌─────────────────┐   screenshots every page (web, iOS, Android), reads the
+   │  VERIFY         │   accessibility tree and the console, judges each page
+   │  Muse Spark 1.3 │   against its criteria
+   └────────┬────────┘
+     passes │ fails ─────▶ back to BUILD with the rejected screenshot
+            ▼               and the exact list of what is off
+     verified app
+```
+
+| Model | Where | What it does in Sparkflow |
+|---|---|---|
+| **Muse Spark 1.3** | Planner, Verifier | Reads the request in any form (text, sketch, screenshot, PDF, voice), writes the plan and the per-page acceptance criteria; then looks at each screenshot and returns a verdict with what to fix. Multimodal in both directions of the loop. |
+| **Muse Wonder 1.0** | Builder | Writes the Expo and React Native code with tools (read, edit, type-check, generate assets), and fixes what the Verifier rejects. |
+| **Muse Image 1.0** | Builder tool `generate_image` | App icons, splash screens, photos and illustrations, written straight into the project's assets. |
+| **SAM 3.1** | Tool `segment` | Cuts a paper sketch or a screenshot into its parts (buttons, cards, lists), so the plan follows the drawing. |
+
+Code: [`lib/agent/roles.ts`](lib/agent/roles.ts) (the loop's roles), [`lib/agent/meta.ts`](lib/agent/meta.ts) (Muse Image, SAM), [`lib/agent/llm/`](lib/agent/llm) (the Model API client), [`lib/shared/models.ts`](lib/shared/models.ts) (which model each step uses).
+
+## Built during the hackathon
+
+Sparkflow was started at the kickoff of the Meta Global AI Developer Hackathon (first commit October 26, 2026); everything in this repository was built during the event. The [commit history](https://github.com/Antoinegtir/sparkflow/commits/main) shows it day by day.
+
+| Area | What was built |
+|---|---|
+| Agent loop | Planner, Builder and Verifier on Meta models, the fix loop, per-page acceptance criteria, visual and accessibility checks |
+| Multimodal input | Prompts with sketches, screenshots, PDFs, HEIC photos and voice; SAM segmentation; Muse Image assets |
+| IDE | The canvas of pages and links, live devices, point-and-edit, code editor, asset manager, history with diffs and restore, the Activity view of the loop |
+| Cloud | Sparkflow without installing anything: Cloud Run in Europe and the US, each app in its own Modal sandbox with a live web preview and Expo Go |
+| Mac and cloud together | The `sparkflow` CLI; the cloud's apps opened in the Mac's iOS Simulator and Android emulator, loading their code from the cloud |
+| Ship | Release builds, TestFlight and Google Play uploads with fastlane, GitHub push, sharing and comments |
 
 ## Features
 
@@ -114,10 +165,9 @@ The installer checks your machine, installs what's missing without sudo, downloa
 
 | | Needed for |
 |---|---|
-| macOS or Linux | Running the server |
+| macOS, Linux or Windows (WSL) | Running the server (the iOS Simulator needs a Mac) |
 | Node 20+, git | Everything (Node is installed for you if missing) |
-| Xcode | The iOS Simulator view (command line tools alone are enough to build) |
-| Android Studio | The Android emulator view (`ANDROID_HOME` or `~/Library/Android/sdk`) |
+| Xcode or Android Studio | Either one: the iOS Simulator (Mac only) or the Android emulator (`ANDROID_HOME` or `~/Library/Android/sdk`) |
 | cloudflared, watchman | The tunnel and Metro (installed for you if missing) |
 | GitHub CLI (`gh`) | Optional: creating repositories from the IDE |
 
@@ -169,25 +219,35 @@ npm run dev
 
 ## Architecture
 
+The same server runs in two places: in the cloud for everyone (the default), and on your Mac with `sparkflow` for the real simulators.
+
 ```
- sparkflow-ai.web.app (static, Firebase)          your computer (sparkflow)
- ┌──────────────────────────────┐   tunnel   ┌────────────────────────────────────┐
- │ Landing · My apps · IDE      │ ─────────▶ │ Next.js API on :3002               │
- │ Firebase Auth, Firestore,    │  /api, SSE │  Planner → Builder → Verifier      │
- │ Cloud Storage (saved apps)   │            │  Expo sandboxes, Metro, Playwright │
- └──────────────────────────────┘            │  iOS Simulator · Android emulator  │
-                                             └────────────────────────────────────┘
+                         sparkflow-ai.web.app (static, Firebase Hosting)
+                         Landing · My apps · IDE · Firebase Auth
+                          │                                   │
+             cloud (default)                                  │  your Mac (sparkflow CLI)
+                          ▼                                   ▼
+ ┌────────────────────────────────────┐        ┌────────────────────────────────────┐
+ │ Cloud Run · Europe and US          │        │ Next.js API on :3002 + tunnel      │
+ │  Next.js API, sessions, quotas     │        │  Planner → Builder → Verifier      │
+ │  Planner → Builder → Verifier      │        │  Expo sandboxes, Metro, Playwright │
+ │  each app → its Modal sandbox:     │        │  iOS Simulator · Android emulator  │
+ │   Expo, Metro, Playwright          │──Metro▶│  Sparkflow Dev loads the cloud's   │
+ └──────────────┬─────────────────────┘        │  apps in the simulators            │
+                ▼                              └────────────────────────────────────┘
+        Meta Model API: Muse Spark · Muse Wonder · Muse Image · SAM 3.1
 ```
 
 | Path | |
 |---|---|
 | `app/` | The site and the IDE (Next.js App Router), and the API routes |
 | `lib/agent/` | The orchestrator, the Planner, Builder and Verifier, the project store |
-| `lib/sandbox/` | Running apps locally: sandboxes, Metro, the inspector |
+| `lib/sandbox/` | Where apps run: local sandboxes and Modal sandboxes (cloud), Metro, the inspector |
+| `lib/cloud/` | Cloud mode: sessions, per-user apps, daily quotas |
 | `lib/web/` | Browser-side: the backend shim, devices, Firebase |
 | `templates/expo-base/` | The Expo template every app starts from |
 | `templates/demo/` | Wander, the demo app every user finds in My apps |
-| `scripts/` | Install, onboarding, release, static build |
+| `scripts/` | Install, onboarding, release, static build, cloud deploy |
 
 ## License
 
