@@ -1,6 +1,6 @@
 "use client";
 
-import { MacSetupMini } from "../ConnectOnboarding";
+import { MacSetupMini, TOOLS } from "../ConnectOnboarding";
 import clsx from "clsx";
 import { Check, ChevronDown, Globe, Loader2, Monitor, QrCode, Smartphone, Tablet } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
@@ -13,6 +13,16 @@ import { isCloud } from "@/lib/web/backend";
 import { findMac, macFetch, macFound } from "@/lib/web/mac";
 
 type Device = { udid: string; name: string; runtime: string; booted: boolean; kind: "iphone" | "ipad" | "android" };
+
+const DEVICES_KEY = "sparkflow.devices";
+const cachedDevices = (): Device[] | null => {
+  try {
+    const d = JSON.parse(localStorage.getItem(DEVICES_KEY) ?? "null");
+    return Array.isArray(d) ? d : null;
+  } catch {
+    return null;
+  }
+};
 
 /**
  * Where the app runs, in one menu: natively in an iOS Simulator or Android emulator on this computer
@@ -92,7 +102,14 @@ export function RunOnMenu({
   const sim = useSimDevice();
   const native = !!state.native;
   const [qr, setQr] = useState(false);
-  const [devices, setDevices] = useState<Device[] | null>(null);
+  // The last list fetched, shown at once (then refreshed): no empty menu while it loads.
+  const [devices, setDevicesState] = useState<Device[] | null>(cachedDevices);
+  const setDevices = (d: Device[]) => {
+    setDevicesState(d);
+    try {
+      localStorage.setItem(DEVICES_KEY, JSON.stringify(d));
+    } catch {}
+  };
   const [all, setAll] = useState(false);
   // In the cloud: the code stays there, sparkflow on this Mac (once found) only shows it in a simulator.
   const cloud = isCloud();
@@ -215,7 +232,9 @@ export function RunOnMenu({
                   <Loader2 size={12} className="animate-spin" /> Looking for simulators and emulators…
                 </p>
               )}
-              {devices?.length === 0 && <p className="px-2.5 py-2 text-[12px] text-ink-500">No simulator or emulator installed: add one in Xcode or Android Studio.</p>}
+              {/* Either one is enough: the missing one is offered, to complete the setup. */}
+              {devices && !devices.some((d) => d.kind !== "android") && <InstallTool tool={TOOLS[0]} what="iOS Simulator" />}
+              {devices && !devices.some((d) => d.kind === "android") && <InstallTool tool={TOOLS[1]} what="Android emulator" />}
             </>
           ) : (
             <MacSetupMini projectId={state.id} onFound={cloud ? () => void findMac().then(setMac) : undefined} />
@@ -267,5 +286,20 @@ export function RunOnMenu({
             </>
           )}
         </div>
+  );
+}
+
+/** A missing simulator, with its tool to download (Xcode, Android Studio). */
+function InstallTool({ tool, what }: { tool: (typeof TOOLS)[number]; what: string }) {
+  return (
+    <a href={tool.href} target="_blank" rel="noreferrer" className="mx-1 my-1 flex items-center gap-2.5 rounded-lg border border-dashed border-[var(--line)] px-2.5 py-2 text-[12px] text-ink-300 hover:border-spark-500/50 hover:text-ink-100">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={tool.icon} alt="" className="size-6 object-contain" />
+      <span className="flex-1">
+        Add the {what}
+        <span className="block text-[11px] text-ink-500">Install {tool.name}</span>
+      </span>
+      <span className="text-[11px] text-spark-400">Download ↗</span>
+    </a>
   );
 }

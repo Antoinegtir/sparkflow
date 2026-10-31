@@ -13,7 +13,7 @@ export const INSTALL = "curl -fsSL https://sparkflow-ai.web.app/install.sh | bas
 /** What runs the apps: each opens its official download page. */
 export const TOOLS = [
   { name: "Xcode", note: "iOS Simulator", href: "https://apps.apple.com/app/xcode/id497799835", icon: "/tools/xcode.png" },
-  { name: "Android Studio", note: "Android · optional", href: "https://developer.android.com/studio", icon: "/tools/android-studio.png" },
+  { name: "Android Studio", note: "Android emulator", href: "https://developer.android.com/studio", icon: "/tools/android-studio.png" },
 ];
 const POLL_MS = 2000;
 /** Where `sparkflow` serves on this computer; /api/connect hands out its tunnel link (see remote.mjs). */
@@ -105,7 +105,7 @@ export function MacSetupMini({ projectId, onFound }: { projectId?: string; onFou
   return (
     <div className="space-y-2 px-2.5 py-2">
       <div className="flex items-center gap-1.5">
-        <span className="mr-1 text-[11px] text-ink-500">Requires</span>
+        <span className="mr-1 text-[11px] text-ink-500">One of</span>
         {TOOLS.map((t) => (
           <a
             key={t.name}
@@ -117,7 +117,7 @@ export function MacSetupMini({ projectId, onFound }: { projectId?: string; onFou
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={t.icon} alt="" className="size-5 object-contain" />
             {t.name}
-            {/optional/.test(t.note) && <span className="text-[10px] text-ink-500">opt.</span>}
+            <span className="text-[10px] text-ink-500">opt.</span>
           </a>
         ))}
       </div>
