@@ -129,7 +129,7 @@
       "acceptance": [
         "A large photo fills the top of the screen, with round back and heart buttons over it",
         "A translucent panel overlapping the photo shows the country, the destination name in large type and a star rating",
-        "A description and a numbered list of must-see highlights appear below the panel",
+        "A short description of the destination appears below the panel (its must-see list follows further down)",
         "A bottom bar shows a price in euros and a “Plan trip” button"
       ],
       "previewPath": "/place/santorini"
