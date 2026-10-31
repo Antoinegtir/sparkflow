@@ -207,7 +207,7 @@ export function Composer() {
         </div>
       )}
 
-      <ul data-no-lens className="mx-auto mt-6 max-w-[80%]">
+      <ul data-no-lens data-suggestions className="mx-auto mt-6 max-w-[80%]">
         {EXAMPLES.map((ex) => (
           <li key={ex}>
             <button
