@@ -1,10 +1,9 @@
 "use client";
 
 import clsx from "clsx";
-import { ArrowUpRight, Check, Cloud, Copy, Loader2, Lock, Terminal } from "lucide-react";
+import { ArrowUpRight, Check, Copy, Lock, Terminal } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { getBackend, setBackend, setMode } from "@/lib/web/backend";
-import { CLOUD_URL, connectCloud } from "@/lib/web/cloud";
 import { DotLens } from "./DotLens";
 import { LoopVideo } from "./LoopVideo";
 
@@ -118,42 +117,6 @@ function confetti() {
  * Shown when the hosted site has no computer to talk to: how to install and start `sparkflow`,
  * then a live check every 2 s. Once it answers steadily: confetti, and the page reloads into the app.
  */
-/**
- * No Mac at hand: Sparkflow in the cloud builds the app and shows it in the web preview (no Simulator),
- * a few runs a day. Back to the landing afterwards, where the prompt typed before waits.
- */
-function CloudOption() {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  return (
-    <div className="mt-3 flex items-center gap-3 rounded-2xl border border-[var(--line)] bg-[var(--panel)]/90 p-4 backdrop-blur">
-      <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-spark-500/15 text-spark-400">
-        <Cloud size={17} />
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="text-[13.5px] font-medium text-ink-100">No Mac? Build in the cloud</p>
-        <p className="text-[12px] text-ink-500">{error ?? "The same agent, with the app in a web preview instead of the Simulator. A few runs a day."}</p>
-      </div>
-      <button
-        disabled={busy}
-        onClick={async (e) => {
-          setBusy(true);
-          setError(null);
-          try {
-            await connectCloud(e.currentTarget);
-            location.href = "/";
-          } catch (err) {
-            setError((err as Error).message);
-            setBusy(false);
-          }
-        }}
-        className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg bg-spark-500 px-3 py-2 text-[12.5px] font-medium text-white disabled:opacity-50">
-        {busy && <Loader2 size={13} className="animate-spin" />} Use the cloud
-      </button>
-    </div>
-  );
-}
-
 export function ConnectOnboarding() {
   const [connected, setConnected] = useState(false);
   const done = useRef(false);
@@ -282,8 +245,6 @@ export function ConnectOnboarding() {
             </li>
           </ol>
         </div>
-
-        {CLOUD_URL && <CloudOption />}
 
         <p className="mt-3 flex items-start justify-center gap-2 text-center text-[12px] leading-relaxed text-ink-500">
           <Lock size={12} className="mt-0.5 shrink-0" />
