@@ -66,7 +66,8 @@ export function companion(udid: string): Promise<Companion> {
     })();
     companions.set(udid, p);
     p.catch(() => companions.delete(udid));
-    void p.then((c) => c.proc.on("exit", () => companions.get(udid) === p && companions.delete(udid)));
+    // A start that failed is reported to the caller; this watcher must not raise it again (unhandled).
+    void p.then((c) => c.proc.on("exit", () => companions.get(udid) === p && companions.delete(udid))).catch(() => {});
   }
   return p;
 }
