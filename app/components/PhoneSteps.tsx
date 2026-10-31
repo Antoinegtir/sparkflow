@@ -457,7 +457,7 @@ function Point() {
     <div className="relative h-full">
       <MiniApp done={done} highlight={phase >= 1 && !big ? 1 : undefined} big={big ? 1 : undefined} onTap={(i) => setDone((d) => d.map((x, j) => (j === i ? !x : x)))} />
       {phase === 0 && <MousePointer2 size={14} className="hiw-cursor pointer-events-none absolute fill-white text-black" />}
-      {phase === 1 && <MousePointer2 size={14} className="pointer-events-none absolute left-[55%] top-[42%] fill-white text-black" />}
+      {phase === 1 && <MousePointer2 size={14} className="pointer-events-none absolute left-[55%] top-[35%] fill-white text-black" />}
       <div className="absolute inset-x-2.5 bottom-3">
         <div className="mb-1.5 flex min-h-[26px] items-center gap-1.5 rounded-xl bg-black/8 px-2.5 py-1.5 text-[9.5px] text-neutral-600">
           <Mic size={10} className={clsx("shrink-0", phase === 2 ? "text-spark-500" : "text-neutral-400")} />

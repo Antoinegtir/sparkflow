@@ -210,7 +210,8 @@
 .hiw-wave { height: 20%; animation: hiw-wave .9s ease-in-out infinite; }
 @keyframes hiw-scan { from { top: -10%; } to { top: 100%; } }
 .hiw-scan { animation: hiw-scan 1.8s linear infinite; }
-@keyframes hiw-cursor { 0% { left: 75%; top: 80%; } 45%, 70% { left: 55%; top: 42%; transform: scale(1); } 55% { transform: scale(.85); } 100% { left: 75%; top: 80%; } }
+/* The landing's Point scene: the cursor's tip lands on the "Morning walk" row (its middle, at 35% of the fixed scene). */
+@keyframes hiw-cursor { 0% { left: 75%; top: 80%; } 45%, 70% { left: 55%; top: 35%; transform: scale(1); } 55% { transform: scale(.85); } 100% { left: 75%; top: 80%; } }
 .hiw-cursor { animation: hiw-cursor 2.6s ease-in-out infinite; }
 /* Confetti from the last step's dot: each piece flies out (--x, --y), spins and falls. */
 @keyframes hiw-confetti {
