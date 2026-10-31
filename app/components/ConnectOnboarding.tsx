@@ -282,18 +282,6 @@ export function ConnectOnboarding() {
           <Lock size={12} className="mt-0.5 shrink-0" />
           If your browser asks to access devices on your local network, allow it: that's how this page finds sparkflow.
         </p>
-        {/* The Mac is a choice: back to the cloud (the default), where the app shows in a web preview. */}
-        <p className="mt-2 text-center text-[12px] text-ink-500">
-          <button
-            onClick={() => {
-              setMode("cloud");
-              setBackend(null);
-              location.href = location.pathname === "/connect" ? "/" : location.pathname;
-            }}
-            className="cursor-pointer text-spark-400 hover:text-spark-300">
-            Keep building in the cloud instead
-          </button>
-        </p>
       </div>
     </div>
   );

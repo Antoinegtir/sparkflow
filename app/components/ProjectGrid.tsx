@@ -117,7 +117,10 @@ export function ProjectGrid() {
 
   const load = useCallback(async () => {
     // Signed in, nothing linked: the cloud (the default), quietly.
-    if (STATIC_SITE && uid && !getBackend()) await ensureCloud();
+    if (STATIC_SITE && uid && !getBackend()) {
+      setMode("cloud"); // a Mac chosen but not running: the cloud
+      await ensureCloud();
+    }
     const res = await apiFetch("/api/projects", { cache: "no-store" }).catch(() => null);
     if (res?.ok) {
       const list: ProjectSummary[] = await res.json();

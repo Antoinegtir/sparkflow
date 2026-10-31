@@ -9,7 +9,7 @@ import type { MediaInput } from "@/lib/shared";
 import { ATTACH_ACCEPT, blobToWav, startRecording } from "@/lib/web/media";
 import { AttachedFiles, dropBorder, useAttachments } from "./ide/ImageAttach";
 import { requireSignIn } from "@/lib/web/auth";
-import { apiFetch, getBackend, openOnBackend, STATIC_SITE } from "@/lib/web/backend";
+import { apiFetch, getBackend, setMode, openOnBackend, STATIC_SITE } from "@/lib/web/backend";
 import { useIsPhone } from "@/lib/web/phone";
 import { patchPresence } from "@/lib/web/presence";
 import { DesktopNote } from "./DesktopNote";
@@ -99,7 +99,10 @@ export function Composer() {
     setError(null);
     try {
       // Built in the cloud unless the Mac was chosen: connected now if it isn't yet.
-      if (STATIC_SITE && !getBackend()) await ensureCloud(true, buildButton.current);
+      if (STATIC_SITE && !getBackend()) {
+        setMode("cloud"); // a Mac chosen but not running: the cloud
+        await ensureCloud(true, buildButton.current);
+      }
       const res = await apiFetch("/api/projects", {
         method: "POST",
         headers: { "content-type": "application/json" },

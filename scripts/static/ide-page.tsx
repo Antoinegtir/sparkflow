@@ -8,7 +8,7 @@ import { ConnectOnboarding } from "@/app/components/ConnectOnboarding";
 import { IDE } from "@/app/components/ide/IDE";
 import { SharedShell } from "@/app/components/SharedShell";
 import type { ProjectSummary } from "@/lib/shared";
-import { backendReady, getBackend } from "@/lib/web/backend";
+import { backendReady, getBackend, setMode } from "@/lib/web/backend";
 import { ensureCloud } from "@/lib/web/cloud";
 
 type Found = { id: string; slug: string; page: string[] };
@@ -23,8 +23,12 @@ export default function IdeShell() {
     const parts = location.pathname.split("/").filter(Boolean).map(decodeURIComponent);
     // Someone else's project: it never needs your own computer connected.
     if (parts[0] === "s" && parts[1] && parts[2]) return setState({ kind: "shared", serverUid: parts[1], projectId: parts[2], page: parts.slice(3) });
-    // Nothing linked: the cloud, the default (signing in if needed); the Mac onboarding when it was chosen.
-    if (!getBackend() && parts[0] !== "connect") await ensureCloud(true);
+    // Nothing linked: the cloud, always (signing in if needed). The Mac onboarding is only /connect,
+    // reached from "Run on a real simulator"; a Mac chosen there but not running falls back to the cloud.
+    if (!getBackend() && parts[0] !== "connect") {
+      setMode("cloud");
+      await ensureCloud(true);
+    }
     if (!getBackend()) return setState({ kind: "offline" });
     // /connect: where the landing sends you when no computer answers; once connected, back to it.
     if (parts[0] === "connect") {
