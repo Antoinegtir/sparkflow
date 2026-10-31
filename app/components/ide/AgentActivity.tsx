@@ -413,6 +413,8 @@ export function AgentActivity({ state, people }: { state: ProjectState; people: 
           </div>
         );
       })}
+      {/* Room under the last item, so the newest one sits higher in the panel than its bottom edge. */}
+      <div aria-hidden className="h-[35vh] shrink-0" />
     </div>
   );
 }
