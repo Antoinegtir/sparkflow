@@ -80,15 +80,20 @@ export function MacSetupMini({ projectId, onFound }: { projectId?: string; onFou
   // brought over from the cloud) with its simulators and emulators.
   useEffect(() => {
     let stop = false;
+    let waited = false;
     const tick = async () => {
       const link = await fetch(`${LOCAL}/api/connect`, { cache: "no-store" })
         .then((r) => (r.ok ? (r.json() as Promise<{ url: string; token: string }>) : null))
         .catch(() => null);
       if (stop) return;
-      if (!link?.url || !link.token) return void setTimeout(tick, POLL_MS);
+      if (!link?.url || !link.token) {
+        waited = true;
+        return void setTimeout(tick, POLL_MS);
+      }
       stop = true;
       setFound(true);
-      confetti();
+      // Only when sparkflow started while this waited, not each time the page loads with it running.
+      if (waited) confetti();
       // From the cloud: the app stays there, the simulators of this Mac show up in the menu.
       if (found$.current) return found$.current();
       // Shown on the Mac side means its link went stale: the app goes back to the cloud, where this
