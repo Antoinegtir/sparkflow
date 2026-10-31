@@ -395,7 +395,8 @@ function Fix() {
           className={clsx(
             // A ring just outside the button, whatever its size; back at the start it waits for the button
             // to shrink before showing.
-            "absolute rounded-full border-[1.5px] border-dashed transition-all duration-700",
+            // Only its size and fade animate: its colour switches at once (while hidden), never a brown blend.
+            "absolute rounded-full border-[1.5px] border-dashed transition-[opacity,inset] duration-700",
             fixed ? "-inset-[3px] border-emerald-500" : "inset-[5px] border-red-500",
             phase === 1 || phase === 2 ? "opacity-0" : "opacity-100",
             phase === 0 && "delay-700",
