@@ -85,13 +85,16 @@ export function AsciiLoader({ label }: { label: string }) {
 }
 
 const SPARK = ["  .  ", " .+. ", ".+*+.", "+*#*+", "*#@#*", "+*#*+", ".+*+.", " .+. "];
+const SPARK_FRAME_MS = 110;
+/** One beat of the sparkle (it lights up and dims once). */
+export const SPARK_BEAT_MS = SPARK.length * SPARK_FRAME_MS;
 
 /** A one-line sparkle for small waits (the top bar), cycling through the ramp. */
 export function AsciiSpark({ className, neon }: { className?: string; neon?: boolean }) {
   const [i, setI] = useState(0);
   useEffect(() => {
     if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const t = setInterval(() => setI((n) => (n + 1) % SPARK.length), 110);
+    const t = setInterval(() => setI((n) => (n + 1) % SPARK.length), SPARK_FRAME_MS);
     return () => clearInterval(t);
   }, []);
   return (

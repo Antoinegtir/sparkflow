@@ -1,6 +1,6 @@
 "use client";
 
-import { AsciiSpark } from "../AsciiLoader";
+import { AsciiSpark, SPARK_BEAT_MS } from "../AsciiLoader";
 import clsx from "clsx";
 import {
   Box,
@@ -321,13 +321,13 @@ export function AgentActivity({ state, people }: { state: ProjectState; people: 
   const shared = Object.keys(people).some((k) => k !== "owner");
   const ref = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
-  // "Up to date": shown for 3 s when the agent is done (and on opening), then it fades away.
+  // "Up to date": three beats of the sparkle when the agent is done (and on opening), then it fades away.
   const idle = state.status !== "running";
   const [caughtUp, setCaughtUp] = useState(idle);
   useEffect(() => {
     if (!idle) return setCaughtUp(false);
     setCaughtUp(true);
-    const t = setTimeout(() => setCaughtUp(false), 3000);
+    const t = setTimeout(() => setCaughtUp(false), 3 * SPARK_BEAT_MS);
     return () => clearTimeout(t);
   }, [idle]);
   const runs = useMemo(() => {
@@ -423,9 +423,9 @@ export function AgentActivity({ state, people }: { state: ProjectState; people: 
           </div>
         );
       })}
-      {/* Caught up: a small ASCII star under the last message for 3 s (not while the agent works). */}
+      {/* Caught up: a small ASCII star under the last message for three beats (not while the agent works). */}
       {idle && (
-        <div className={clsx("flex flex-col items-center gap-1 pt-3 text-[11px] text-ink-500 transition-opacity duration-700", caughtUp ? "opacity-100" : "opacity-0")}>
+        <div className={clsx("flex flex-col items-center gap-1 pt-3 text-[11px] text-ink-500 transition-opacity", caughtUp ? "opacity-100" : "opacity-0 duration-300")}>
           <AsciiSpark neon className="text-[11px] leading-none" />
           You&apos;re up to date
         </div>
