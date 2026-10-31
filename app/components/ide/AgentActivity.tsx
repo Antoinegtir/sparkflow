@@ -321,6 +321,15 @@ export function AgentActivity({ state, people }: { state: ProjectState; people: 
   const shared = Object.keys(people).some((k) => k !== "owner");
   const ref = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
+  // "Up to date": shown for 3 s when the agent is done (and on opening), then it fades away.
+  const idle = state.status !== "running";
+  const [caughtUp, setCaughtUp] = useState(idle);
+  useEffect(() => {
+    if (!idle) return setCaughtUp(false);
+    setCaughtUp(true);
+    const t = setTimeout(() => setCaughtUp(false), 3000);
+    return () => clearTimeout(t);
+  }, [idle]);
   const runs = useMemo(() => {
     const entries: Entry[] = [
       ...state.timeline.map((t) => (t.kind === "user" ? { kind: "user" as const, seq: t.seq, text: t.text, route: t.route, testId: t.testId, by: t.by } : { kind: "agent" as const, seq: t.seq, text: t.text, route: t.route })),
@@ -414,9 +423,9 @@ export function AgentActivity({ state, people }: { state: ProjectState; people: 
           </div>
         );
       })}
-      {/* Caught up: a small ASCII star under the last message (not while the agent works). */}
-      {state.status !== "running" && (
-        <div className="flex flex-col items-center gap-1 pt-3 text-[11px] text-ink-500">
+      {/* Caught up: a small ASCII star under the last message for 3 s (not while the agent works). */}
+      {idle && (
+        <div className={clsx("flex flex-col items-center gap-1 pt-3 text-[11px] text-ink-500 transition-opacity duration-700", caughtUp ? "opacity-100" : "opacity-0")}>
           <AsciiSpark neon className="text-[11px] leading-none" />
           You&apos;re up to date
         </div>
