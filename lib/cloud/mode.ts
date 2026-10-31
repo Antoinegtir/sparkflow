@@ -70,7 +70,8 @@ export const ownerOf = (projectId: string) => load().owners[projectId] ?? null;
 export function ownerProfile(projectId: string): (Profile & { uid: string }) | null {
   const d = load();
   const uid = d.owners[projectId];
-  return uid ? { uid, ...(d.profiles[uid] ?? { name: "Owner", email: "", avatar: null, gh: "" }) } : null;
+  // Not known yet (a session from before profiles): null, so the owner's next session records it.
+  return uid && d.profiles[uid] ? { uid, ...d.profiles[uid] } : null;
 }
 
 /** This cloud server as a sharing host: links and guests name it, like a Mac's server uid. */

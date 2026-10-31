@@ -65,14 +65,17 @@ export function ShareDialog({ projectId, appName, onClose, onChanged }: { projec
   // The owner's name and avatar come from a signed proof, once (or again if the server forgot it).
   useEffect(() => {
     void (async () => {
-      const s = await load();
-      if (!s || s.owner || claimed.current || !s.serverUid) return;
-      claimed.current = true;
-      // In the cloud the owner's face comes from their cloud sign-in: a fresh session records it.
+      // In the cloud the owner's face comes from their cloud sign-in: a fresh session records it, each time
+      // the dialog opens (so a new name or picture from Settings shows up).
       if (isCloud()) {
+        if (claimed.current) return;
+        claimed.current = true;
         if (await refreshCloudProfile()) await load();
         return;
       }
+      const s = await load();
+      if (!s || s.owner || claimed.current || !s.serverUid) return;
+      claimed.current = true;
       if (!(await requireSignIn("Sign in so the people you invite see who shares this app."))) return;
       try {
         const proof = await writeProof(s.serverUid);
