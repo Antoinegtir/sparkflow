@@ -1,5 +1,6 @@
 "use client";
 
+import { AsciiSpark } from "../AsciiLoader";
 import clsx from "clsx";
 import {
   Box,
@@ -413,8 +414,15 @@ export function AgentActivity({ state, people }: { state: ProjectState; people: 
           </div>
         );
       })}
-      {/* Room under the last item, so the newest one sits higher in the panel than its bottom edge. */}
-      <div aria-hidden className="h-[35vh] shrink-0" />
+      {/* Caught up: a small ASCII star under the last message (not while the agent works). */}
+      {state.status !== "running" && (
+        <div className="flex flex-col items-center gap-1 pt-3 text-[11px] text-ink-500">
+          <AsciiSpark className="text-[11px] leading-none" />
+          You&apos;re up to date
+        </div>
+      )}
+      {/* Room under the last item (about a quarter of the panel), so the newest sits above the bottom edge. */}
+      <div aria-hidden className="h-[27%] shrink-0" />
     </div>
   );
 }
