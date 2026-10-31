@@ -109,8 +109,8 @@ export function MacSetupMini({ projectId, onFound, lost }: { projectId?: string;
   }, [projectId]);
   return (
     <div className="space-y-2 px-2.5 py-2">
+      <p className="text-[11px] text-ink-500">Either one is enough</p>
       <div className="flex items-center gap-1.5">
-        <span className="mr-1 text-[11px] text-ink-500">One of</span>
         {TOOLS.map((t) => (
           <a
             key={t.name}
@@ -118,11 +118,10 @@ export function MacSetupMini({ projectId, onFound, lost }: { projectId?: string;
             target="_blank"
             rel="noreferrer"
             title={`${t.name} (${t.note})`}
-            className="flex items-center gap-1.5 rounded-lg border border-[var(--line)] bg-white/[0.02] py-1 pr-2 pl-1 text-[11.5px] text-ink-200 transition hover:border-spark-500/50">
+            className="flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-[var(--line)] bg-white/[0.02] py-1 pr-2 pl-1 text-[11.5px] text-ink-200 transition hover:border-spark-500/50">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={t.icon} alt="" className="size-5 object-contain" />
             {t.name}
-            <span className="text-[10px] text-ink-500">opt.</span>
           </a>
         ))}
       </div>
