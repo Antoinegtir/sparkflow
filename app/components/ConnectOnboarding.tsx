@@ -16,6 +16,8 @@ export const TOOLS = [
   { name: "Android Studio", note: "Android emulator", href: "https://developer.android.com/studio", icon: "/tools/android-studio.png" },
 ];
 const POLL_MS = 2000;
+/** Set once sparkflow answered on this computer: the setup then only shows how to start it. */
+export const MAC_SEEN = "sparkflow.macSeen";
 /** Where `sparkflow` serves on this computer; /api/connect hands out its tunnel link (see remote.mjs). */
 const LOCAL = "http://localhost:3002";
 
@@ -74,6 +76,14 @@ export function CopyLine({ text, small }: { text: string; small?: boolean }) {
  */
 export function MacSetupMini({ projectId, onFound, lost }: { projectId?: string; onFound?: () => void; lost?: boolean }) {
   const [found, setFound] = useState(false);
+  // sparkflow already ran on this Mac once: no install steps again, only the command to start it.
+  const [seen] = useState(() => {
+    try {
+      return !!localStorage.getItem(MAC_SEEN);
+    } catch {
+      return false;
+    }
+  });
   const found$ = useRef(onFound);
   found$.current = onFound;
   // Listens for sparkflow starting on this Mac: then confetti, and the app opens there (the same code,
@@ -92,6 +102,9 @@ export function MacSetupMini({ projectId, onFound, lost }: { projectId?: string;
       }
       stop = true;
       setFound(true);
+      try {
+        localStorage.setItem(MAC_SEEN, "1");
+      } catch {}
       // Only when sparkflow started while this waited, not each time the page loads with it running.
       if (waited) confetti();
       // From the cloud: the app stays there, the simulators of this Mac show up in the menu.
@@ -109,31 +122,35 @@ export function MacSetupMini({ projectId, onFound, lost }: { projectId?: string;
   }, [projectId]);
   return (
     <div className="space-y-2 px-2.5 py-2">
-      <p className="text-[11px] text-ink-500">Either one is enough</p>
-      <div className="flex items-center gap-1.5">
-        {TOOLS.map((t) => (
-          <a
-            key={t.name}
-            href={t.href}
-            target="_blank"
-            rel="noreferrer"
-            title={`${t.name} (${t.note})`}
-            className="flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-[var(--line)] bg-white/[0.02] py-1 pr-2 pl-1 text-[11.5px] text-ink-200 transition hover:border-spark-500/50">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={t.icon} alt="" className="size-5 object-contain" />
-            {t.name}
-          </a>
-        ))}
-      </div>
-      {lost && (
-        <p className="rounded-lg border border-amber-400/30 bg-amber-400/10 px-2.5 py-1.5 text-[11.5px] text-amber-200">
-          sparkflow stopped on this Mac. Run it again to get your simulators back.
-        </p>
+      {seen ? (
+        <>
+          <p className="text-[11px] text-ink-500">{lost ? "sparkflow stopped on this Mac. Start it again for your simulators:" : "Start sparkflow for your simulators:"}</p>
+          <CopyLine text="sparkflow" small />
+        </>
+      ) : (
+        <>
+          <p className="text-[11px] text-ink-500">Either one is enough</p>
+          <div className="flex items-center gap-1.5">
+            {TOOLS.map((t) => (
+              <a
+                key={t.name}
+                href={t.href}
+                target="_blank"
+                rel="noreferrer"
+                title={`${t.name} (${t.note})`}
+                className="flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-[var(--line)] bg-white/[0.02] py-1 pr-2 pl-1 text-[11.5px] text-ink-200 transition hover:border-spark-500/50">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={t.icon} alt="" className="size-5 object-contain" />
+                {t.name}
+              </a>
+            ))}
+          </div>
+          <p className="text-[11px] text-ink-500">1. Install once</p>
+          <CopyLine text={INSTALL} small />
+          <p className="text-[11px] text-ink-500">2. Start it, then open this app again</p>
+          <CopyLine text="sparkflow" small />
+        </>
       )}
-      <p className="text-[11px] text-ink-500">1. Install once</p>
-      <CopyLine text={INSTALL} small />
-      <p className="text-[11px] text-ink-500">2. Start it, then open this app again</p>
-      <CopyLine text="sparkflow" small />
       <div className="flex items-center gap-2 rounded-lg border border-[var(--line)] bg-black/20 px-3 py-2 text-[11.5px]">
         {found ? (
           <span className="text-emerald-300">Connected · opening this app on your Mac…</span>

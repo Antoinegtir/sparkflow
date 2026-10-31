@@ -17,6 +17,10 @@ export async function findMac(): Promise<boolean> {
     .catch(() => null);
   const was = !!link;
   link = r?.token ? { token: r.token } : null;
+  if (link)
+    try {
+      localStorage.setItem("sparkflow.macSeen", "1");
+    } catch {}
   if (was !== !!link) dispatchEvent(new Event(MAC_EVENT));
   return !!link;
 }
