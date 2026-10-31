@@ -15,6 +15,19 @@ export const TOOLS = [
   { name: "Xcode", note: "iOS Simulator", href: "https://apps.apple.com/app/xcode/id497799835", icon: "/tools/xcode.png" },
   { name: "Android Studio", note: "Android emulator", href: "https://developer.android.com/studio", icon: "/tools/android-studio.png" },
 ];
+/**
+ * Windows (WSL included: the browser runs on Windows) and Linux have no iOS Simulator: Android Studio
+ * only there. Read after mounting (the page is prerendered for a Mac).
+ */
+export function useTools() {
+  const [noXcode, setNoXcode] = useState(false);
+  useEffect(() => {
+    const ua = navigator.userAgent;
+    setNoXcode(/Windows|Linux|CrOS/.test(ua) && !/Android|Mac OS X/.test(ua));
+  }, []);
+  return { tools: noXcode ? TOOLS.slice(1) : TOOLS, mac: !noXcode };
+}
+
 const POLL_MS = 2000;
 /** Set once sparkflow answered on this computer: the setup then only shows how to start it. */
 export const MAC_SEEN = "sparkflow.macSeen";
@@ -76,6 +89,7 @@ export function CopyLine({ text, small }: { text: string; small?: boolean }) {
  */
 export function MacSetupMini({ projectId, onFound, lost }: { projectId?: string; onFound?: () => void; lost?: boolean }) {
   const [found, setFound] = useState(false);
+  const { tools, mac } = useTools();
   // sparkflow already ran on this Mac once: no install steps again, only the command to start it.
   const [seen] = useState(() => {
     try {
@@ -129,9 +143,9 @@ export function MacSetupMini({ projectId, onFound, lost }: { projectId?: string;
         </>
       ) : (
         <>
-          <p className="text-[11px] text-ink-500">Either one is enough</p>
+          {mac && <p className="text-[11px] text-ink-500">Either one is enough</p>}
           <div className="flex items-center gap-1.5">
-            {TOOLS.map((t) => (
+            {tools.map((t) => (
               <a
                 key={t.name}
                 href={t.href}
@@ -153,7 +167,7 @@ export function MacSetupMini({ projectId, onFound, lost }: { projectId?: string;
       )}
       <div className="flex items-center gap-2 rounded-lg border border-[var(--line)] bg-black/20 px-3 py-2 text-[11.5px]">
         {found ? (
-          <span className="text-emerald-300">Connected · opening this app on your Mac…</span>
+          <span className="text-emerald-300">Connected · opening this app on your {mac ? "Mac" : "computer"}…</span>
         ) : (
           <>
             <span className="relative flex size-2">
@@ -220,6 +234,7 @@ function confetti() {
  */
 export function ConnectOnboarding() {
   const [connected, setConnected] = useState(false);
+  const { tools, mac } = useTools();
   const done = useRef(false);
 
   useEffect(() => {
@@ -278,7 +293,7 @@ export function ConnectOnboarding() {
           </span>
           <h1 className="text-2xl font-semibold tracking-tight">Connect your computer</h1>
           <p className="mt-2 max-w-sm text-balance text-[14px] leading-relaxed text-ink-400">
-            Sparkflow builds and runs your apps on your Mac. Your code and your Muse Spark key never leave it.
+            Sparkflow builds and runs your apps on your {mac ? "Mac" : "computer, in the Android emulator"}. Your code and your Muse Spark key never leave it.
           </p>
         </div>
 
@@ -288,8 +303,8 @@ export function ConnectOnboarding() {
               <span className={clsx(num, "border-[var(--line)] text-ink-300")}>1</span>
               <p className="mb-1 text-[14px] font-medium">Get the simulators</p>
               <p className="mb-3 text-[12.5px] text-ink-500">Your apps run in them. Skip what you already have.</p>
-              <div className="grid grid-cols-2 gap-2">
-                {TOOLS.map((t) => (
+              <div className={clsx("grid gap-2", mac ? "grid-cols-2" : "grid-cols-1")}>
+                {tools.map((t) => (
                   <a
                     key={t.name}
                     href={t.href}

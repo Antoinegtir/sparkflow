@@ -27,7 +27,11 @@ bold "Checking your computer"
 OS="$(uname)"
 case "$OS" in
   Darwin) ok "macOS $(sw_vers -productVersion) ($(uname -m))" ;;
-  Linux) warn "Linux: Expo builds work, the iOS Simulator features don't" ;;
+  Linux)
+    # WSL runs Linux inside Windows: same as Linux here (the Android emulator, no iOS Simulator).
+    if grep -qi microsoft /proc/version 2>/dev/null; then ok "Windows (WSL), $(uname -m)"; else ok "Linux ($(uname -m))"; fi
+    warn "No iOS Simulator off a Mac: your apps run in the Android emulator (Android Studio)"
+    ;;
   *) die "Unsupported system: $OS (macOS or Linux)" ;;
 esac
 

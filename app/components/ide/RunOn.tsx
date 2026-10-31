@@ -1,6 +1,6 @@
 "use client";
 
-import { MacSetupMini, TOOLS } from "../ConnectOnboarding";
+import { MacSetupMini, TOOLS, useTools } from "../ConnectOnboarding";
 import clsx from "clsx";
 import { Check, ChevronDown, Globe, Loader2, Monitor, QrCode, Smartphone, Tablet } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
@@ -152,6 +152,8 @@ export function RunOnMenu({
   const onLive = native || state.previewDevice === "simulator";
   const preview = PREVIEW_DEVICES.find((d) => d.id === state.previewDevice);
 
+  // No iOS Simulator off a Mac (Windows, WSL, Linux): Android Studio only.
+  const hasXcode = useTools().mac;
   // This Mac's sparkflow, from the cloud or not.
   const call = (p: string, init?: RequestInit) => (cloud ? macFetch(p, init) : fetch(p, init));
   // Which tools are installed: one without a device yet gets "create your first one" instead of a download.
@@ -260,7 +262,7 @@ export function RunOnMenu({
                 </p>
               )}
               {/* Either one is enough: the missing one is offered, to complete the setup. */}
-              {devices && !devices.some((d) => d.kind !== "android") && <InstallTool tool={TOOLS[0]} what="iOS Simulator" app="xcode" installed={tools?.xcode} call={call} />}
+              {devices && hasXcode && !devices.some((d) => d.kind !== "android") && <InstallTool tool={TOOLS[0]} what="iOS Simulator" app="xcode" installed={tools?.xcode} call={call} />}
               {devices && !devices.some((d) => d.kind === "android") && <InstallTool tool={TOOLS[1]} what="Android emulator" app="androidStudio" installed={tools?.androidStudio} call={call} />}
             </>
           ) : (
