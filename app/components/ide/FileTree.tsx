@@ -145,6 +145,8 @@ type Props = {
   state: ProjectState;
   focused: string | null;
   onOpenPage: (route: string) => void;
+  /** Back to every page on the canvas (shown while a page is open). */
+  onAllPages?: () => void;
   onOpenFile: (path: string) => void;
   /** A file or folder just deleted: the code view and the prompt let go of it. */
   onDeleted?: (path: string) => void;
@@ -158,7 +160,7 @@ type Props = {
 };
 
 /** Explorer: pages (with status), assets (Finder-like, drag & drop) and source files. */
-export function FileTree({ projectId, state, focused, onOpenPage, onOpenFile, onDeleted, onImported, queued = 0, active, reveal }: Props) {
+export function FileTree({ projectId, state, focused, onOpenPage, onAllPages, onOpenFile, onDeleted, onImported, queued = 0, active, reveal }: Props) {
   const [files, setFiles] = useState<string[]>(state.tree);
   const [cwd, setCwd] = useState("assets");
   const [selected, setSelected] = useState<string | null>(null);
@@ -636,6 +638,14 @@ export function FileTree({ projectId, state, focused, onOpenPage, onOpenFile, on
       onDrop={dropOn(cwd)}>
       <div className="flex h-9 shrink-0 items-center gap-2 border-b border-[var(--line)] px-3 text-[11px] font-semibold uppercase tracking-wide text-ink-400">
         Explorer {native && <span className="rounded bg-sky-400/15 px-1.5 py-0.5 text-[10px] text-sky-300">iOS</span>}
+        {focused && onAllPages && (
+          <button
+            onClick={onAllPages}
+            title="Back to every page"
+            className="ml-auto flex cursor-pointer items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium normal-case tracking-normal text-ink-400 hover:bg-ink-800 hover:text-ink-100">
+            <LayoutGrid size={12} /> All pages
+          </button>
+        )}
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">
         {order.map((id) => {

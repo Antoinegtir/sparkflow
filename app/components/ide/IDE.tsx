@@ -681,6 +681,7 @@ export function IDE({ id, slug: initialSlug, initialPage, access: given, basePat
           state={state}
           focused={focused}
           onOpenPage={open}
+          onAllPages={close}
           onImported={(files) => files.forEach((f) => addFileContext(f))}
           onDeleted={(path) => {
             const gone = (f?: string | null) => !!f && (f === path || f.startsWith(path + "/"));
