@@ -170,7 +170,8 @@ export function RunOnMenu({
   /** From the cloud: boots the device on this Mac, then Sparkflow Dev there loads the cloud's Metro. */
   async function openFromCloud(d: Device) {
     onDone();
-    const url = state.preview?.expoGoUrl;
+    // The cloud's Metro through its https tunnel: its plain TCP one (Expo Go's) doesn't load in Sparkflow Dev.
+    const url = state.preview?.webUrl ?? state.preview?.expoGoUrl;
     if (!url) return alert("The app's preview is still starting in the cloud: try again in a few seconds.");
     onSwitching?.(d.name);
     try {
