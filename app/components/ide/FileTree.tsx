@@ -42,6 +42,27 @@ const pickedFiles = (list: FileList | null): Picked[] =>
   [...(list ?? [])].filter((f) => !f.name.startsWith(".")).map((file) => ({ file, dir: (file.webkitRelativePath || "").split("/").slice(0, -1).join("/") }));
 
 /** The landing's folder emoji (as on "Import from a React Native project"); it tilts open when dragged onto. */
+/** An image asset's thumbnail: a shimmering tile until it has loaded (a second or so from the cloud). */
+function AssetThumb({ src }: { src: string }) {
+  const [loaded, setLoaded] = useState(false);
+  return (
+    <span className="relative grid size-11 place-items-center">
+      {!loaded && <span aria-hidden className="absolute inset-0 animate-pulse rounded-md bg-ink-800" />}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src}
+        alt=""
+        onLoad={() => setLoaded(true)}
+        onError={() => setLoaded(true)}
+        ref={(el) => {
+          if (el?.complete && el.naturalWidth) setLoaded(true);
+        }}
+        className={clsx("max-h-11 max-w-full rounded object-contain transition-opacity duration-300", loaded ? "opacity-100" : "opacity-0")}
+      />
+    </span>
+  );
+}
+
 function FolderIcon({ open, size = 44 }: { open?: boolean; size?: number }) {
   return (
     // eslint-disable-next-line @next/next/no-img-element
@@ -513,8 +534,7 @@ export function FileTree({ projectId, state, focused, onOpenPage, onOpenFile, on
                     {e.dir ? (
                       <FolderIcon open={hoverFolder === e.path} />
                     ) : IMAGE.test(name) ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={`/api/projects/${projectId}/files?raw&path=${encodeURIComponent(e.path)}`} alt="" className="max-h-11 max-w-full rounded object-contain" />
+                      <AssetThumb src={`/api/projects/${projectId}/files?raw&path=${encodeURIComponent(e.path)}`} />
                     ) : (
                       <File size={26} className="text-ink-500" />
                     )}
