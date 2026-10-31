@@ -12,7 +12,7 @@ import { dataDir } from "../sandbox/util";
 export const CLOUD = process.env.SPARKFLOW_CLOUD === "1";
 
 /** Agent runs (new apps and changes) a person may start per day. */
-export const DAILY_RUNS = Number(process.env.SPARKFLOW_CLOUD_DAILY_RUNS ?? 12);
+export const DAILY_RUNS = Number(process.env.SPARKFLOW_CLOUD_DAILY_RUNS ?? 3);
 /**
  * No daily limit until this date (the hackathon's judging, through the closing ceremony on Nov 9, ET),
  * then DAILY_RUNS a person. Both are Cloud Run env vars, changed without a rebuild.
