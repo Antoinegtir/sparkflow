@@ -314,6 +314,9 @@ export function IDE({ id, slug: initialSlug, initialPage, access: given, basePat
   const send = useCallback(
     async (text: string, image?: MediaInput, audio?: MediaInput, routeOverride?: string | null, plain = false, attachments?: MediaInput[]) => {
       askToNotify();
+      // Each request sent: the panel shows the agent at work.
+      setTab("activity");
+      setPanelOpen(true);
       const route = routeOverride !== undefined ? (routeOverride ?? undefined) : (focused ?? undefined);
       // `plain`: a request that isn't about what is selected (queued ones, canvas actions) leaves the selection alone.
       const picked = plain ? [] : selections;
