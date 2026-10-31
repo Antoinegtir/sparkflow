@@ -27,7 +27,7 @@ import { PromptBar, type Selection } from "./PromptBar";
 import { ShareDialog } from "./ShareDialog";
 import { TopBar } from "./TopBar";
 import { askToNotify, markTitle, notify } from "@/lib/web/notify";
-import { getBackend } from "@/lib/web/backend";
+import { getBackend, isCloud } from "@/lib/web/backend";
 import { pushToCloud } from "@/lib/web/sync";
 
 const PANEL_KEY = "sparkflow-panel-width";
@@ -147,7 +147,8 @@ export function IDE({ id, slug: initialSlug, initialPage, access: given, basePat
         if (!state.native && state.previewDevice === "simulator") {
           const shot = s.devices?.simulator?.[scheme];
           if (shot && shot.version >= s.version) return { ...x, screenshotUrl: shot.url };
-          return s.screenshotUrl ? { ...x, deviceLoading: true } : x;
+          // From the cloud the pages aren't captured in the Mac's Simulator: its own screenshots stay.
+          return s.screenshotUrl && !isCloud() ? { ...x, deviceLoading: true } : x;
         }
         // Web: other preview devices get their own capture, so pages keep that device's proportions.
         const device = shotDevice(state.previewDevice);
@@ -490,7 +491,7 @@ export function IDE({ id, slug: initialSlug, initialPage, access: given, basePat
   // or are older than the page. The Simulator is driven meanwhile, so it shows a spinner.
   const triedSim = useRef(new Set<string>());
   useEffect(() => {
-    if (!state || state.native || state.previewDevice !== "simulator" || !sim.device || state.status === "running" || simFrozen) return;
+    if (!state || state.native || state.previewDevice !== "simulator" || !sim.device || state.status === "running" || simFrozen || isCloud()) return;
     const stale = state.order.filter((r) => state.screens[r] && state.screens[r].devices?.simulator?.[scheme]?.version !== state.screens[r].version);
     const key = `${scheme}:` + stale.map((r) => `${r}@${state.screens[r].version}`).join(",");
     if (!stale.length || triedSim.current.has(key)) return;
