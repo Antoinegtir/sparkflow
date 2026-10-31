@@ -6,7 +6,7 @@ COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
 # typescript is a dev dependency but the server parses the apps' code with it (Layout, rename): kept.
-RUN npm run build && npm prune --omit=dev && npm install --no-save --no-audit --no-fund "typescript@$(node -p "require('./package.json').devDependencies.typescript")"
+RUN npm run build && npm prune --omit=dev && npm install --no-save --omit=dev --no-audit --no-fund "typescript@$(node -p "require('./package.json').devDependencies.typescript")"
 
 FROM node:22-bookworm-slim
 # git and tar: the Modal driver packs the app template from here.
