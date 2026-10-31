@@ -57,14 +57,6 @@
 | <img width="40px" src="https://cdn.simpleicons.org/apple/white" alt="Apple" /> | **iOS Simulator** | Where the app runs and gets looked at, with its accessibility tree. |
 | <img width="40px" src="https://cdn.simpleicons.org/android/3DDC84" alt="Android" /> | **Android emulator** | Same, on Android, through adb and uiautomator. |
 
-### Why "Sparkflow"?
-
-[![Sparkflow](./.github/assets/hero.png)](https://sparkflow-ai.web.app)
-
-A **spark** is the idea: a sentence, a sketch on paper, a voice memo. The **flow** is everything that has to happen before that idea is an app you can hold: screens, navigation, code, assets, and someone checking that each screen really looks like what was asked.
-
-Most code generators stop at the code. Sparkflow keeps going until the app **looks at itself**: it opens what it built in a live preview, screenshots every page, checks each one against what it promised, and sends what doesn't match back to be fixed. The tagline on the landing is the whole idea: mobile apps that look at themselves.
-
 ### How it works
 
 | Step | | What happens |
@@ -80,7 +72,6 @@ Most code generators stop at the code. Sparkflow keeps going until the app **loo
 ## Contents
 
 - [Overview](#overview)
-  - [Why "Sparkflow"?](#why-sparkflow)
   - [How it works](#how-it-works)
 - [Features](#features)
 - [Meta models](#meta-models)
