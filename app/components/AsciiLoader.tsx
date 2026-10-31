@@ -87,7 +87,7 @@ export function AsciiLoader({ label }: { label: string }) {
 const SPARK = ["  .  ", " .+. ", ".+*+.", "+*#*+", "*#@#*", "+*#*+", ".+*+.", " .+. "];
 
 /** A one-line sparkle for small waits (the top bar), cycling through the ramp. */
-export function AsciiSpark({ className }: { className?: string }) {
+export function AsciiSpark({ className, neon }: { className?: string; neon?: boolean }) {
   const [i, setI] = useState(0);
   useEffect(() => {
     if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
@@ -95,7 +95,9 @@ export function AsciiSpark({ className }: { className?: string }) {
     return () => clearInterval(t);
   }, []);
   return (
-    <span aria-hidden className={`whitespace-pre font-mono text-spark-300 [text-shadow:0_0_6px_rgba(96,165,250,0.5)] ${className ?? ""}`}>
+    <span
+      aria-hidden
+      className={`whitespace-pre font-mono ${neon ? "text-[#4cc9ff] [text-shadow:0_0_4px_#4cc9ff,0_0_10px_rgba(76,201,255,0.85),0_0_20px_rgba(0,140,255,0.6)]" : "text-spark-300 [text-shadow:0_0_6px_rgba(96,165,250,0.5)]"} ${className ?? ""}`}>
       {SPARK[i]}
     </span>
   );

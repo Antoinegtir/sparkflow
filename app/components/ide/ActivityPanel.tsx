@@ -253,6 +253,8 @@ function CodeView({
         )}
         {file && !IMAGE.test(file) && !CODE.test(file) && draft == null && !error && <p className="p-4 text-[12px] text-ink-500">Binary file.</p>}
         {error && <p className="px-4 py-2 text-[12px] text-red-400">{error}</p>}
+        {/* The file on its way (about a second from the cloud): code lines, shimmering. */}
+        {file && CODE.test(file) && draft == null && !error && <CodeSkeleton />}
         {draft != null && file && (
           <CodeEditor projectId={projectId} file={file} value={draft} line={line} diagnostics={diags} onChange={setDraft} onOpenFile={(p, l) => onFile(p, l)} onSelection={setSel} />
         )}
@@ -262,3 +264,22 @@ function CodeView({
 }
 
 export type { NavEdge };
+
+/** While a file loads: the shape of code, indented and shimmering. */
+function CodeSkeleton() {
+  const lines: [number, number][] = [[0, 42], [0, 30], [0, 0], [0, 55], [1, 48], [2, 60], [2, 38], [1, 22], [1, 52], [2, 44], [3, 58], [2, 26], [1, 18], [0, 12], [0, 0], [0, 46], [1, 36]];
+  return (
+    <div className="space-y-2 p-4" aria-label="Loading the file">
+      {lines.map(([indent, w], i) =>
+        w ? (
+          <div key={i} className="flex items-center gap-3">
+            <span className="w-4 shrink-0 text-right font-mono text-[10px] text-ink-700">{i + 1}</span>
+            <span className="h-2.5 animate-pulse rounded bg-ink-800" style={{ marginLeft: indent * 16, width: `${w}%`, animationDelay: `${i * 50}ms` }} />
+          </div>
+        ) : (
+          <div key={i} className="h-2.5" />
+        ),
+      )}
+    </div>
+  );
+}
