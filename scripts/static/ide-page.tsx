@@ -8,13 +8,15 @@ import { ConnectOnboarding } from "@/app/components/ConnectOnboarding";
 import { IDE } from "@/app/components/ide/IDE";
 import { SharedShell } from "@/app/components/SharedShell";
 import type { ProjectSummary } from "@/lib/shared";
-import { backendReady, getBackend, setMode } from "@/lib/web/backend";
+import { backendReady, getBackend, isCloud, setMode } from "@/lib/web/backend";
 import { ensureCloud } from "@/lib/web/cloud";
+import { pullBySlug, reconcile, takeCarry } from "@/lib/web/sync";
 
 type Found = { id: string; slug: string; page: string[] };
-type State = { kind: "shared"; serverUid: string; projectId: string; page: string[] } | { kind: "loading" } | { kind: "offline" } | { kind: "missing" } | { kind: "demo" } | { kind: "found"; found: Found };
+type State = { kind: "shared"; serverUid: string; projectId: string; page: string[] } | { kind: "loading" } | { kind: "offline" } | { kind: "missing" } | { kind: "demo" } | { kind: "pulling" } | { kind: "found"; found: Found };
 
 let demoAsked = false;
+let pulled = false;
 
 export default function IdeShell() {
   const [state, setState] = useState<State>({ kind: "loading" });
@@ -32,18 +34,28 @@ export default function IdeShell() {
     if (!getBackend()) return setState({ kind: "offline" });
     // /connect: where the landing sends you when no computer answers; once connected, back to it.
     if (parts[0] === "connect") {
-      fetch("/api/projects", { cache: "no-store" })
-        .then((r) => (r.ok ? location.replace("/") : setState({ kind: "offline" })))
-        .catch(() => setState({ kind: "offline" }));
-      return;
+      const ok = await fetch("/api/projects", { cache: "no-store" }).then((r) => r.ok, () => false);
+      if (!ok) return setState({ kind: "offline" });
+      // Came from an app in the cloud ("Run on a real simulator"): it comes along, then opens here.
+      setState({ kind: "pulling" });
+      const slug = await takeCarry(getBackend()!).catch(() => null);
+      return location.replace(slug ? `/${slug}` : "/");
     }
     const [key, ...page] = parts[0] === "p" ? parts.slice(1) : parts;
     fetch("/api/projects", { cache: "no-store" })
       .then((r) => (r.ok ? (r.json() as Promise<ProjectSummary[]>) : Promise.reject(new Error(`HTTP ${r.status}`))))
-      .then((list) => {
+      .then(async (list) => {
         // The demo is /wander for everyone, whatever its own name in the cloud (wander-2…).
         const p = list.find((x) => x.slug === key) ?? list.find((x) => x.id === key) ?? (key === "wander" ? list.find((x) => x.prompt?.endsWith("(Sparkflow demo app)")) : undefined);
+        // On the Mac, the same code as in the cloud: the newer side's version first.
+        if (p && !isCloud()) await reconcile(getBackend()!, p.id, () => setState({ kind: "pulling" })).catch(() => {});
         if (p) return setState({ kind: "found", found: { id: p.id, slug: p.slug, page } });
+        // An app of the cloud's opened on the Mac for the first time: brought over.
+        if (!isCloud() && !pulled) {
+          pulled = true;
+          setState({ kind: "pulling" });
+          if (await pullBySlug(getBackend()!, key).catch(() => null)) return void open();
+        }
         // The Wander demo, gone from this computer (apps folder emptied, demo deleted): set it up again.
         if (key === "wander" && !demoAsked) {
           demoAsked = true;
@@ -70,6 +82,8 @@ export default function IdeShell() {
             Back to Sparkflow
           </a>
         </div>
+      ) : state.kind === "pulling" ? (
+        "Bringing the latest version of this app…"
       ) : state.kind === "demo" ? (
         "Setting up the Wander demo…"
       ) : (

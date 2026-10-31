@@ -11,5 +11,7 @@ const nextConfig: NextConfig = {
   outputFileTracingRoot: path.resolve("."),
   serverExternalPackages: ["modal", "playwright", "sharp", "@grpc/grpc-js", "@grpc/proto-loader", "typescript"],
   images: { unoptimized: true },
+  // A project moving between the cloud and a Mac (its git bundle) goes in one request.
+  experimental: { proxyClientMaxBodySize: "30mb" },
 };
 export default nextConfig;

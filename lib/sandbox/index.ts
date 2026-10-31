@@ -6,13 +6,16 @@ import type { SandboxDriver } from "./types";
 
 export * from "./types";
 
-/** modal when Modal credentials exist, else local. SPARKFLOW_SANDBOX forces one. */
+/**
+ * modal in the cloud (SPARKFLOW_CLOUD) when Modal credentials exist, else local: a Mac with a Modal
+ * token of its own still builds on itself. SPARKFLOW_SANDBOX forces one.
+ */
 export async function createDriver(): Promise<SandboxDriver> {
   const forced = process.env.SPARKFLOW_SANDBOX;
   const hasModal =
     (process.env.MODAL_TOKEN_ID && process.env.MODAL_TOKEN_SECRET) ||
     existsSync(process.env.MODAL_CONFIG_PATH ?? path.join(os.homedir(), ".modal.toml"));
-  if (forced === "modal" || (!forced && hasModal)) {
+  if (forced === "modal" || (!forced && process.env.SPARKFLOW_CLOUD === "1" && hasModal)) {
     try {
       const { ModalDriver } = await import("./modal");
       return new ModalDriver();

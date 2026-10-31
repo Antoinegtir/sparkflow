@@ -68,6 +68,8 @@ export type AppSettings = {
   iconBackground: string;
 };
 
+export type SyncPackage = { meta: ProjectMeta; events: string; bundle: string; shots: string[] };
+
 export class BusyError extends Error {
   constructor() {
     super("The agent is already working on this project.");
@@ -943,6 +945,58 @@ export class Orchestrator {
     const bytes = await sb.readFileBytes(".expo/sparkflow-export.zip");
     await sb.exec("rm -f .expo/sparkflow-export.zip");
     return { name: `${slug(rt.state.name)}.zip`, bytes };
+  }
+
+  // ---------- one source between the cloud and a Mac ----------
+
+  /**
+   * The project as another Sparkflow takes it over: its meta, its history and its whole git repository (a
+   * bundle). Screenshots go one by one after (`shots` names them), a request each.
+   */
+  async exportSync(id: string): Promise<SyncPackage> {
+    const rt = await this.runtime(id);
+    if (rt.meta.native) throw new Error("Native projects stay on their Mac");
+    if (rt.running) throw new BusyError();
+    const sb = await this.sandbox(rt);
+    const r = await sb.exec("mkdir -p .expo && git bundle create .expo/sparkflow-sync.bundle --all", { timeoutSec: 120 });
+    if (r.code) throw new Error(r.stderr || "Could not bundle the project");
+    const bundle = (await sb.readFileBytes(".expo/sparkflow-sync.bundle")).toString("base64");
+    await sb.exec("rm -f .expo/sparkflow-sync.bundle");
+    const events = (await this.store.readEvents(id)).map((e) => JSON.stringify(e) + "\n").join("");
+    return { meta: rt.meta, events, bundle, shots: await this.store.listShots(id) };
+  }
+
+  /**
+   * Takes over a project from another Sparkflow: the same id, its code checked out at the same commit, its
+   * history; the last one opened wins. Returns the screenshots still to send.
+   */
+  async importSync(pkg: SyncPackage): Promise<{ id: string; slug: string; missing: string[] }> {
+    const { meta } = pkg;
+    this.store.dir(meta.id);
+    const current = await this.runtimes.get(meta.id)?.catch(() => null);
+    if (current?.running) throw new BusyError();
+    const sb = await (await this.driverP).open(meta.id);
+    await sb.writeFile(".expo/sparkflow-sync.bundle", Buffer.from(pkg.bundle, "base64"));
+    const r = await sb.exec(
+      [
+        "before=$(git rev-parse HEAD 2>/dev/null || true)",
+        // Its checked-out commit (branches are named master on a Mac, main in the cloud).
+        "git fetch -q -f .expo/sparkflow-sync.bundle HEAD",
+        "git reset -q --hard FETCH_HEAD",
+        "rm -f .expo/sparkflow-sync.bundle",
+        // New dependencies (a package added on the other side): installed here too.
+        `if [ -z "$before" ] || ! git diff --quiet "$before" HEAD -- package.json; then npm install --no-audit --no-fund >/tmp/sparkflow-sync-npm.log 2>&1 || true; fi`,
+      ].join(" && "),
+      { timeoutSec: 600 },
+    );
+    if (r.code) throw new Error(r.stderr || "Could not check out the project");
+    await sb.persist?.().catch(() => {});
+    await this.store.replace({ ...meta, native: undefined }, pkg.events);
+    // Read again from disk on next use, with the history just written.
+    this.runtimes.delete(meta.id);
+    const have = new Set(await this.store.listShots(meta.id));
+    const found = (await this.listProjects()).find((p) => p.id === meta.id);
+    return { id: meta.id, slug: found?.slug ?? meta.id, missing: pkg.shots.filter((n) => !have.has(n)) };
   }
 
   // ---------- dark mode ----------

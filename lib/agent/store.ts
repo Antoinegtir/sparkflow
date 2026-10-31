@@ -64,6 +64,17 @@ export class ProjectStore {
     return `/api/projects/${id}/shots/${file}`;
   }
 
+  async listShots(id: string) {
+    return readdir(path.join(this.dir(id), "shots")).catch(() => [] as string[]);
+  }
+
+  /** A project brought over from another Sparkflow (the cloud, a Mac): its meta and history replace these. */
+  async replace(meta: ProjectMeta, events: string) {
+    await mkdir(path.join(this.dir(meta.id), "shots"), { recursive: true });
+    await this.updateMeta(meta);
+    await writeFile(path.join(this.dir(meta.id), "events.jsonl"), events);
+  }
+
   readShot(id: string, name: string) {
     return readFile(path.join(this.dir(id), "shots", safeShot(name)));
   }

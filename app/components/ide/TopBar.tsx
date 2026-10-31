@@ -1,6 +1,7 @@
 "use client";
 
-import { isCloud, setBackend, setMode } from "@/lib/web/backend";
+import { getBackend, isCloud, setBackend, setMode } from "@/lib/web/backend";
+import { carryToMac } from "@/lib/web/sync";
 import clsx from "clsx";
 import { Command, Play, Settings, Smartphone, UserPlus, UserRound } from "lucide-react";
 import { useState } from "react";
@@ -93,6 +94,9 @@ export function TopBar(p: Props) {
         {owner && cloud && (
           <button
             onClick={() => {
+              // The app comes along to the Mac, the same code there.
+              const from = getBackend();
+              if (from?.cloud) carryToMac(from, s.id);
               setMode("mac");
               setBackend(null);
               location.href = "/connect";

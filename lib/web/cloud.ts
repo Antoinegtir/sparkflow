@@ -1,7 +1,7 @@
 "use client";
 
 import { auth, requireSignIn } from "./auth";
-import { getBackend, getMode, setBackend, setMode } from "./backend";
+import { getBackend, getMode, setBackend, setMode, type Backend } from "./backend";
 
 /**
  * Sparkflow in the cloud (Cloud Run, sandboxes on Modal), in two regions: the Americas use the US one
@@ -29,13 +29,46 @@ export const CLOUD_URL = (typeof window === "undefined" ? REGIONS.eu : REGIONS[n
 export async function connectCloud(anchor?: Element | null): Promise<{ runsLeft: number; dailyRuns: number }> {
   if (!CLOUD_URL) throw new Error("Sparkflow in the cloud isn't available yet.");
   if (!(await requireSignIn("Sign in to build in the cloud.", anchor))) throw new Error("Sign in to build in the cloud.");
+  const json = await openSession();
+  setMode("cloud");
+  setBackend(json.backend);
+  return { runsLeft: json.runsLeft, dailyRuns: json.dailyRuns };
+}
+
+const SESSION = "sparkflow.cloudSession";
+
+/** Trades the signed-in account for a session key with the cloud server (kept for `cloudSession`). */
+async function openSession(): Promise<{ backend: Backend; runsLeft: number; dailyRuns: number }> {
   const idToken = await auth().currentUser!.getIdToken();
   const res = await fetch(`${CLOUD_URL}/api/cloud/session`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ idToken }) });
   const json = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(json.error ?? `The cloud answered ${res.status}.`);
-  setMode("cloud");
-  setBackend({ url: CLOUD_URL, token: json.token, cloud: true });
-  return { runsLeft: json.runsLeft, dailyRuns: json.dailyRuns };
+  const backend: Backend = { url: CLOUD_URL, token: json.token, cloud: true };
+  try {
+    localStorage.setItem(SESSION, JSON.stringify(backend));
+  } catch {}
+  return { backend, runsLeft: json.runsLeft, dailyRuns: json.dailyRuns };
+}
+
+/**
+ * The cloud, reached alongside the Mac (to keep both on the same code): the current cloud backend, the
+ * saved session, or a new one when signed in. Never asks to sign in; null without an account.
+ */
+export async function cloudSession(fresh = false): Promise<Backend | null> {
+  const b = getBackend();
+  if (b?.cloud && !fresh) return b;
+  if (!fresh) {
+    try {
+      const saved = JSON.parse(localStorage.getItem(SESSION) ?? "null") as Backend | null;
+      if (saved?.url === CLOUD_URL && saved.token) return saved;
+    } catch {}
+  }
+  if (!CLOUD_URL) return null;
+  await auth().authStateReady();
+  if (!auth().currentUser) return null;
+  return openSession()
+    .then((s) => s.backend)
+    .catch(() => null);
 }
 
 /**

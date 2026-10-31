@@ -1,7 +1,8 @@
 // Modal sandbox driver. Written against the modal SDK's types; not exercised by the local smoke test.
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { ModalClient, type App, type Image, type Sandbox as ModalSandbox, type Volume } from "modal";
 import { execIn, walk } from "./local";
@@ -45,6 +46,19 @@ class ModalProjectSandbox implements Sandbox {
     return Buffer.from(r.stdout, "base64");
   }
   async writeFile(rel: string, content: string | Buffer) {
+    // A big file (a project's git bundle): copied over in one go.
+    if (content.length > 512 * 1024) {
+      const tmp = path.join(os.tmpdir(), `sparkflow-${this.id}-${Date.now()}`);
+      await writeFile(tmp, content);
+      try {
+        const r = await this.exec(`mkdir -p "$(dirname -- ${q(rel)})"`);
+        if (r.code) throw new Error(r.stderr);
+        await this.sb.filesystem.copyFromLocal(tmp, rel.startsWith("/") ? rel : `/app/${rel}`);
+      } finally {
+        await rm(tmp, { force: true });
+      }
+      return;
+    }
     const b64 = Buffer.from(content).toString("base64");
     // A command line holds 64 KB at most: a bigger file (an image) goes in chunks, appended in order.
     const CHUNK = 48_000;

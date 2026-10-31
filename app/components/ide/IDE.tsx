@@ -27,6 +27,8 @@ import { PromptBar, type Selection } from "./PromptBar";
 import { ShareDialog } from "./ShareDialog";
 import { TopBar } from "./TopBar";
 import { askToNotify, markTitle, notify } from "@/lib/web/notify";
+import { getBackend } from "@/lib/web/backend";
+import { pushToCloud } from "@/lib/web/sync";
 
 const PANEL_KEY = "sparkflow-panel-width";
 const EXPLORER_KEY = "sparkflow-explorer-width";
@@ -294,6 +296,9 @@ export function IDE({ id, slug: initialSlug, initialPage, access: given, basePat
     if (!state) return;
     const prev = lastStatus.current;
     lastStatus.current = state.status;
+    // A run on the Mac that changed something: the cloud gets the new code too, for when the Mac is off.
+    const b = getBackend();
+    if (prev === "running" && state.status !== "running" && !guest && b && !b.cloud) void pushToCloud(b, id);
     if (prev !== "running" || state.status === "running" || state.status === "stopped" || state.status === "idle") return;
     const ok = state.status === "done";
     const verified = state.order.filter((r) => state.screens[r]?.status === "done").length;

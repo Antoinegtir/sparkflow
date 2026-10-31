@@ -100,6 +100,8 @@ function cloudGate(req: NextRequest, headers: Headers, given: string | undefined
   if (!s) return fail(req, 401, given?.startsWith("sfc_") ? "expired" : "signin");
   const as = { "x-sparkflow-actor": "owner", "x-sparkflow-uid": s.uid, "x-sparkflow-cloud": "1" };
   const runOut = () => cors(req, NextResponse.json({ error: "You've used today's agent runs in the cloud. Come back tomorrow, or install Sparkflow on your Mac.", code: "quota" }, { status: 429 }));
+  // A project brought over from a Mac: the route checks it isn't someone else's.
+  if ((pathname === "/api/sync" || pathname === "/api/sync/shot") && req.method === "POST") return cors(req, pass(req, headers, as));
   if (pathname === "/api/file-icon" || (pathname === "/api/demo" && req.method === "POST")) return cors(req, pass(req, headers, as));
   if (pathname === "/api/projects") {
     if (req.method === "POST" && !takeRun(s.uid)) return runOut();
