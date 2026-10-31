@@ -46,8 +46,18 @@ class ModalProjectSandbox implements Sandbox {
   }
   async writeFile(rel: string, content: string | Buffer) {
     const b64 = Buffer.from(content).toString("base64");
-    const r = await this.exec(`mkdir -p "$(dirname -- ${q(rel)})" && echo ${q(b64)} | base64 -d > ${q(rel)}`);
+    // A command line holds 64 KB at most: a bigger file (an image) goes in chunks, appended in order.
+    const CHUNK = 48_000;
+    const tmp = `${rel}.sparkflow-part`;
+    const r = await this.exec(`mkdir -p "$(dirname -- ${q(rel)})" && : > ${q(tmp)}`);
     if (r.code) throw new Error(r.stderr);
+    for (let i = 0; i < b64.length || i === 0; i += CHUNK) {
+      const w = await this.exec(`printf %s ${q(b64.slice(i, i + CHUNK))} >> ${q(tmp)}`);
+      if (w.code) throw new Error(w.stderr);
+      if (!b64.length) break;
+    }
+    const d = await this.exec(`base64 -d ${q(tmp)} > ${q(rel)} && rm -f ${q(tmp)}`);
+    if (d.code) throw new Error(d.stderr);
   }
   async listFiles(dir?: string) {
     const r = await this.exec(
