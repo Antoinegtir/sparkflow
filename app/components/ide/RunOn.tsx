@@ -1,5 +1,6 @@
 "use client";
 
+import { MacSetupMini } from "../ConnectOnboarding";
 import clsx from "clsx";
 import { Check, ChevronDown, Globe, Loader2, Monitor, QrCode, Smartphone, Tablet } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
@@ -171,7 +172,7 @@ export function RunOnMenu({
               {devices?.length === 0 && <p className="px-2.5 py-2 text-[12px] text-ink-500">No simulator or emulator installed: add one in Xcode or Android Studio.</p>}
             </>
           ) : (
-            <p className="px-2.5 py-2 text-[12px] text-ink-500">Needs Xcode (iOS Simulator) or Android Studio (emulator) on this computer.</p>
+            <MacSetupMini />
           )}
 
           {!native && (

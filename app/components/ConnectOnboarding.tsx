@@ -7,10 +7,10 @@ import { getBackend, setBackend, setMode } from "@/lib/web/backend";
 import { DotLens } from "./DotLens";
 import { LoopVideo } from "./LoopVideo";
 
-const INSTALL = "curl -fsSL https://sparkflow-ai.web.app/install.sh | bash";
+export const INSTALL = "curl -fsSL https://sparkflow-ai.web.app/install.sh | bash";
 
 /** What runs the apps: each opens its official download page. */
-const TOOLS = [
+export const TOOLS = [
   { name: "Xcode", note: "iOS Simulator", href: "https://apps.apple.com/app/xcode/id497799835", icon: "/tools/xcode.png" },
   { name: "Android Studio", note: "Android · optional", href: "https://developer.android.com/studio", icon: "/tools/android-studio.png" },
 ];
@@ -46,10 +46,10 @@ async function steady(): Promise<boolean> {
   return true;
 }
 
-function CopyLine({ text }: { text: string }) {
+export function CopyLine({ text, small }: { text: string; small?: boolean }) {
   const [copied, setCopied] = useState(false);
   return (
-    <div className="group flex items-center gap-3 rounded-xl border border-[var(--line)] bg-black/40 py-2.5 pl-4 pr-2 font-mono text-[12.5px] text-ink-100">
+    <div className={clsx("group flex items-center gap-3 rounded-xl border border-[var(--line)] bg-black/40 pr-2 font-mono text-ink-100", small ? "py-1.5 pl-3 text-[11px]" : "py-2.5 pl-4 text-[12.5px]")}>
       <span className="select-none text-ink-500">$</span>
       <span className="min-w-0 flex-1 truncate">{text}</span>
       <button
@@ -63,6 +63,38 @@ function CopyLine({ text }: { text: string }) {
         aria-label="Copy">
         {copied ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
       </button>
+    </div>
+  );
+}
+
+/**
+ * The Mac setup in a few lines, for a menu (the device picker): the tools it needs, as their logos
+ * linking to their downloads, the install command, then `sparkflow`.
+ */
+export function MacSetupMini() {
+  return (
+    <div className="space-y-2 px-2.5 py-2">
+      <div className="flex items-center gap-1.5">
+        <span className="mr-1 text-[11px] text-ink-500">Requires</span>
+        {TOOLS.map((t) => (
+          <a
+            key={t.name}
+            href={t.href}
+            target="_blank"
+            rel="noreferrer"
+            title={`${t.name} (${t.note})`}
+            className="flex items-center gap-1.5 rounded-lg border border-[var(--line)] bg-white/[0.02] py-1 pr-2 pl-1 text-[11.5px] text-ink-200 transition hover:border-spark-500/50">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={t.icon} alt="" className="size-5 object-contain" />
+            {t.name}
+            {/optional/.test(t.note) && <span className="text-[10px] text-ink-500">opt.</span>}
+          </a>
+        ))}
+      </div>
+      <p className="text-[11px] text-ink-500">1. Install once</p>
+      <CopyLine text={INSTALL} small />
+      <p className="text-[11px] text-ink-500">2. Start it, then open this app again</p>
+      <CopyLine text="sparkflow" small />
     </div>
   );
 }
