@@ -91,15 +91,11 @@ export function MacSetupMini({ projectId, onFound }: { projectId?: string; onFou
       confetti();
       // From the cloud: the app stays there, the simulators of this Mac show up in the menu.
       if (found$.current) return found$.current();
-      const from = getBackend();
-      const mac = { url: link.url.replace(/\/+$/, ""), token: link.token };
-      setMode("mac");
-      setBackend(mac);
-      if (from?.cloud && projectId) {
-        carryToMac(from, projectId);
-        const slug = await takeCarry(mac).catch(() => null);
-        location.href = slug ? `/${slug}` : location.pathname;
-      } else setTimeout(() => location.reload(), 1200);
+      // Shown on the Mac side means its link went stale: the app goes back to the cloud, where this
+      // menu then lists the Mac's simulators (the code stays in the cloud).
+      setMode("cloud");
+      setBackend(null);
+      setTimeout(() => location.reload(), 900);
     };
     void tick();
     return () => {
