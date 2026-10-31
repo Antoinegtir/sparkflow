@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { preload } from "react-dom";
 import { PhoneSteps } from "./PhoneSteps";
 
 /** How much bigger than its first size the phone is drawn (its screen's content grows with it). */
@@ -49,6 +50,9 @@ const ROTATE_VH = 0.04;
 const SLIDE_VH = 0.1;
 
 export function ScrollVideo({ src, className, children }: { src: string; className?: string; children?: React.ReactNode }) {
+  // Fetched from the HTML's head (a preload link in the static page), so the download starts before
+  // hydration; the effect's fetch() then reuses it (same CORS mode, so it isn't downloaded twice).
+  preload(src, { as: "fetch", crossOrigin: "anonymous" });
   const section = useRef<HTMLDivElement>(null);
   const video = useRef<HTMLVideoElement>(null);
   const after = useRef<HTMLDivElement>(null);
@@ -171,7 +175,8 @@ export function ScrollVideo({ src, className, children }: { src: string; classNa
       raf = requestAnimationFrame(tick);
       // Ease toward the scroll position so fast flicks stay smooth.
       // Not loaded yet: nothing to show, and nothing to ease toward (it lands on the spot when it loads).
-      if (v.readyState >= 2) shown += (target - shown) * 0.1;
+      // Also while a seek is pending (Safari reports metadata only then): a stalled seek can then be re-asked.
+      if (v.readyState >= 2 || v.seeking) shown += (target - shown) * 0.1;
       // No easing on the squash: it follows the scroll exactly, so the divider never lags into a thick bar.
       grown = grow;
       slid += (slide - slid) * 0.1;
@@ -212,8 +217,13 @@ export function ScrollVideo({ src, className, children }: { src: string; classNa
       // The phone stays centred; the content beside it adapts instead.
       v.style.transform = `scaleY(${MIN_SCALE + (1 - MIN_SCALE) * grown})`;
       // Skip while the previous seek is still decoding: queuing seeks is what makes it stutter.
-      if (v.duration && !v.seeking && Math.abs(v.currentTime - shown * v.duration) > 0.01) {
-        v.currentTime = Math.min(v.duration - 0.04, shown * v.duration);
+      // A seek still pending after 400 ms is stuck (Safari): it is asked again.
+      const stuck = v.seeking && performance.now() - seekAt > 400;
+      const want = Math.min(v.duration - 0.04, shown * v.duration);
+      if (v.duration && (stuck || (!v.seeking && Math.abs(v.currentTime - want) > 0.01))) {
+        seekAt = performance.now();
+        // The same time as the pending seek counts as no seek for WebKit: nudged.
+        v.currentTime = stuck && Math.abs(v.currentTime - want) < 0.001 ? Math.max(0, want - 0.001) : want;
       }
     };
     measure();
@@ -223,13 +233,74 @@ export function ScrollVideo({ src, className, children }: { src: string; classNa
       if (target > 0) shown = target;
     };
     if (v.readyState < 2) v.addEventListener("loadeddata", late, { once: true });
+    // Safari sometimes never loads a video that doesn't play (Low Power Mode, a tab restored from the
+    // back-forward cache) and can stall seeking into ranges it hasn't fetched: the phone then stays on
+    // frame 0, edge-on. The whole clip (a few hundred KB) is fetched once and played from memory, and
+    // a muted play-then-pause makes Safari decode it.
+    let blobUrl = "";
+    let disposed = false;
+    const kick = () => {
+      if (disposed || v.readyState >= 2) return;
+      const p = v.play();
+      if (p) p.then(() => v.pause(), () => {});
+    };
+    // Play refused (Low Power Mode): a seek still makes Safari fetch and decode a frame. Kept for the
+    // load() after a back-forward cache restore.
+    const prime = () => {
+      if (v.readyState < 2 && v.currentTime === 0) v.currentTime = 0.001;
+    };
+    v.addEventListener("loadedmetadata", prime);
+    // The source is set once, here (not in the markup): swapping it later would blank the phone for a moment.
+    const use = (url: string) => {
+      if (disposed || v.getAttribute("src")) return;
+      v.src = url;
+      v.load();
+      kick();
+    };
+    // Streamed instead if the download is slow or fails.
+    const ac = new AbortController();
+    const fallback = setTimeout(() => {
+      ac.abort();
+      use(src);
+    }, 4000);
+    // Aborted on unmount too (phones and narrow windows unmount the phone after hydration).
+    void fetch(src, { signal: ac.signal })
+      .then((r) => (r.ok ? r.blob() : Promise.reject(new Error(String(r.status)))))
+      .then((b) => {
+        clearTimeout(fallback);
+        if (disposed || v.getAttribute("src")) return;
+        blobUrl = URL.createObjectURL(b);
+        use(blobUrl);
+      })
+      .catch(() => {
+        clearTimeout(fallback);
+        use(src);
+      });
+    // When the last seek was asked: one Safari never finishes (`seeking` stuck) is asked again (see tick).
+    let seekAt = 0;
     raf = requestAnimationFrame(tick);
     addEventListener("scroll", onScroll, { passive: true });
     addEventListener("wheel", interrupt, { passive: true });
     addEventListener("touchstart", interrupt, { passive: true });
     addEventListener("keydown", interrupt);
     addEventListener("resize", measure);
+    // Back from the back-forward cache: the page's scroll may have moved, and Safari may have dropped the video.
+    const onShow = (e: PageTransitionEvent) => {
+      if (!e.persisted) return;
+      measure();
+      if (v.readyState < 2) {
+        v.load();
+        kick();
+      }
+    };
+    addEventListener("pageshow", onShow);
     return () => {
+      disposed = true;
+      ac.abort();
+      clearTimeout(fallback);
+      v.removeEventListener("loadedmetadata", prime);
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
+      removeEventListener("pageshow", onShow);
       cancelAnimationFrame(raf);
       v.removeEventListener("loadeddata", late);
       removeEventListener("scroll", onScroll);
@@ -240,7 +311,7 @@ export function ScrollVideo({ src, className, children }: { src: string; classNa
       removeEventListener("keydown", interrupt);
       removeEventListener("resize", measure);
     };
-  }, []);
+  }, [src]);
   return (
     // Pulled up by half the clip so its middle line (the edge-on phone) lands just below what's above,
     // less half of what the phone grew so the taller phone stands up clear of the prompts above.
@@ -255,7 +326,6 @@ export function ScrollVideo({ src, className, children }: { src: string; classNa
       <div className="pointer-events-none sticky flex justify-center mix-blend-screen" style={{ top: `calc(50vh - ${SIZE} / 2)` }}>
         <video
           ref={video}
-          src={src}
           muted
           playsInline
           preload="auto"
