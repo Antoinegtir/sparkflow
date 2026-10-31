@@ -86,7 +86,8 @@ class ModalProjectSandbox implements Sandbox {
     const tcp = tunnels[8082];
     await this.exec("pkill -f 'expo start' || true; pkill socat || true");
     // Long-running processes are execs of their own, left running (an exec's children end with it).
-    const proxyUrl = https.url.replace(/^https:/, "http:");
+    // The bundle URLs Metro hands out: Modal's encrypted tunnel answers https only (http doesn't connect).
+    const proxyUrl = https.url;
     await this.sb.exec(["bash", "-lc", `EXPO_PACKAGER_PROXY_URL=${q(proxyUrl)} BROWSER=none EXPO_NO_TELEMETRY=1 exec npx expo start --port 8081 > /tmp/metro.log 2>&1`], { workdir: "/app" } as never);
     await this.sb.exec(["bash", "-lc", "exec socat TCP-LISTEN:8082,fork,reuseaddr TCP:127.0.0.1:8081 > /dev/null 2>&1"], { workdir: "/app" } as never);
     const deadline = Date.now() + 180_000;

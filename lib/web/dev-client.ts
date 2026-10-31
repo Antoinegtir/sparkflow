@@ -305,6 +305,21 @@ async function tapDialogs(udid: string, watch: number) {
   return taps;
 }
 
+/**
+ * simctl openurl waits until the link is handled, which the "Open in Sparkflow Dev?" dialog holds up:
+ * the dialog is tapped while it waits, and a time-out after that (the app still opened) isn't an error.
+ */
+async function openUrl(device: string, url: string, watch: number) {
+  const opening = simctl("openurl", device, url).then(
+    () => null,
+    (e: Error) => e,
+  );
+  const taps = await tapDialogs(device, watch);
+  const err = await opening;
+  if (err && !/timed out|code=60/i.test(err.message)) throw err;
+  return taps;
+}
+
 async function isRunning(device: string) {
   if (android.isAndroidId(device)) return !!(await android.adb(device, "shell", "pidof", BUNDLE).catch(() => Buffer.from(""))).toString("utf8").trim();
   return (await simctl("spawn", device, "launchctl", "list").catch(() => "")).includes(`UIKitApplication:${BUNDLE}`);
@@ -337,14 +352,8 @@ export async function openInDevClient(device: string, url: string, appPath = "/"
     return 0;
   }
   let taps = 0;
-  if (fresh) {
-    await simctl("openurl", device, devClientLink(metro));
-    taps += await tapDialogs(device, watch);
-  }
-  if (page) {
-    await simctl("openurl", device, page);
-    taps += await tapDialogs(device, fresh ? watch : Math.min(watch, 3));
-  }
+  if (fresh) taps += await openUrl(device, devClientLink(metro), watch);
+  if (page) taps += await openUrl(device, page, fresh ? watch : Math.min(watch, 3));
   loaded.set(device, metro);
   return taps;
 }
