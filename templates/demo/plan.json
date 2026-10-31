@@ -49,7 +49,7 @@
         "A full-width travel photo fills the top of the screen, with the featured destination's name in large white text",
         "A rounded, translucent search bar with the text “Where to?” floats over the photo, near the top",
         "A row of filters (All, Beaches, Mountains…) is visible, with the first one highlighted",
-        "Photo cards of popular destinations, each with its name and a rating pill, appear below the filters",
+        "Photo cards of popular destinations, each with a rating pill, start below the filters",
         "A bottom tab bar shows Explore, Trips, Saved and Profile"
       ]
     },
