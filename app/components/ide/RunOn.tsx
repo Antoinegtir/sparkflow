@@ -187,6 +187,9 @@ export function RunOnMenu({
       const res = await macFetch(`/api/sim/${encodeURIComponent(udid)}/open`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ url }) });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error ?? "Could not open the app");
+      // The canvas shows the live device now (its calls go to this Mac, see BackendShim).
+      window.dispatchEvent(new Event(SIM_CHANGED));
+      onDevice("simulator");
     } catch (err) {
       alert((err as Error).message);
     } finally {
@@ -335,7 +338,7 @@ function InstallTool({ tool, what, app, installed, call }: { tool: (typeof TOOLS
         <span className="flex-1">
           Create your first {what}
           <span className="block text-[11px] leading-snug text-ink-500">
-            {app === "androidStudio" ? "Device Manager → + → a Pixel → Finish" : "Window → Devices and Simulators → +"}
+            {app === "androidStudio" ? "Device Manager > + > a Pixel > Finish" : "Window > Devices and Simulators > +"}
           </span>
         </span>
         <button

@@ -2,6 +2,7 @@
 
 import { backendUrl, getBackend, STATIC_SITE } from "@/lib/web/backend";
 import { activeShare, activeShareBackend, guestSrc } from "@/lib/web/share";
+import { macBackend } from "@/lib/web/mac";
 
 /**
  * Routes the IDE's server calls (`/api/...` in fetch, EventSource, img/iframe/link URLs) to the
@@ -13,7 +14,16 @@ import { activeShare, activeShareBackend, guestSrc } from "@/lib/web/share";
 function install() {
   if (typeof window === "undefined") return;
   const isApi = (u: unknown): u is string => typeof u === "string" && u.startsWith("/api/");
-  const rewrite = (value: string) => (!isApi(value) ? value : activeShare() ? guestSrc(value) : STATIC_SITE ? backendUrl(value) : value);
+  // In the cloud, the simulator and emulator calls go to sparkflow on this Mac once it's found.
+  const isSim = (u: string) => /^\/api\/sim(\/|\?|$)/.test(u);
+  const simMac = (u: string) => (STATIC_SITE && isSim(u) && getBackend()?.cloud ? macBackend() : null);
+  const rewrite = (value: string) => {
+    if (!isApi(value)) return value;
+    if (activeShare()) return guestSrc(value);
+    const mac = simMac(value);
+    if (mac) return `${mac.url}${value}${value.includes("?") ? "&" : "?"}token=${encodeURIComponent(mac.token)}`;
+    return STATIC_SITE ? backendUrl(value) : value;
+  };
 
   const nativeFetch = window.fetch.bind(window);
   window.fetch = (input, init) => {
@@ -26,7 +36,7 @@ function install() {
       headers.set("x-sparkflow-token", b.token);
       return nativeFetch(b.url + input, { ...init, headers, credentials: "omit" });
     }
-    const b = STATIC_SITE ? getBackend() : null;
+    const b = simMac(input) ?? (STATIC_SITE ? getBackend() : null);
     if (!b) return nativeFetch(input, init);
     const headers = new Headers(init?.headers);
     headers.set("x-sparkflow-token", b.token);

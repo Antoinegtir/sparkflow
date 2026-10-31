@@ -21,7 +21,11 @@ export async function findMac(): Promise<boolean> {
     try {
       localStorage.setItem("sparkflow.macSeen", "1");
     } catch {}
-  if (was !== !!link) dispatchEvent(new Event(MAC_EVENT));
+  if (was !== !!link) {
+    dispatchEvent(new Event(MAC_EVENT));
+    // The simulator's state (supported, booted device) now comes from this Mac, or no longer does.
+    dispatchEvent(new Event("sparkflow-sim-changed"));
+  }
   return !!link;
 }
 
@@ -34,3 +38,6 @@ export function macFetch(path: string, init: RequestInit = {}) {
   headers.set("x-sparkflow-token", link.token);
   return fetch(LOCAL_URL + path, { ...init, headers });
 }
+
+/** sparkflow on this Mac as a backend (url, token), for the shim to send the simulator's calls there. */
+export const macBackend = () => (link ? { url: LOCAL_URL, token: link.token } : null);

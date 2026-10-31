@@ -1,5 +1,6 @@
 "use client";
 
+import { isCloud } from "./backend";
 import { useSyncExternalStore } from "react";
 import { expoGoPath, type ProjectState } from "@/lib/shared";
 
@@ -55,7 +56,9 @@ export async function openInSimulator(udid: string, preview: NonNullable<Project
     // Quiet: the app is already up, only its page changes; no "Opening…" overlay (failures still show).
     if (!opts.quiet) set({ phase: "opening", platform, started: Date.now() });
     try {
-      if (preview.expoGoUrl) await post(`/api/sim/${udid}/open`, { url: preview.expoGoUrl, path: expoGoPath(path, route) });
+      // From the cloud: its Metro through the https tunnel (the plain TCP one doesn't load in Sparkflow Dev).
+      const metro = isCloud() ? preview.webUrl : preview.expoGoUrl;
+      if (metro && (isCloud() || preview.expoGoUrl)) await post(`/api/sim/${udid}/open`, { url: metro, path: expoGoPath(path, route) });
       else await post(`/api/sim/${udid}/launch`, { url: preview.webUrl + path });
     } catch (e) {
       if (id === seq) set({ phase: "error", platform, started: state.started, error: String((e as Error)?.message ?? e) });
