@@ -135,6 +135,20 @@ export function RunOnMenu({
     };
   }, [cloud, mac]);
 
+  // While open, from the cloud: sparkflow stopped on the Mac → the list goes, the setup asks to run it again.
+  const [lost, setLost] = useState(false);
+  useEffect(() => {
+    if (!cloud || !mac) return;
+    const t = setInterval(() => {
+      void findMac().then((up) => {
+        if (up) return;
+        setLost(true);
+        setMac(false);
+      });
+    }, 2000);
+    return () => clearInterval(t);
+  }, [cloud, mac]);
+
   const onLive = native || state.previewDevice === "simulator";
   const preview = PREVIEW_DEVICES.find((d) => d.id === state.previewDevice);
 
@@ -250,7 +264,7 @@ export function RunOnMenu({
               {devices && !devices.some((d) => d.kind === "android") && <InstallTool tool={TOOLS[1]} what="Android emulator" app="androidStudio" installed={tools?.androidStudio} call={call} />}
             </>
           ) : (
-            <MacSetupMini projectId={state.id} onFound={cloud ? () => void findMac().then(setMac) : undefined} />
+            <MacSetupMini projectId={state.id} lost={lost} onFound={cloud ? () => void findMac().then(setMac) : undefined} />
           )}
 
           {!native && (

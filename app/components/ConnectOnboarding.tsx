@@ -72,7 +72,7 @@ export function CopyLine({ text, small }: { text: string; small?: boolean }) {
  * The Mac setup in a few lines, for a menu (the device picker): the tools it needs, as their logos
  * linking to their downloads, the install command, then `sparkflow`.
  */
-export function MacSetupMini({ projectId, onFound }: { projectId?: string; onFound?: () => void }) {
+export function MacSetupMini({ projectId, onFound, lost }: { projectId?: string; onFound?: () => void; lost?: boolean }) {
   const [found, setFound] = useState(false);
   const found$ = useRef(onFound);
   found$.current = onFound;
@@ -126,6 +126,11 @@ export function MacSetupMini({ projectId, onFound }: { projectId?: string; onFou
           </a>
         ))}
       </div>
+      {lost && (
+        <p className="rounded-lg border border-amber-400/30 bg-amber-400/10 px-2.5 py-1.5 text-[11.5px] text-amber-200">
+          sparkflow stopped on this Mac. Run it again to get your simulators back.
+        </p>
+      )}
       <p className="text-[11px] text-ink-500">1. Install once</p>
       <CopyLine text={INSTALL} small />
       <p className="text-[11px] text-ink-500">2. Start it, then open this app again</p>
