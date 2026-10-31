@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { uid } from "@/lib/id";
@@ -188,6 +189,9 @@ type State = {
   toggleSaved: (id: string) => void;
   addTrip: (t: Omit<Trip, "id">) => string;
   removeTrip: (id: string) => void;
+  /** The welcome slides have been seen (or skipped). */
+  onboarded: boolean;
+  setOnboarded: (v: boolean) => void;
 };
 
 export const useWander = create<State>()(
@@ -202,10 +206,23 @@ export const useWander = create<State>()(
         return id;
       },
       removeTrip: (id) => set((s) => ({ trips: s.trips.filter((t) => t.id !== id) })),
+      onboarded: false,
+      setOnboarded: (onboarded) => set({ onboarded }),
     }),
     { name: "wander-v2", storage: persistStorage },
   ),
 );
+
+/** True once the persisted store has loaded from storage (so `onboarded` is the saved value). */
+export function useWanderHydrated() {
+  const [hydrated, setHydrated] = useState(() => useWander.persist.hasHydrated());
+  useEffect(() => {
+    const unsub = useWander.persist.onFinishHydration(() => setHydrated(true));
+    setHydrated(useWander.persist.hasHydrated());
+    return unsub;
+  }, []);
+  return hydrated;
+}
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 

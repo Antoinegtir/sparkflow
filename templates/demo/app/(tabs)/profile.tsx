@@ -1,3 +1,4 @@
+import { router } from "expo-router";
 import { View } from "react-native";
 import { Avatar, Card, Header, List, ListItem, ProgressBar, Screen, Section, Segmented, Stat, Text, Toggle } from "@/components/kit";
 import { useAppearance } from "@/constants/theme";
@@ -52,6 +53,14 @@ export default function Profile() {
           <ListItem title="Currency" icon="cash-outline" right={<Text variant="caption">EUR €</Text>} />
           <ListItem title="Home airport" icon="airplane-outline" right={<Text variant="caption">CDG</Text>} />
           <ListItem title="Help & contact" icon="help-circle-outline" chevron onPress={() => {}} />
+          <ListItem
+            title="Replay onboarding"
+            icon="sparkles-outline"
+            chevron
+            testID="profile-replay-onboarding"
+            accessibilityLabel="Replay the welcome slides"
+            onPress={() => router.push("/welcome")}
+          />
         </List>
       </Section>
     </Screen>

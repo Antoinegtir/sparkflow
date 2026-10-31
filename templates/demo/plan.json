@@ -96,7 +96,7 @@
       "route": "/(tabs)/profile",
       "file": "app/(tabs)/profile.tsx",
       "title": "Profile",
-      "purpose": "The traveler's profile: avatar, yearly goal, stats, appearance picker and preferences.",
+      "purpose": "The traveler's profile: avatar, yearly goal, stats, appearance picker, preferences and a way to replay the onboarding.",
       "components": [
         "Avatar",
         "ProgressBar",
@@ -105,7 +105,9 @@
         "Toggle",
         "List"
       ],
-      "navigatesTo": [],
+      "navigatesTo": [
+        "/welcome"
+      ],
       "acceptance": [
         "A card shows an avatar with initials, the name “Camille Martin” and a progress bar",
         "A segmented control with Auto, Light and Dark is visible",
@@ -154,6 +156,26 @@
         "A duration row has minus and plus buttons around a number of nights",
         "An estimated budget in euros and a “Create trip” button are visible"
       ]
+    },
+    {
+      "route": "/welcome",
+      "file": "app/welcome.tsx",
+      "title": "Welcome",
+      "purpose": "Onboarding shown on first launch (iOS and Android): three swipeable full-screen destination photos with a headline each, page dots, Skip, and a Get started button on the last slide.",
+      "components": [
+        "Glass",
+        "Button"
+      ],
+      "navigatesTo": [
+        "/(tabs)/index"
+      ],
+      "acceptance": [
+        "A full-screen travel photo fills the whole screen, darker toward the bottom, with no tab bar",
+        "The headline “Find your next escape” is shown in large white text in the lower part of the screen, with a short white subtitle under it",
+        "A translucent “Wander” pill is at the top left and a “Skip” button at the top right",
+        "Three page dots (the first one wider) sit above a wide “Continue” button at the bottom"
+      ],
+      "previewPath": "/welcome"
     }
   ]
 }
