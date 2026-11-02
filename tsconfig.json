@@ -44,6 +44,6 @@
     ".next",
     ".next-server",
     ".next-static",
-    "blender"
+    "blender", "video"
   ]
 }
