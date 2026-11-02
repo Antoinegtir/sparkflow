@@ -5,6 +5,7 @@
 // or walks you through starting `sparkflow` first.
 import { useCallback, useEffect, useState } from "react";
 import { AsciiLoader } from "@/app/components/AsciiLoader";
+import { AppNotFound } from "@/app/components/AppNotFound";
 import { ConnectOnboarding } from "@/app/components/ConnectOnboarding";
 import { IDE } from "@/app/components/ide/IDE";
 import { SharedShell } from "@/app/components/SharedShell";
@@ -85,18 +86,11 @@ export default function IdeShell() {
   if (state.kind === "shared") return <SharedShell serverUid={state.serverUid} projectId={state.projectId} page={state.page} />;
   if (state.kind === "found") return <IDE id={state.found.id} slug={state.found.slug} initialPage={state.found.page} />;
   if (state.kind === "offline") return <ConnectOnboarding />;
+  // An address that matches none of your apps: a full-page 404 in the landing's style.
+  if (state.kind === "missing") return <AppNotFound name={location.pathname.split("/").filter(Boolean).map(decodeURIComponent).find((x) => x !== "p")} />;
   return (
     <div data-ide className="grid h-screen place-items-center text-center text-sm text-ink-400">
-      {state.kind === "missing" ? (
-        <div className="space-y-3">
-          <p>This app isn&apos;t on the connected computer.</p>
-          <a href="/" className="text-spark-400 hover:underline">
-            Back to Sparkflow
-          </a>
-        </div>
-      ) : (
-        <AsciiLoader label={state.kind === "pulling" ? "Bringing the latest version of this app…" : state.kind === "demo" ? "Setting up the Wander demo…" : "Connecting…"} />
-      )}
+      <AsciiLoader label={state.kind === "pulling" ? "Bringing the latest version of this app…" : state.kind === "demo" ? "Setting up the Wander demo…" : "Connecting…"} />
     </div>
   );
 }
