@@ -30,7 +30,76 @@ export async function generateImage(prompt: string, aspect: keyof typeof IMAGE_S
   throw new Error("Muse Image returned no image");
 }
 
-export type Segment = { label: string; x1: number; y1: number; x2: number; y2: number; w: number; h: number };
+/** The PCM samples and rate of a WAV (the browser sends 16 kHz mono 16-bit). */
+function wavPcm(wav: Buffer) {
+  let rate = 16000;
+  for (let off = 12; off + 8 <= wav.length; ) {
+    const id = wav.toString("ascii", off, off + 4);
+    const size = wav.readUInt32LE(off + 4);
+    if (id === "fmt ") rate = wav.readUInt32LE(off + 12);
+    if (id === "data") return { pcm: wav.subarray(off + 8, off + 8 + size), rate };
+    off += 8 + size + (size % 2);
+  }
+  throw new Error("Not a WAV file");
+}
+
+/**
+ * Muse Voice Transcribe: the words spoken in a WAV. The model is realtime (a WebSocket that takes 80 ms
+ * frames of 16-bit PCM); a recording is sent whole, then the stream is ended and the final text kept.
+ */
+export function transcribeSpeech(wav: Buffer, signal?: AbortSignal): Promise<string> {
+  const { pcm, rate } = wavPcm(wav);
+  if (rate !== 16000 && rate !== 24000) return Promise.reject(new Error(`Muse Voice Transcribe takes 16 or 24 kHz audio, not ${rate} Hz`));
+  const url = new URL("/v1/asr/realtime", base());
+  url.protocol = url.protocol === "http:" ? "ws:" : "wss:";
+  return new Promise((resolve, reject) => {
+    const ws = new WebSocket(url);
+    const finals: string[] = [];
+    let partial = "";
+    let settled = false;
+    const settle = (err?: Error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", abort);
+      if (ws.readyState <= WebSocket.OPEN) ws.close();
+      if (err) reject(err);
+      else resolve([...finals, partial].join(" ").replace(/\s+/g, " ").trim());
+    };
+    const abort = () => settle(new Error("Transcription aborted"));
+    const timer = setTimeout(() => settle(new Error("Muse Voice Transcribe timed out")), 30_000);
+    signal?.addEventListener("abort", abort);
+    ws.onopen = () => {
+      ws.send(
+        JSON.stringify({
+          authorization: { accessToken: `Bearer ${museKey()}` },
+          audioEncoding: rate === 16000 ? "PCM_16KHZ" : "PCM_24KHZ",
+          model: process.env.MUSE_TRANSCRIBE_MODEL ?? "muse-voice-transcribe-1.0",
+          mode: "PUSH_TO_TALK",
+          partialMode: "CUMULATIVE",
+          emitAudioProgress: false,
+        }),
+      );
+      const frame = (rate * 2 * 80) / 1000;
+      for (let i = 0; i < pcm.length; i += frame) ws.send(pcm.subarray(i, i + frame));
+      ws.send(JSON.stringify({ type: "endStream" }));
+    };
+    ws.onmessage = (e) => {
+      const m = JSON.parse(String(e.data)) as { type?: string; transcript?: string; final?: boolean; message?: string };
+      if (m.type === "error") return settle(new Error(`Muse Voice Transcribe: ${m.message ?? "error"}`));
+      if (m.type !== "transcript" && m.type !== "speechComplete") return;
+      // Partials are cumulative within a turn; a final one closes the turn.
+      if (m.final || m.type === "speechComplete") {
+        finals.push(m.transcript ?? "");
+        partial = "";
+      } else partial = m.transcript ?? "";
+    };
+    ws.onclose = (e) => settle(e.code === 1000 ? undefined : new Error(`Muse Voice Transcribe closed (${e.code}${e.reason ? `: ${e.reason}` : ""})`));
+    ws.onerror = () => settle(new Error("Muse Voice Transcribe: connection failed"));
+  });
+}
+
+export type Segment ={ label: string; x1: number; y1: number; x2: number; y2: number; w: number; h: number };
 
 export const UI_CONCEPTS = [
   "button", "text input field", "card", "list row", "icon", "image or photo placeholder",

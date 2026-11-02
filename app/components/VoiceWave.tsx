@@ -14,6 +14,7 @@ export function VoiceWave({ levels, seconds, onCancel, onDone }: { levels: numbe
           <span key={i} className="w-[3px] shrink-0 rounded-full bg-ink-200" style={{ height: `${Math.max(3, Math.round(l * 28))}px`, opacity: l > 0.04 ? 1 : 0.4 }} />
         ))}
       </div>
+      <span className="hidden shrink-0 text-[10.5px] text-ink-500 sm:inline">Muse Voice Transcribe</span>
       <span className="w-9 shrink-0 text-right text-[11px] tabular-nums text-ink-400">{Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, "0")}</span>
       <button onClick={onDone} aria-label="Finish dictation" className="grid size-8 shrink-0 cursor-pointer place-items-center rounded-full bg-spark-500 text-white hover:bg-spark-400">
         <Check size={15} />

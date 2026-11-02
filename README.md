@@ -15,7 +15,7 @@
 > [<img alt="Open Sparkflow" src="https://img.shields.io/badge/open-sparkflow--ai.web.app-0073FF?style=flat-square&labelColor=black" width="196px" />](https://sparkflow-ai.web.app) | Build in the cloud: the app in a web preview and on your phone with Expo Go. |
 > | :-----| :----- |
 > [<img alt="Install" src="https://img.shields.io/badge/install-one%20command-white?style=flat-square&labelColor=black&logo=gnubash&logoColor=white" width="196px" />](#quick-start) | For the real iOS Simulator and Android emulator: `curl -fsSL https://sparkflow-ai.web.app/install.sh \| bash`, then `sparkflow`. |
-> [<img alt="Meta Global AI Developer Hackathon" src="https://img.shields.io/badge/built%20for-Meta%20AI%20Hackathon-0064E0?style=flat-square&logo=meta&logoColor=white&labelColor=black" width="196px" />](#built-during-the-hackathon) | Built during the Meta Global AI Developer Hackathon, on Muse Spark, Muse Wonder, Muse Image and SAM 3.1. |
+> [<img alt="Meta Global AI Developer Hackathon" src="https://img.shields.io/badge/built%20for-Meta%20AI%20Hackathon-0064E0?style=flat-square&logo=meta&logoColor=white&labelColor=black" width="196px" />](#built-during-the-hackathon) | Built during the Meta Global AI Developer Hackathon, on Muse Spark, Muse Wonder, Muse Image, Muse Voice Transcribe and SAM 3.1. |
 > [<img alt="GitHub Follow" src="https://img.shields.io/github/followers/Antoinegtir?style=flat-square&logo=github&labelColor=black&color=24292f" width="196px" />](https://github.com/Antoinegtir) | Follow [@Antoinegtir](https://github.com/Antoinegtir) on GitHub for more projects. |
 
 <div align="center">
@@ -45,7 +45,7 @@
 
 ## Overview
 
-**Sparkflow** turns an idea into a native mobile app that checks its own work. You write a sentence, drop a paper sketch or a screenshot, or record a voice memo; it returns a real Expo project, verified screen by screen, that you can open on your phone, export or keep editing.
+**Sparkflow** turns an idea into a native mobile app that checks its own work. You write a sentence, drop a paper sketch or a screenshot, or just say it; it returns a real Expo project, verified screen by screen, that you can open on your phone, export or keep editing.
 
 | Logo | Built on | Role |
 |:---:|---|---|
@@ -97,7 +97,7 @@
 
 ## Features
 
-- **Three ways in** - a prompt, a sketch or a screenshot (PNG, JPEG, WebP, GIF; HEIC and PDF with Sparkflow on a Mac), a voice memo
+- **Three ways in** - a prompt, a sketch or a screenshot (PNG, JPEG, WebP, GIF; HEIC and PDF with Sparkflow on a Mac), or dictation: your words appear as you speak
 - **Visual verification** - every screen is checked on its screenshot against its own criteria, plus contrast, touch targets and overflow
 - **Nothing to install** - build in the cloud: each app gets its own sandbox, a live web preview and an Expo Go link
 - **Real devices when you want them** - with `sparkflow` on a Mac, the iOS Simulator and Android emulators stream into the browser, booted from the device menu; a cloud app opens there too, loading its code from the cloud
@@ -139,7 +139,7 @@ Sparkflow is an agent loop where each step is a Meta model, called through the [
 | Model | Where | What it does in Sparkflow |
 |---|---|---|
 | **Muse Spark 1.3** | Planner, Verifier | Reads the request (text, sketch, screenshot, PDF), writes the plan and the per-page acceptance criteria; then looks at each screenshot and returns a verdict with what to fix. Multimodal in both directions of the loop. |
-| **Muse Spark 1.2** | Planner with voice | Listens to a voice memo: requests with audio go to the audio-capable model (`MUSE_AUDIO_MODEL`). |
+| **Muse Voice Transcribe 1.0** | Dictation in every prompt box | Turns what you say into text while you talk, through its realtime API ([`lib/agent/meta.ts`](lib/agent/meta.ts)); the audio-capable Muse Spark 1.2 (`MUSE_AUDIO_MODEL`) takes over if it can't be reached. |
 | **Muse Wonder 1.0** | Builder | Writes the Expo and React Native code with tools (read, edit, type-check, generate assets), and fixes what the Verifier rejects. |
 | **Muse Image 1.0** | Builder tool `generate_image` | App icons, splash screens, photos and illustrations, written straight into the project's assets. |
 | **SAM 3.1** | Before planning, on an attached image | Cuts an attached sketch or screenshot into its parts (buttons, cards, lists) before the Planner runs, so the plan follows the drawing. |
@@ -153,7 +153,7 @@ Sparkflow was started at the kickoff of the Meta Global AI Developer Hackathon (
 | Area | What was built |
 |---|---|
 | Agent loop | Planner, Builder and Verifier on Meta models, the fix loop, per-page acceptance criteria, visual and accessibility checks |
-| Multimodal input | Prompts with sketches, screenshots, PDFs, HEIC photos and voice; SAM segmentation; Muse Image assets |
+| Multimodal input | Prompts with sketches, screenshots, PDFs, HEIC photos and dictation (Muse Voice Transcribe); SAM segmentation; Muse Image assets |
 | IDE | The canvas of pages and links, live devices, point-and-edit, code editor, layout tree, asset manager, history with diffs and restore, the Activity view of the loop |
 | Cloud | Sparkflow without installing anything: Cloud Run in Europe and the US, each app in its own Modal sandbox with a live web preview and Expo Go |
 | Mac and cloud together | The `sparkflow` CLI; the cloud's apps opened in the Mac's iOS Simulator and Android emulator, loading their code from the cloud |
@@ -332,7 +332,7 @@ Contributions are welcome:
 
 ## Acknowledgments
 
-- [Meta](https://llama.developer.meta.com) for Muse Spark, Muse Wonder, Muse Image and SAM 3.1
+- [Meta](https://llama.developer.meta.com) for Muse Spark, Muse Wonder, Muse Image, Muse Voice Transcribe and SAM 3.1
 - [Expo](https://expo.dev) and [React Native](https://reactnative.dev) for the apps Sparkflow writes
 - [Modal](https://modal.com) and [Google Cloud Run](https://cloud.google.com/run) for the cloud
 - [Playwright](https://playwright.dev) for the screenshots, [idb](https://fbidb.io) and adb for the live devices
