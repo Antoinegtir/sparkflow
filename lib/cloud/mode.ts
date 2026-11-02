@@ -14,10 +14,10 @@ export const CLOUD = process.env.SPARKFLOW_CLOUD === "1";
 /** Agent runs (new apps and changes) a person may start per day. */
 export const DAILY_RUNS = Number(process.env.SPARKFLOW_CLOUD_DAILY_RUNS ?? 3);
 /**
- * No daily limit until this date (the hackathon's judging, through the closing ceremony on Nov 9, ET),
- * then DAILY_RUNS a person. Both are Cloud Run env vars, changed without a rebuild.
+ * No daily limit until this date (the hackathon's judging, the closing ceremony on Nov 9 and the community
+ * vote through Nov 16, ET), then DAILY_RUNS a person. Both are Cloud Run env vars, changed without a rebuild.
  */
-const UNLIMITED_UNTIL = Date.parse(process.env.SPARKFLOW_CLOUD_UNLIMITED_UNTIL ?? "2026-11-10T05:00:00Z");
+const UNLIMITED_UNTIL = Date.parse(process.env.SPARKFLOW_CLOUD_UNLIMITED_UNTIL ?? "2026-11-17T05:00:00Z");
 const unlimited = () => Date.now() < UNLIMITED_UNTIL;
 const SESSION_DAYS = 7;
 
