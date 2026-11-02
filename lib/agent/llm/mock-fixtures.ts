@@ -2,6 +2,15 @@ import type { LLMPlan } from "../../shared";
 
 /** Scripted sample app used when no model key is set: "Habitly", a habit tracker. */
 export const MOCK_PLAN: LLMPlan = {
+  analysis: {
+    audience: "People building small daily routines",
+    coreJob: "Check habits off each day and see streaks",
+    keyFlows: ["Open the app and check today's habits", "Look at a habit's streak and history"],
+    deepNeeds: ["A streak that survives a missed day's grace", "Quick undo of a mistaken check"],
+    navigation: "tabs",
+    navigationWhy: "Today, Stats and Settings are peers visited daily",
+    screenCountWhy: "Three sections and one detail cover the flows",
+  },
   name: "Habitly",
   theme: { primary: "#7C3AED", background: "#F6F5FB", font: null },
   dataModel: [

@@ -31,7 +31,7 @@ class MuseProvider implements LLMProvider {
   chat(req: ChatRequest) {
     const model = req.model ?? this.modelFor(req.role, { hasAudio: hasAudio(req.messages) });
     return chatCompletions(
-      { baseUrl: env("MUSE_BASE_URL") ?? "https://api.meta.ai/v1", apiKey: this.apiKey, reasoningEffort: env("MUSE_REASONING_EFFORT") ?? "low" },
+      { baseUrl: env("MUSE_BASE_URL") ?? "https://api.meta.ai/v1", apiKey: this.apiKey, reasoningEffort: env(`MUSE_REASONING_EFFORT_${roleKey(req.role)}`) ?? env("MUSE_REASONING_EFFORT") ?? (req.role === "planner" ? "medium" : "low") },
       model,
       req,
     );

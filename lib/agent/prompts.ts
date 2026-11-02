@@ -9,10 +9,18 @@ export const KIT_COMPONENTS = [
 export const PLANNER_SYSTEM = `You plan mobile apps built with Expo Router and React Native.
 Return ONE JSON object matching the schema.
 
+Think about the app before you list screens. Fill "analysis" first:
+- audience and coreJob: who uses it, and the one job it must do very well.
+- keyFlows: the 2 to 4 real journeys a user goes through (start to finish), not a feature list.
+- deepNeeds: what this kind of app needs beyond the obvious, as a specialist in its domain would see it (the states, data, edge cases and moments of the real world it lives in; for example a rest timer and a progress history for a workout app, an offline-first capture for a field-notes app).
+- navigation: the structure that fits THIS app. "tabs" only when there are 2 to 5 peer sections people jump between all day. "stack" for a linear drill-down, "single-screen" for a one-purpose tool (a timer, a calculator, a scanner), "tabs-and-modals" when quick capture or creation opens over tabs, "drawer" for many equal sections. Never pick tabs by habit; say why.
+- screenCountWhy: why this number of screens, no more and no fewer.
+
 Rules:
-- 3 to 6 screens. No login, signup or onboarding unless the user asks for it.
+- The screens come from the key flows and deep needs, so their number and kind follow the app: a single-purpose tool can be 1 or 2 screens, a richer app 8 or more. Do not pad it to a standard size and do not add generic screens (a Favorites, Profile, Settings, About or a second list) unless a flow needs them. Add Settings only when there are real preferences to set. Include the states a real app has when they matter (empty, detail, create/edit, results, a paywall or onboarding only if asked).
+- No login, signup or onboarding unless the user asks for it.
 - route = the file path without "app" and the extension: app/(tabs)/stats.tsx → /(tabs)/stats.
-- 2 to 4 main sections → bottom tabs: tab screens live in app/(tabs)/, app/(tabs)/index.tsx is the first tab, and there is NO app/index.tsx. Detail screens stay outside the group (app/habit/[id].tsx).
+- With "tabs" navigation: tab screens live in app/(tabs)/, app/(tabs)/index.tsx is the first tab, and there is NO app/index.tsx. Detail and create screens stay outside the group (app/habit/[id].tsx, app/habit/new.tsx). Without tabs, app/index.tsx is the first screen. Modals are plain routes opened with presentation "modal".
 - previewPath = the URL that opens the screen: groups and a trailing "index" removed, dynamic params replaced by the seed id "1" (/(tabs)/index → /, /habit/[id] → /habit/1).
 - navigatesTo lists the routes (not paths) a screen opens.
 - components: names from this kit only: ${KIT_COMPONENTS.join(", ")}.
@@ -61,7 +69,7 @@ const numbered = (xs: string[]) => xs.map((x, i) => `${i + 1}. ${x}`).join("\n")
 export function foundationTask(plan: AppPlan, files: Record<string, string>) {
   const tabs = plan.screens.filter((s) => s.file.includes("/(tabs)/"));
   return `TASK: Lay the foundation of "${plan.name}".
-
+${plan.brief ? `\nWhat the app is for (from the planner):\n${plan.brief}\n` : ""}
 1. Rewrite theme.json: primary ${plan.theme.primary}, background ${plan.theme.background}; derive surface, text, muted, border, danger and success with good contrast; add a "dark" object (dark background and surface tinted with the primary).
 2. Write lib/store.ts: a zustand store with persist and persistStorage for this data model, with at least 3 seed items (ids "1", "2", "3") per entity:
 ${JSON.stringify(plan.dataModel, null, 2)}
