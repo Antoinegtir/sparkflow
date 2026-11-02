@@ -598,6 +598,12 @@ function Flow(p: Props) {
     return () => clearTimeout(t);
   }, [initialized, count, p.device, flow]);
 
+  // The prompt bar is centered over the canvas, up to 760 px wide (32 px of margin): on a narrow canvas
+  // (the right panel dragged wide) it would cover the zoom buttons in the bottom-left corner, so they go.
+  // A hook, so before the early return below: the page count changes while the plan arrives.
+  const paneWidth = useStore((s) => s.width);
+  const barOverControls = paneWidth > 0 && (paneWidth - Math.min(760, paneWidth - 32)) / 2 < 64;
+
   if (!count) {
     const planning = !p.native && p.status === "running";
     return (
@@ -656,11 +662,6 @@ function Flow(p: Props) {
     setEditingGroup(board.addGroup(tool, { x: Math.round(box.x), y: Math.round(box.y), w: Math.round(box.w), h: Math.round(box.h) }));
     setTool("move");
   };
-
-  // The prompt bar is centered over the canvas, up to 760 px wide (32 px of margin): on a narrow canvas
-  // (the right panel dragged wide) it would cover the zoom buttons in the bottom-left corner, so they go.
-  const paneWidth = useStore((s) => s.width);
-  const barOverControls = paneWidth > 0 && (paneWidth - Math.min(760, paneWidth - 32)) / 2 < 64;
 
   return (
     <ReactFlow

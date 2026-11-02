@@ -1013,10 +1013,16 @@ export class Orchestrator {
 
   // ---------- dark mode ----------
 
+  /** The "done" status reaches the IDE before the run has finished saving: a capture it asks for then waits for that. */
+  private async settle(rt: ProjectRuntime) {
+    if (rt.running) await rt.idle.catch(() => {});
+    if (rt.running) throw new BusyError();
+  }
+
   async captureDark(id: string) {
     const rt = await this.runtime(id);
     if (rt.meta.native) throw new Error("Use the simulator capture for native projects");
-    if (rt.running) throw new BusyError();
+    await this.settle(rt);
     const stale = rt.state.order.filter((r) => {
       const s = rt.state.screens[r];
       return s?.screenshotUrl && s.dark?.version !== s.version;
@@ -1042,7 +1048,7 @@ export class Orchestrator {
   async captureDevice(id: string, deviceId: string, dark: boolean) {
     const rt = await this.runtime(id);
     if (rt.meta.native) throw new Error("Use the simulator capture for native projects");
-    if (rt.running) throw new BusyError();
+    await this.settle(rt);
     const device = PREVIEW_DEVICES.find((d) => d.id === deviceId);
     if (!device) throw new Error(`Unknown device ${deviceId}`);
     const scheme = dark ? "dark" : "light";

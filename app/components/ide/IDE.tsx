@@ -480,6 +480,8 @@ export function IDE({ id, slug: initialSlug, initialPage, access: given, basePat
 
   // Web: capture pages in the project's preview device (and scheme) when it is not the default iPhone.
   const triedDevice = useRef(new Set<string>());
+  const retries = useRef(new Map<string, number>());
+  const [retryTick, setRetryTick] = useState(0);
   const [capturingDevice, setCapturingDevice] = useState(false);
   useEffect(() => {
     const device = shotDevice(state?.previewDevice);
@@ -489,8 +491,21 @@ export function IDE({ id, slug: initialSlug, initialPage, access: given, basePat
     if (!stale.length || triedDevice.current.has(key)) return;
     triedDevice.current.add(key);
     setCapturingDevice(true);
-    void api.captureDevice(device, scheme).finally(() => setCapturingDevice(false));
-  }, [state, scheme, capturingDevice, capturingDark, api, access]);
+    // A failed capture (the server busy, a sandbox waking up) is tried again, up to 3 times, instead of leaving the pages blurred.
+    void api
+      .captureDevice(device, scheme)
+      .then((r) => {
+        if (r === null) throw new Error("capture failed");
+        retries.current.delete(key);
+      })
+      .catch(() => {
+        const n = (retries.current.get(key) ?? 0) + 1;
+        retries.current.set(key, n);
+        if (n < 3) setTimeout(() => (triedDevice.current.delete(key), setRetryTick((t) => t + 1)), 3000 * n);
+      })
+      .finally(() => setCapturingDevice(false));
+    // Re-run once the retry delay has passed.
+  }, [state, scheme, capturingDevice, capturingDark, api, access, retryTick]);
 
   // Web app shown in the live Simulator: capture its pages there (in Sparkflow Dev) when they aren't yet,
   // or are older than the page. The Simulator is driven meanwhile, so it shows a spinner.
