@@ -74,6 +74,12 @@ describe("cloud gate", () => {
     expect(actor(await call("/api/share/join", { method: "POST" }))).toBe("public");
   });
 
+  it("lets a signed-in person dictate, not a stranger nor a viewer", async () => {
+    expect(actor(await call("/api/transcribe", { method: "POST", token: alice }))).toBe("owner");
+    expect((await call("/api/transcribe", { method: "POST" })).status).toBe(401);
+    expect((await call("/api/transcribe", { method: "POST", token: "sfg_" + "k".repeat(43) })).status).toBe(403);
+  });
+
   it("lets the sign-in exchange and the health check through", async () => {
     expect(actor(await call("/api/cloud/session", { method: "POST" }))).toBe("public");
     expect(actor(await call("/api/health"))).toBe("public");

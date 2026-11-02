@@ -9,7 +9,9 @@ import { DEFAULT_PHASE_MODEL, modelName } from "@/lib/shared/models";
 import { useEffect, useRef, useState } from "react";
 import type { MediaInput, Phase, ProjectState } from "@/lib/shared";
 import { can, useAccess } from "@/lib/web/access";
-import { ATTACH_ACCEPT, blobToWav, startRecording } from "@/lib/web/media";
+import { ATTACH_ACCEPT } from "@/lib/web/media";
+import { useDictation } from "@/lib/web/useDictation";
+import { VoiceWave } from "../VoiceWave";
 import { AttachedFiles, dropBorder, useAttachments } from "./ImageAttach";
 
 export type Selection = {
@@ -96,8 +98,7 @@ type Props = {
 export function PromptBar(p: Props) {
   const [text, setText] = useState("");
   const [audio, setAudio] = useState<{ input: MediaInput; seconds: number } | null>(null);
-  const [rec, setRec] = useState<{ stop: () => Promise<Blob>; started: number } | null>(null);
-  const [elapsed, setElapsed] = useState(0);
+  const voice = useDictation(text, setText);
   const [sending, setSending] = useState(false);
   // Files dropped, picked or pasted on the bar: sketches, screenshots, a PDF or Markdown spec.
   const files = useAttachments(p.state.status === "running");
@@ -112,12 +113,6 @@ export function PromptBar(p: Props) {
     el.style.height = "auto";
     el.style.height = `${Math.min(140, el.scrollHeight)}px`;
   }, [text]);
-
-  useEffect(() => {
-    if (!rec) return;
-    const t = setInterval(() => setElapsed(Math.round((Date.now() - rec.started) / 1000)), 250);
-    return () => clearInterval(t);
-  }, [rec]);
 
   const send = async () => {
     if (running || sending || (!text.trim() && !audio && !files.files.length)) return;
@@ -208,7 +203,7 @@ export function PromptBar(p: Props) {
             rows={1}
             value={text}
             disabled={running}
-            placeholder={placeholder}
+            placeholder={voice.active ? "Listening…" : placeholder}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
@@ -230,47 +225,42 @@ export function PromptBar(p: Props) {
               e.target.value = "";
             }}
           />
-          <IconBtn label="Attach images, a PDF or Markdown" onClick={() => file.current?.click()} disabled={running}>
-            <ImagePlus size={16} />
-          </IconBtn>
-          <IconBtn
-            label={rec ? "Stop recording" : "Record a voice memo"}
-            disabled={running}
-            active={!!rec}
-            onClick={async () => {
-              if (rec) {
-                const blob = await rec.stop();
-                setRec(null);
-                setAudio({ input: await blobToWav(blob), seconds: Math.max(1, elapsed) });
-              } else {
-                try {
-                  const r = await startRecording();
-                  setElapsed(0);
-                  setRec({ stop: r.stop, started: Date.now() });
-                } catch {}
-              }
-            }}>
-            {rec ? <span className="text-[11px] font-semibold text-red-400">■ {elapsed}s</span> : <Mic size={16} />}
-          </IconBtn>
-          {p.canInspect && (
-            <IconBtn label="Point at elements" active={p.inspect} onClick={() => p.onInspect(!p.inspect)} disabled={running}>
-              <Crosshair size={16} />
-            </IconBtn>
-          )}
-          {running ? (
-            <button onClick={p.onStop} aria-label="Stop the agent" className="grid size-9 cursor-pointer place-items-center rounded-xl bg-ink-800 text-ink-100 hover:bg-ink-700">
-              <Square size={13} className="fill-current" />
-            </button>
-          ) : (
-            <button
-              onClick={() => void send()}
-              disabled={sending || (!text.trim() && !audio && !files.files.length)}
-              aria-label="Send"
-              className="grid size-9 cursor-pointer place-items-center rounded-xl bg-spark-500 text-white disabled:cursor-default disabled:bg-ink-800 disabled:text-ink-500">
-              {sending ? <Loader2 size={15} className="animate-spin" /> : <ArrowUp size={16} />}
-            </button>
+          {/* While dictating, the words show up in the field as on the landing; the recording strip replaces the buttons. */}
+          {!voice.active && (
+            <>
+              <IconBtn label="Attach images, a PDF or Markdown" onClick={() => file.current?.click()} disabled={running}>
+                <ImagePlus size={16} />
+              </IconBtn>
+              <IconBtn label="Dictate with your voice" disabled={running} onClick={() => void voice.start()}>
+                <Mic size={16} />
+              </IconBtn>
+              {p.canInspect && (
+                <IconBtn label="Point at elements" active={p.inspect} onClick={() => p.onInspect(!p.inspect)} disabled={running}>
+                  <Crosshair size={16} />
+                </IconBtn>
+              )}
+              {running ? (
+                <button onClick={p.onStop} aria-label="Stop the agent" className="grid size-9 cursor-pointer place-items-center rounded-xl bg-ink-800 text-ink-100 hover:bg-ink-700">
+                  <Square size={13} className="fill-current" />
+                </button>
+              ) : (
+                <button
+                  onClick={() => void send()}
+                  disabled={sending || (!text.trim() && !audio && !files.files.length)}
+                  aria-label="Send"
+                  className="grid size-9 cursor-pointer place-items-center rounded-xl bg-spark-500 text-white disabled:cursor-default disabled:bg-ink-800 disabled:text-ink-500">
+                  {sending ? <Loader2 size={15} className="animate-spin" /> : <ArrowUp size={16} />}
+                </button>
+              )}
+            </>
           )}
         </div>
+        {voice.active && (
+          <div className="mt-1 px-1">
+            <VoiceWave levels={voice.levels} seconds={voice.seconds} onCancel={() => void voice.cancel()} onDone={() => void voice.done()} />
+          </div>
+        )}
+        {voice.error && <p className="mt-1.5 px-2 text-[12px] text-red-400">{voice.error}</p>}
       </div>
     </div>
   );

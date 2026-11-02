@@ -2,11 +2,12 @@
 
 import { ensureCloud } from "@/lib/web/cloud";
 import clsx from "clsx";
-import { ArrowUp, ArrowUpRight, ImagePlus, Loader2, Mic, Square, X } from "lucide-react";
+import { ArrowUp, ArrowUpRight, ImagePlus, Loader2, Mic } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import type { MediaInput } from "@/lib/shared";
-import { ATTACH_ACCEPT, blobToWav, startRecording } from "@/lib/web/media";
+import { ATTACH_ACCEPT } from "@/lib/web/media";
+import { useDictation } from "@/lib/web/useDictation";
+import { VoiceWave } from "./VoiceWave";
 import { AttachedFiles, dropBorder, useAttachments } from "./ide/ImageAttach";
 import { requireSignIn } from "@/lib/web/auth";
 import { apiFetch, getBackend, setMode, openOnBackend, STATIC_SITE } from "@/lib/web/backend";
@@ -29,16 +30,14 @@ export function Composer() {
   const [value, setValue] = useState("");
   // Sketches, screenshots, a PDF or Markdown spec: dropped, picked or pasted.
   const files = useAttachments();
-  const [audio, setAudio] = useState<{ input: MediaInput; seconds: number } | null>(null);
-  const [recording, setRecording] = useState<{ stop: () => Promise<Blob>; started: number } | null>(null);
-  const [elapsed, setElapsed] = useState(0);
+  const voice = useDictation(value, setValue);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const input = useRef<HTMLTextAreaElement>(null);
   const file = useRef<HTMLInputElement>(null);
   // On a phone nothing gets built (it needs a computer): the prompt stays to try, the note says where.
   const phone = useIsPhone();
-  const ready = !phone && (value.trim().length > 0 || files.files.length > 0 || !!audio) && !busy && !recording;
+  const ready = !phone && (value.trim().length > 0 || files.files.length > 0) && !busy && !voice.active;
 
   // A prompt kept while the hosted site walked you through connecting your computer.
   useEffect(() => {
@@ -55,37 +54,12 @@ export function Composer() {
   useEffect(() => {
     const draft = value.trim();
     patchPresence({
-      composer: recording ? "recording" : files.files.length ? "sketch" : draft ? "writing" : undefined,
+      composer: voice.active ? "recording" : files.files.length ? "sketch" : draft ? "writing" : undefined,
       draft: draft ? draft.replace(/\s+/g, " ").slice(0, 80) : undefined,
     });
-  }, [value, files.files.length, recording]);
+  }, [value, files.files.length, voice.active]);
 
-  useEffect(() => {
-    if (!recording) return;
-    const t = setInterval(() => setElapsed(Math.round((Date.now() - recording.started) / 1000)), 250);
-    return () => clearInterval(t);
-  }, [recording]);
-
-  async function toggleVoice() {
-    setError(null);
-    if (recording) {
-      const blob = await recording.stop();
-      setRecording(null);
-      try {
-        setAudio({ input: await blobToWav(blob), seconds: Math.max(1, elapsed) });
-      } catch {
-        setError("The recording could not be encoded.");
-      }
-      return;
-    }
-    try {
-      const rec = await startRecording();
-      setElapsed(0);
-      setRecording({ stop: rec.stop, started: Date.now() });
-    } catch {
-      setError("Microphone access was denied.");
-    }
-  }
+  const toggleVoice = () => (voice.active ? voice.done() : voice.start());
 
   const buildButton = useRef<HTMLButtonElement>(null);
 
@@ -106,7 +80,7 @@ export function Composer() {
       const res = await apiFetch("/api/projects", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ prompt: value, ...(files.files.length ? { attachments: files.inputs() } : {}), ...(audio ? { audio: audio.input } : {}) }),
+        body: JSON.stringify({ prompt: value, ...(files.files.length ? { attachments: files.inputs() } : {}) }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Could not start the build.");
@@ -147,25 +121,18 @@ export function Composer() {
           }}
           onPaste={files.paste}
           rows={3}
-          placeholder="Describe the mobile app you want, drop a sketch or record a voice memo..."
+          placeholder="Describe the mobile app you want, drop a sketch or dictate it with your voice..."
           className="w-full resize-none bg-transparent text-[15px] leading-relaxed text-ink-100 outline-none placeholder:text-ink-500"
         />
         <div className="mb-1 flex flex-col gap-1.5 empty:hidden">
           <AttachedFiles a={files} hint={false} />
         </div>
-        {audio && (
-          <div className="mb-1 flex flex-wrap gap-2">
-            {audio && (
-              <span className="flex items-center gap-2 rounded-xl border border-ink-700 bg-ink-800/80 px-2 py-1 text-xs text-ink-300">
-                <Mic size={13} className="text-spark-400" /> Voice memo · {audio.seconds}s
-                <button onClick={() => setAudio(null)} aria-label="Remove the voice memo" className="cursor-pointer text-ink-500 hover:text-ink-100">
-                  <X size={13} />
-                </button>
-              </span>
-            )}
+        {voice.active && (
+          <div className="mt-2">
+            <VoiceWave levels={voice.levels} seconds={voice.seconds} onCancel={() => void voice.cancel()} onDone={() => void voice.done()} />
           </div>
         )}
-        <div className="mt-2 flex items-center justify-between">
+        <div className={clsx("mt-2 flex items-center justify-between", voice.active && "hidden")}>
           <div className="flex gap-4 text-sm text-ink-300">
             <input
               ref={file}
@@ -181,8 +148,8 @@ export function Composer() {
             <button onClick={() => file.current?.click()} className="flex cursor-pointer items-center gap-1.5 hover:text-ink-100">
               <ImagePlus size={17} /> Sketch
             </button>
-            <button onClick={() => void toggleVoice()} className={clsx("flex cursor-pointer items-center gap-1.5 hover:text-ink-100", recording && "text-red-400")}>
-              {recording ? <Square size={14} className="fill-current" /> : <Mic size={17} />} {recording ? `Stop · ${elapsed}s` : "Voice"}
+            <button onClick={() => void toggleVoice()} className="flex cursor-pointer items-center gap-1.5 hover:text-ink-100">
+              <Mic size={17} /> Voice
             </button>
           </div>
           <button
@@ -200,7 +167,7 @@ export function Composer() {
           </button>
         </div>
       </div>
-      {error && <p className="mt-3 text-center text-sm text-red-400">{error}</p>}
+      {(error ?? voice.error) && <p className="mt-3 text-center text-sm text-red-400">{error ?? voice.error}</p>}
       {phone && (
         <div className="mt-5">
           <DesktopNote what="build your app" />

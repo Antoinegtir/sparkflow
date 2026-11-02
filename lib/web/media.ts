@@ -113,3 +113,95 @@ export const timeAgo = (ts: number) => {
   if (s < 86400) return `${Math.floor(s / 3600)} h ago`;
   return `${Math.floor(s / 86400)} d ago`;
 };
+
+const BARS = 48;
+
+/**
+ * Live dictation: records the mic, reports the voice level for a scrolling waveform and re-transcribes the
+ * audio every couple of seconds (Muse, through /api/transcribe) so the text shows up as you speak.
+ */
+export async function startDictation(o: {
+  transcribe: (wav: MediaInput) => Promise<string>;
+  onText: (text: string, final: boolean) => void;
+  onLevels: (levels: number[]) => void;
+  /** The first failed transcription of the session (the server says why), so it doesn't fail silently. */
+  onError?: (message: string) => void;
+}) {
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+  const ctx = new AudioContext();
+  const analyser = ctx.createAnalyser();
+  analyser.fftSize = 1024;
+  ctx.createMediaStreamSource(stream).connect(analyser);
+  const wave = new Uint8Array(analyser.fftSize);
+  const levels: number[] = Array(BARS).fill(0);
+  const meter = setInterval(() => {
+    analyser.getByteTimeDomainData(wave);
+    let sum = 0;
+    for (const v of wave) sum += ((v - 128) / 128) ** 2;
+    levels.push(Math.min(1, Math.sqrt(sum / wave.length) * 4));
+    levels.shift();
+    o.onLevels([...levels]);
+  }, 60);
+
+  const rec = new MediaRecorder(stream);
+  const chunks: Blob[] = [];
+  rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+  rec.start(500);
+
+  let inflight = false;
+  let seq = 0;
+  let shown = 0;
+  let closed = false;
+  let dropped = false;
+  let reported = false;
+  const run = async (final: boolean) => {
+    if (!chunks.length) return o.onText("", final);
+    const mine = ++seq;
+    try {
+      const text = await o.transcribe(await blobToWav(new Blob(chunks, { type: rec.mimeType })));
+      // A slow answer never overwrites a newer one.
+      if (mine >= shown && !dropped) {
+        shown = mine;
+        o.onText(text, final);
+      }
+    } catch (e) {
+      if (!reported && !dropped) {
+        reported = true;
+        o.onError?.(e instanceof Error ? e.message : "Transcription failed");
+      }
+      if (final) o.onText("", true);
+    }
+  };
+  const tick = setInterval(async () => {
+    if (inflight || closed) return;
+    inflight = true;
+    await run(false);
+    inflight = false;
+  }, 2000);
+
+  const close = () => {
+    closed = true;
+    clearInterval(meter);
+    clearInterval(tick);
+    stream.getTracks().forEach((t) => t.stop());
+    void ctx.close();
+  };
+  const finish = () => new Promise<void>((resolve) => {
+    rec.onstop = () => resolve();
+    if (rec.state !== "inactive") rec.stop();
+    else resolve();
+  });
+  return {
+    /** Stops the mic and settles on the full transcript. */
+    stop: async () => {
+      close();
+      await finish();
+      await run(true);
+    },
+    cancel: async () => {
+      dropped = true;
+      close();
+      await finish();
+    },
+  };
+}

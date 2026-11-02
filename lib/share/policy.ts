@@ -13,6 +13,8 @@ type Rule = { methods: string[]; re: RegExp; min: Role | ((q: URLSearchParams) =
 const GUEST_RULES: Rule[] = [
   { methods: ["GET"], re: /^\/api\/projects$/, min: "view" },
   { methods: ["GET"], re: /^\/api\/file-icon$/, min: "view" },
+  // Dictation into the prompt bar: whoever can prompt.
+  { methods: ["POST"], re: /^\/api\/transcribe$/, min: "edit" },
   { methods: ["GET"], re: new RegExp(`${P}$`), min: "view" },
   // The route itself accepts previewDevice only from guests; renaming stays with the owner.
   { methods: ["PATCH"], re: new RegExp(`${P}$`), min: "edit" },

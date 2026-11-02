@@ -122,6 +122,8 @@ function cloudGate(req: NextRequest, headers: Headers, given: string | undefined
   // A project brought over from a Mac: the route checks it isn't someone else's.
   if ((pathname === "/api/sync" || pathname === "/api/sync/shot") && req.method === "POST") return cors(req, pass(req, headers, as));
   if (pathname === "/api/file-icon" || (pathname === "/api/demo" && req.method === "POST")) return cors(req, pass(req, headers, as));
+  // Dictation in the prompt boxes: speech to text, not an agent run.
+  if (pathname === "/api/transcribe" && req.method === "POST") return cors(req, pass(req, headers, as));
   if (pathname === "/api/projects") {
     if (req.method === "POST" && !takeRun(s.uid)) return runOut();
     return cors(req, pass(req, headers, as));
