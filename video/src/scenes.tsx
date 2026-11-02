@@ -580,7 +580,7 @@ export function Impact() {
       <Backdrop />
       <AbsoluteFill style={{ padding: "120px 160px", fontFamily: sans, color: C.ink100 }}>
         <Reveal at={0}>
-          <Kicker>Push the Frontier · software</Kicker>
+          <Kicker>Build for Your World</Kicker>
         </Reveal>
         <Reveal at={6}>
           <div style={{ fontSize: 84, fontWeight: 800, letterSpacing: -3, lineHeight: 1.05, marginTop: 18, maxWidth: 1500 }}>
