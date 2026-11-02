@@ -610,7 +610,7 @@ export function MetaModels() {
   const models = [
     { m: "Muse Spark 1.3", r: "Planner and Verifier: plans, then judges every screenshot", c: C.sky },
     { m: "Muse Wonder 1.0", r: "Builder: writes the code with tools, fixes what's rejected", c: C.blue },
-    { m: "Muse Spark 1.2 · audio", r: "Listens to voice memos: “bigger, in purple”", c: C.amber },
+    { m: "Muse Voice Transcribe", r: "Dictation: your words appear as you speak", c: C.amber },
     { m: "Muse Image 1.0", r: "Draws the app icon, splash screen and illustrations", c: C.violet },
     { m: "SAM 3.1", r: "Cuts a sketch into buttons, cards and lists", c: C.green },
   ];
