@@ -4,6 +4,14 @@ import { ArrowLeft, Sparkles } from "lucide-react";
 import { AsciiSpark } from "./AsciiLoader";
 import { LoopVideo } from "./LoopVideo";
 
+const ASCII_404 = String.raw`
+ _  _    ___   _  _
+| || |  / _ \ | || |
+| || |_| | | || || |_
+|__   _| |_| ||__   _|
+   |_|  \___/    |_|
+`.slice(1, -1);
+
 /** An app address that matches none of yours: the landing's look, a way back, a way to start one. */
 export function AppNotFound({ name }: { name?: string }) {
   return (
@@ -16,11 +24,31 @@ export function AppNotFound({ name }: { name?: string }) {
       </div>
       <div className="relative flex max-w-lg flex-col items-center">
         <AsciiSpark neon className="text-[15px] leading-none" />
-        <p className="landing-head mt-5 text-7xl font-semibold tracking-tight text-ink-100 sm:text-8xl">404</p>
-        <h1 className="landing-head mt-3 text-balance text-2xl font-semibold text-ink-100 sm:text-3xl">
+        <pre aria-label="404" className="mt-5 select-none font-mono text-[9px] leading-[1.15] text-spark-500 [text-shadow:0_0_12px_color-mix(in_oklab,var(--color-spark-500)_70%,transparent)] sm:text-[12px]">
+          {ASCII_404}
+        </pre>
+        {/* The default app icon from My apps, frozen before the install: there's nothing to install. */}
+        <span className="mt-7 flex flex-col items-center gap-2.5">
+          <span className="relative grid size-16 place-items-center overflow-hidden rounded-[15px] border border-white/20 shadow-[inset_0_1px_0_rgba(255,255,255,.35),0_10px_24px_-8px_rgba(0,0,0,.9)]">
+            <svg viewBox="0 0 100 100" aria-hidden className="absolute inset-0 size-full bg-gradient-to-b from-white to-[#ececec]">
+              <g fill="none" stroke="#7d7d7d" strokeWidth="0.9">
+                <path d="M22 0v100M50 0v100M78 0v100M0 22h100M0 50h100M0 78h100" />
+                <path d="M0 0l100 100M100 0L0 100" />
+                <circle cx="50" cy="50" r="44" />
+                <circle cx="50" cy="50" r="27" />
+                <circle cx="50" cy="50" r="17" />
+              </g>
+            </svg>
+            <span className="absolute inset-0 bg-black/45" />
+            <span className="relative font-mono text-2xl font-bold text-white">?</span>
+          </span>
+          <span className="max-w-40 truncate text-sm text-ink-200">{name ?? "Unknown app"}</span>
+          <span className="-mt-2 font-mono text-[11px] text-ink-500">not installed</span>
+        </span>
+        <h1 className="landing-head mt-6 text-balance text-2xl font-semibold text-ink-100 sm:text-3xl">
           {name ? (
             <>
-              No app called <span className="text-spark-500">{name}</span>
+              The app <span className="text-spark-500">{name}</span> doesn't exist
             </>
           ) : (
             "This app doesn't exist"
