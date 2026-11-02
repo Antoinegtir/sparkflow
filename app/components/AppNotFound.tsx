@@ -2,6 +2,7 @@
 
 import { ArrowLeft, Sparkles } from "lucide-react";
 import { AsciiSpark } from "./AsciiLoader";
+import { DotLens } from "./DotLens";
 import { LoopVideo } from "./LoopVideo";
 
 const ASCII_404 = String.raw`
@@ -15,7 +16,21 @@ const ASCII_404 = String.raw`
 /** An app address that matches none of yours: the landing's look, a way back, a way to start one. */
 export function AppNotFound({ name }: { name?: string }) {
   return (
-    <div data-landing className="relative grid min-h-screen place-items-center overflow-hidden bg-[#0b0d12] px-6 text-center">
+    <div
+      data-landing
+      className="relative grid min-h-screen place-items-center overflow-hidden bg-[#0b0d12] px-6 text-center"
+      style={{ "--dot": "rgba(255, 255, 255, 0.07)" } as React.CSSProperties}>
+      {/* The landing's dot grid and magnifier: flat dots hollowed out where the lens canvas redraws them. */}
+      <div
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(var(--dot)_1px,transparent_1px)] [background-size:22px_22px]"
+        style={{
+          maskImage:
+            "radial-gradient(ellipse at center, black, transparent 70%), radial-gradient(circle var(--lr, 0px) at var(--lx, -999px) var(--ly, -999px), transparent 98%, black 100%)",
+          maskComposite: "intersect",
+          WebkitMaskComposite: "source-in",
+        }}
+      />
+      <DotLens />
       <div className="pointer-events-none absolute left-1/2 top-1/3 size-[520px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-spark-500/15 blur-[120px]" />
       {/* The landing's Android and Apple glass logos on each side (wide screens). */}
       <div aria-hidden className="pointer-events-none absolute inset-0 mx-auto hidden max-w-6xl items-center justify-between px-6 lg:flex">
