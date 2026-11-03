@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { requireOwner } from "@/lib/share/actor";
-import { currentTunnelUrl, ensureServerIdentity, publishBeacon } from "@/lib/share/firebase";
+import { currentTunnelUrl, ensureServerIdentity, publishBeacon, serverUid as hostUid } from "@/lib/share/firebase";
 import { createInvite, listShare } from "@/lib/share/store";
 import { handle, orchestrator, type RouteCtx } from "@/lib/web/server";
 
@@ -29,7 +29,8 @@ export const POST = handle(async (req: Request, { params }: RouteCtx) => {
   const { id } = await params;
   const body = CreateInvite.parse(await req.json());
   await orchestrator().store.readMeta(id);
-  const serverUid = await ensureServerIdentity();
+  // In the cloud the link names the region (cloud-eu, cloud-us); on a Mac, its server account.
+  const serverUid = hostUid() ?? (await ensureServerIdentity());
   const { inviteId, secret } = await createInvite(id, body);
   // Publish the address now, so the first guest finds this Mac without waiting for the heartbeat.
   await publishBeacon(currentTunnelUrl()).catch(() => {});
