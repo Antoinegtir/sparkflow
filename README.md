@@ -33,13 +33,17 @@
 
 <!-- </CENTERED SECTION FOR GITHUB DISPLAY> -->
 
-| Describe | Look |
+| Every page on one canvas, each verified by the agent | Point at an element, say what to change |
 |:---:|:---:|
-| ![Describe](.github/assets/step-describe.jpg) | ![Look](.github/assets/step-look.jpg) |
+| ![The IDE canvas with every page, a comment and the agent loop](.github/assets/ide-canvas.jpg) | ![A page on the iPhone simulator with its criteria and code](.github/assets/ide-page.jpg) |
 
-| Point and talk |
-|:---:|
-| ![Point and talk](.github/assets/step-point.jpg) |
+| The agent loop: Muse Spark plans, Muse Wonder builds, Muse Spark verifies | The page's native layout tree |
+|:---:|:---:|
+| ![The Activity panel with the agent loop](.github/assets/agent-loop.jpg) | ![The layout tree of a page](.github/assets/layout-tree.jpg) |
+
+| Play on the iOS Simulator | Play on the Android emulator | Play on the web |
+|:---:|:---:|:---:|
+| ![Play on the iOS Simulator](.github/assets/play-ios.jpg) | ![Play on the Android emulator](.github/assets/play-android.jpg) | ![Play on the web](.github/assets/play-web.jpg) |
 
 > **Try it in a minute: open [sparkflow-ai.web.app](https://sparkflow-ai.web.app), sign in with GitHub or Google, and open the Wander demo or describe your own app. Runs are unlimited through the judging.**
 
